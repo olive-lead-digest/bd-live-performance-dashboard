@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import clsx from 'clsx';
 import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { calculateRates, buildLeaderboard } from '@/lib/utils';
+import { calculateRates, buildLeaderboard, brandKey } from '@/lib/utils';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
 export default function Reporting() {
@@ -26,7 +26,7 @@ export default function Reporting() {
     const options = new Set<string>();
     
     if ('spark'.includes(query)) options.add('Spark');
-    if ('open'.includes(query)) options.add('Open');
+    if ('open hotels'.includes(query)) options.add('Open Hotels');
     if ('olive'.includes(query)) options.add('Olive');
 
     filteredLeads.forEach(l => {
@@ -44,7 +44,7 @@ export default function Reporting() {
     const query = searchQuery.trim().toLowerCase();
     const allOwners = new Set(filteredLeads.map(l => l.owner?.toLowerCase()).filter(Boolean));
     const isPersonSearch = allOwners.has(query);
-    const isBrandSearch = query === 'spark' || query === 'open' || query === 'olive';
+    const isBrandSearch = query === 'spark' || query === 'open hotels' || query === 'olive';
     const isLocationSearch = query !== '' && !isPersonSearch && !isBrandSearch;
 
     const searchFiltered = filteredLeads.filter(l => {
@@ -92,7 +92,7 @@ export default function Reporting() {
       const currentLeadsAll = filteredLeads.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
       currentLeadsAll.forEach(l => {
         const d = parseInt(l.dt.split('-')[2]);
-        const brand = l.brand?.toLowerCase();
+        const brand = brandKey(l.brand);
         if (dailyMap[d] && brand && dailyMap[d][brand] !== undefined) dailyMap[d][brand]++;
       });
     } else {
@@ -224,14 +224,17 @@ export default function Reporting() {
          searchFiltered.forEach(l => {
            const s = l.status || 'New Leads';
            
-           // Group into Macro Stages to reduce bar clutter
+           // Group into Macro Stages to reduce bar clutter.
+           // Mapped to the real status taxonomy: New/Contacted -> Discovery,
+           // Under Discussion -> Engagement, Awaiting Business Approval -> High Intent,
+           // Closure/Won/Signed -> Won, Lead Dropped/Lost/Junk -> Lost.
            let stage = 'Other';
            const sLower = s.toLowerCase();
            if (sLower.includes('new') || sLower.includes('contact') || sLower.includes('follow') || sLower.includes('attempt')) stage = 'Discovery';
-           else if (sLower.includes('meet') || sLower.includes('propos') || sLower.includes('qual')) stage = 'Engagement';
-           else if (sLower.includes('site') || sLower.includes('nego')) stage = 'High Intent';
-           else if (sLower.includes('closur') || sLower.includes('won')) stage = 'Won';
-           else if (sLower.includes('lost') || sLower.includes('dead') || sLower.includes('junk') || sLower.includes('not int')) stage = 'Lost';
+           else if (sLower.includes('discuss') || sLower.includes('meet') || sLower.includes('propos') || sLower.includes('qual')) stage = 'Engagement';
+           else if (sLower.includes('await') || sLower.includes('approv') || sLower.includes('site') || sLower.includes('nego')) stage = 'High Intent';
+           else if (sLower.includes('closur') || sLower.includes('won') || sLower.includes('sign')) stage = 'Won';
+           else if (sLower.includes('drop') || sLower.includes('lost') || sLower.includes('dead') || sLower.includes('junk') || sLower.includes('not int') || sLower.includes('not qual')) stage = 'Lost';
 
            sCounts[stage] = (sCounts[stage] || 0) + 1;
            
@@ -686,7 +689,7 @@ export default function Reporting() {
                               <Legend wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }} />
                               <Line type="monotone" dataKey="spark" stroke="#da1a84" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Spark" />
                               <Line type="monotone" dataKey="olive" stroke="#502875" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Olive" />
-                              <Line type="monotone" dataKey="open" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Open" />
+                              <Line type="monotone" dataKey="open" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Open Hotels" />
                             </>
                           ) : (
                             <>
