@@ -1,13 +1,14 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates } from '@/lib/utils';
+import { calculateRates, isActive, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import clsx from 'clsx';
 import { SplitSquareHorizontal, Trophy, Plus, Minus } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
-const AVG_DEAL_SIZE = 12500;
+// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
+const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 const formatCurrency = (num: number) => {
   if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
@@ -65,7 +66,8 @@ export default function Compare() {
     const rates = calculateRates(leads);
     const pipelineValue = leads.length * AVG_DEAL_SIZE;
     const securedRevenue = rates.active * AVG_DEAL_SIZE;
-    const winRate = leads.length > 0 ? (rates.active / leads.length) * 100 : 0;
+    // "winRate" identifier kept for stability, but this is the real contact rate (contacted / assigned).
+    const winRate = rates.contact;
     const contactRate = leads.length > 0 ? (rates.n / leads.length) * 100 : 0;
     const yieldPerLead = leads.length > 0 ? securedRevenue / leads.length : 0;
     
@@ -76,7 +78,7 @@ export default function Compare() {
 
     leads.forEach(l => {
       const s = l.status;
-      if (s === 'Site Visit Done' || s === 'Site Visit Planned' || s === 'Closure') highIntentCount++;
+      if (isActive(s)) highIntentCount++; // active conversation = highest real intent in this pipeline
       if (l.ci) ciCount++;
       if (l.tier === 'Tier 1') tier1Count++;
       if (l.owner) owners.add(l.owner);
@@ -309,12 +311,12 @@ export default function Compare() {
 
         {/* Metrics Body */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pt-2">
-          {renderMetricBox("Secured Revenue", "securedRevenue", v => formatCurrency(v), "$")}
-          {renderMetricBox("Pipeline Value", "pipelineValue", v => formatCurrency(v), "$")}
-          {renderMetricBox("Yield per Lead", "yieldPerLead", v => formatCurrency(v), "$")}
-          {renderMetricBox("High-Intent Pipeline", "highIntentRate", v => v.toFixed(1), "", "%")}
+          {renderMetricBox("Est. Active Value", "securedRevenue", v => formatCurrency(v), "$")}
+          {renderMetricBox("Est. Pipeline Value", "pipelineValue", v => formatCurrency(v), "$")}
+          {renderMetricBox("Est. Yield per Lead", "yieldPerLead", v => formatCurrency(v), "$")}
+          {renderMetricBox("Active Rate", "highIntentRate", v => v.toFixed(1), "", "%")}
           {renderMetricBox("Tier 1 Concentration", "tier1Concentration", v => v.toFixed(1), "", "%")}
-          {renderMetricBox("Deal Win Rate", "winRate", v => v.toFixed(1), "", "%")}
+          {renderMetricBox("Contact Rate", "winRate", v => v.toFixed(1), "", "%")}
           {renderMetricBox("Gross Lead Volume", "leads", v => v.toLocaleString())}
           {renderMetricBox("Avg Team Score", "avgTeamScore", v => Math.round(v).toString())}
           {renderMetricBox("Competitor Exposure", "ciExposure", v => v.toFixed(1), "", "%", true)}
@@ -339,8 +341,8 @@ export default function Compare() {
     winLbl
       ? { tone: 'up', text: `${winLbl} leads overall, winning ${overallSummary.topScore} of 9 metrics.` }
       : { tone: 'info', text: `The cohorts are statistically tied across the 9 metrics.` },
-    { tone: 'info', text: `Highest secured revenue: ${revRank[0].l} at $${formatCurrency(revRank[0].v)}.` },
-    { tone: 'info', text: `Best deal win rate: ${wrRank[0].l} (${wrRank[0].v.toFixed(1)}%).` },
+    { tone: 'info', text: `Highest est. active value: ${revRank[0].l} at $${formatCurrency(revRank[0].v)}.` },
+    { tone: 'info', text: `Best contact rate: ${wrRank[0].l} (${wrRank[0].v.toFixed(1)}%).` },
     ...(ciRank[0].v > 0 ? [{ tone: 'warn' as const, text: `${ciRank[0].l} carries the highest competitor exposure (${ciRank[0].v.toFixed(1)}%).` }] : []),
   ];
 
