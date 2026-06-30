@@ -2,7 +2,7 @@
 
 import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, buildLeaderboard } from '@/lib/utils';
+import { calculateRates, buildLeaderboard, isActive, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
 import { FunnelChart } from '@/components/FunnelChart';
 import { DollarSign, TrendingUp, Target, BarChart2, Award, Zap, Building2, Info, AlertTriangle, ChevronRight, Activity, Users, Sparkles, Gauge, ShieldAlert, ArrowUpRight, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { useMemo } from 'react';
@@ -11,10 +11,11 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { InsightsDropdown } from '@/components/InsightsDropdown';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
-const AVG_DEAL_SIZE = 12500; // Mock financial multiplier for executive view
+// Illustrative estimate only — leads carry no monetary amount (see utils.ts). Every "$" below is count x this.
+const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 export default function Overview() {
-  const { data, filteredLeads, isLoading, filters, setFilter } = useDashboard();
+  const { data, filteredLeads, isLoading, error } = useDashboard();
 
   const metrics = useMemo(() => {
     return calculateRates(filteredLeads);
@@ -30,8 +31,8 @@ export default function Overview() {
   const activeDealsCount = calculateRates(filteredLeads).active;
   const totalPipelineValue = totalLeads * AVG_DEAL_SIZE;
   const projectedRevenue = activeDealsCount * AVG_DEAL_SIZE;
-  const winRate = totalLeads > 0 ? (activeDealsCount / totalLeads) * 100 : 0;
-  const avgSalesCycle = 18; // Mock static average days to convert for executive display
+  // "Active rate" = active deals / total leads (NOT a true win rate — won deals live in the CRM Deals module).
+  const activeRate = totalLeads > 0 ? (activeDealsCount / totalLeads) * 100 : 0;
 
   // Trend Data - Revenue mapped
   const trendData = useMemo(() => {
@@ -40,7 +41,7 @@ export default function Overview() {
       const m = l.dt.slice(0, 7);
       if (!tm[m]) tm[m] = { leads: 0, revenue: 0 };
       tm[m].leads++;
-      if (l.status === 'Site Visit Done' || l.status === 'Site Visit Planned' || l.status === 'Closure' || l.status === 'Under Discussion') tm[m].revenue += AVG_DEAL_SIZE;
+      if (isActive(l.status)) tm[m].revenue += AVG_DEAL_SIZE;
     });
     return Object.keys(tm).sort().map(m => ({
       month: m,
@@ -56,7 +57,7 @@ export default function Overview() {
       const r = l.region || 'Unknown';
       if (!rm[r]) rm[r] = { active: 0, total: 0 };
       rm[r].total += AVG_DEAL_SIZE;
-      if (l.status === 'Site Visit Done' || l.status === 'Site Visit Planned' || l.status === 'Closure' || l.status === 'Under Discussion') rm[r].active += AVG_DEAL_SIZE;
+      if (isActive(l.status)) rm[r].active += AVG_DEAL_SIZE;
     });
     return Object.keys(rm)
       .filter(r => r !== 'Unknown' && rm[r].total > 0)
@@ -173,6 +174,16 @@ export default function Overview() {
     return bd && !bd.q;
   }).length : 0;
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 relative z-10 max-w-xl mx-auto text-center px-6">
+        <AlertTriangle className="w-10 h-10 text-red-400" />
+        <div className="text-white font-bold tracking-widest uppercase text-sm">Data unavailable</div>
+        <div className="text-text-secondary text-sm">{error}</div>
+      </div>
+    );
+  }
+
   if (isLoading || !data) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 relative z-10">
@@ -217,38 +228,39 @@ export default function Overview() {
 
       {/* Financial KPI Rail */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 relative z-10">
-        <FinancialCard 
-          title="Total Pipeline Value" 
-          value={formatCurrency(totalPipelineValue)} 
-          subtitle={`${totalLeads.toLocaleString()} Active Leads`}
-          icon={Building2} 
+        <FinancialCard
+          title="Est. Pipeline Value"
+          value={formatCurrency(totalPipelineValue)}
+          subtitle={`${totalLeads.toLocaleString()} Leads · est.`}
+          icon={Building2}
           color="#a470d6"
           prefix="$"
         />
-        <FinancialCard 
-          title="Projected Revenue" 
-          value={formatCurrency(projectedRevenue)} 
-          subtitle={`${activeDealsCount.toLocaleString()} Secured Deals`}
-          icon={DollarSign} 
+        <FinancialCard
+          title="Est. Active Value"
+          value={formatCurrency(projectedRevenue)}
+          subtitle={`${activeDealsCount.toLocaleString()} Active Deals · est.`}
+          icon={DollarSign}
           color="#34d399"
           prefix="$"
         />
-        <FinancialCard 
-          title="Aggregate Win Rate" 
-          value={winRate.toFixed(1)} 
-          subtitle={`+2.4% vs Last Quarter`}
-          icon={Target} 
+        <FinancialCard
+          title="Active Rate"
+          value={activeRate.toFixed(1)}
+          subtitle={`${activeDealsCount.toLocaleString()} of ${metrics.n.toLocaleString()} assigned`}
+          icon={Target}
           color="#da1a84"
           prefix=""
           suffix="%"
         />
-        <FinancialCard 
-          title="Sales Cycle Velocity" 
-          value={avgSalesCycle} 
-          subtitle={`Days to Convert (Avg)`}
-          icon={Zap} 
+        <FinancialCard
+          title="Drop Rate"
+          value={metrics.drop.toFixed(1)}
+          subtitle={`${metrics.dropped.toLocaleString()} Dropped`}
+          icon={Zap}
           color="#ffb020"
           prefix=""
+          suffix="%"
         />
         <FinancialCard 
           title="Contact Rate" 
@@ -406,7 +418,7 @@ export default function Overview() {
           <div className="flex-1 flex flex-col gap-4">
             {leaderboard.map((bd, i) => {
               const score = bd.bps?.score || 0;
-              const winRate = bd.active || 0;
+              const activePct = bd.active || 0;
               return (
               <div key={bd.owner} className="flex items-center gap-4 p-3 rounded-xl bg-black/20 border border-border-subtle/50 hover:bg-surface/40 hover:border-border-subtle transition-colors group">
                 <div className={clsx(
@@ -424,7 +436,7 @@ export default function Overview() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-black text-brand-pink-400">${formatCurrency(bd.n * AVG_DEAL_SIZE)}</div>
-                  <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{winRate.toFixed(1)}% Win</div>
+                  <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{activePct.toFixed(1)}% Active</div>
                 </div>
               </div>
             )})}
