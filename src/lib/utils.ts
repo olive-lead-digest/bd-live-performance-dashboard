@@ -19,30 +19,72 @@ export function pctile(vals: number[]): number[] {
   return pr;
 }
 
+/*
+ * Status taxonomy — reconciled to the REAL pipeline output (dashboard_data.json),
+ * whose lead statuses are: New Leads, Lead Contacted, Under Discussion,
+ * Awaiting Business Approval, Lead Dropped, null.
+ *
+ * CONT_STATUSES  = a lead that has been engaged at least once (past "New Leads").
+ * ACT_STATUSES   = a lead in an active, live conversation right now.
+ * WON_STATUSES   = closed-won. The current Leads-by-phone pipeline carries almost
+ *                  no won status (won deals live in the CRM Deals module), so this
+ *                  is near-empty today but kept forward-compatible: if the pipeline
+ *                  later surfaces Closure/Won/Signed, win-rate starts working with
+ *                  no further code change.
+ */
 export const CONT_STATUSES = new Set(['Lead Contacted', 'Under Discussion', 'Awaiting Business Approval']);
 export const ACT_STATUSES = new Set(['Under Discussion', 'Awaiting Business Approval']);
+export const WON_STATUSES = new Set(['Closure', 'Won', 'Signed', 'Qualified (WON)']);
+export const DROP_STATUSES = new Set(['Lead Dropped', 'Lost Lead', 'Junk Lead', 'Not Qualified']);
+
+export const isContacted = (s: string | null) => !!s && CONT_STATUSES.has(s);
+export const isActive = (s: string | null) => !!s && ACT_STATUSES.has(s);
+export const isWon = (s: string | null) => !!s && WON_STATUSES.has(s);
+export const isDropped = (s: string | null) => !!s && DROP_STATUSES.has(s);
+
+/*
+ * Estimated value per lead/deal. The lead pipeline has no per-record monetary
+ * amount (those live in the CRM Deals module), so every "$" figure in the UI is
+ * an ILLUSTRATIVE estimate = count x ESTIMATED_DEAL_VALUE. Centralized here so it
+ * can be changed in one place or replaced with a real Deals-join later.
+ */
+export const ESTIMATED_DEAL_VALUE = 12500;
+
+/*
+ * Normalize a brand value to a stable short key. The real data uses the full
+ * string "Open Hotels" (not "Open"), which previously broke brand matching and
+ * left the Open line/series empty. Maps: "Open Hotels" -> "open", "Olive" ->
+ * "olive", "Spark" -> "spark".
+ */
+export const brandKey = (b?: string | null): string => {
+  const x = (b || '').toLowerCase().trim();
+  return x.startsWith('open') ? 'open' : x;
+};
 
 import { Lead, Rates, BD, LeaderboardRec } from './types';
 
 export function calculateRates(ls: Lead[]): Rates {
   const assigned = ls.filter(l => !!l.owner);
   const n = assigned.length;
-  let c = 0, act = 0, d = 0;
-  
+  let c = 0, act = 0, d = 0, w = 0;
+
   assigned.forEach(l => {
-    if (l.status && CONT_STATUSES.has(l.status)) c++;
-    if (l.status && ACT_STATUSES.has(l.status)) act++;
-    if (l.status === 'Lead Dropped') d++;
+    if (isContacted(l.status)) c++;
+    if (isActive(l.status)) act++;
+    if (isWon(l.status)) w++;
+    if (isDropped(l.status)) d++;
   });
-  
+
   return {
     n,
     contacted: c,
     active: act,
     dropped: d,
+    won: w,
     contact: n ? (c / n) * 100 : 0,
     activeR: n ? (act / n) * 100 : 0,
     drop: n ? (d / n) * 100 : 0,
+    wonR: n ? (w / n) * 100 : 0,
     contactCI: wilson(c, n),
     activeCI: wilson(act, n),
     dropCI: wilson(d, n)

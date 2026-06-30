@@ -58,9 +58,11 @@ export interface Rates {
   contacted: number;
   active: number;
   dropped: number;
+  won: number;
   contact: number;
   activeR: number;
   drop: number;
+  wonR: number;
   contactCI: [number, number];
   activeCI: [number, number];
   dropCI: [number, number];

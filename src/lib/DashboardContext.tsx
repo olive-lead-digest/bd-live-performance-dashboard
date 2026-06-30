@@ -25,6 +25,7 @@ interface DashboardContextType {
   setDateRange: (from: string, to: string) => void;
   clearFilters: () => void;
   isLoading: boolean;
+  error: string | null;
 }
 
 const defaultFilters: Filters = {
@@ -47,18 +48,29 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<DashData | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Poll for window.DASH_DATA (loaded via script tag in layout)
+  // Fetch the real dataset from the server-side API route (which reads the
+  // OliveScripts pipeline output). No credentials or raw data in the client bundle.
   useEffect(() => {
-    const checkData = () => {
-      if (window.DASH_DATA) {
-        setData(window.DASH_DATA);
-        setIsLoading(false);
-      } else {
-        setTimeout(checkData, 100);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/dashboard');
+        const body = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(body?.error || `Failed to load dashboard data (${res.status}).`);
+        } else {
+          setData(body as DashData);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load dashboard data.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-    };
-    checkData();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const setFilter = (key: keyof Filters, value: string, clear?: boolean) => {
@@ -114,7 +126,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setFilter,
       setDateRange,
       clearFilters,
-      isLoading
+      isLoading,
+      error
     }}>
       {children}
     </DashboardContext.Provider>
