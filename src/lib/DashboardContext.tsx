@@ -1,0 +1,128 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { DashData, Lead } from './types';
+
+export interface Filters {
+  from: string;
+  to: string;
+  region: Set<string>;
+  state: Set<string>;
+  city: Set<string>;
+  cluster: Set<string>;
+  brand: Set<string>;
+  status: Set<string>;
+  tier: Set<string>;
+  prop: Set<string>;
+  owner: Set<string>;
+}
+
+interface DashboardContextType {
+  data: DashData | null;
+  filters: Filters;
+  filteredLeads: Lead[];
+  setFilter: (key: keyof Filters, value: string, clear?: boolean) => void;
+  setDateRange: (from: string, to: string) => void;
+  clearFilters: () => void;
+  isLoading: boolean;
+}
+
+const defaultFilters: Filters = {
+  from: '',
+  to: '',
+  region: new Set(),
+  state: new Set(),
+  city: new Set(),
+  cluster: new Set(),
+  brand: new Set(),
+  status: new Set(),
+  tier: new Set(),
+  prop: new Set(),
+  owner: new Set()
+};
+
+const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
+
+export function DashboardProvider({ children }: { children: ReactNode }) {
+  const [data, setData] = useState<DashData | null>(null);
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Poll for window.DASH_DATA (loaded via script tag in layout)
+  useEffect(() => {
+    const checkData = () => {
+      if (window.DASH_DATA) {
+        setData(window.DASH_DATA);
+        setIsLoading(false);
+      } else {
+        setTimeout(checkData, 100);
+      }
+    };
+    checkData();
+  }, []);
+
+  const setFilter = (key: keyof Filters, value: string, clear?: boolean) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (key === 'from' || key === 'to') return next;
+      
+      const set = new Set(prev[key] as Set<string>);
+      if (clear) {
+        set.clear();
+      } else if (set.has(value)) {
+        set.delete(value);
+      } else {
+        set.add(value);
+      }
+      next[key] = set as any;
+      return next;
+    });
+  };
+
+  const setDateRange = (from: string, to: string) => {
+    setFilters(prev => ({ ...prev, from, to }));
+  };
+
+  const clearFilters = () => {
+    setFilters(defaultFilters);
+  };
+
+  const filteredLeads = useMemo(() => {
+    if (!data) return [];
+    
+    return data.leads.filter(l => {
+      if (filters.from && l.dt < filters.from) return false;
+      if (filters.to && l.dt > filters.to) return false;
+      if (filters.region.size && !filters.region.has(l.region)) return false;
+      if (filters.state.size && !filters.state.has(l.state)) return false;
+      if (filters.city.size && !filters.city.has(l.city)) return false;
+      if (filters.cluster.size && !filters.cluster.has(l.cluster)) return false;
+      if (filters.brand.size && !filters.brand.has(l.brand)) return false;
+      if (filters.tier.size && !filters.tier.has(l.tier)) return false;
+      if (filters.owner.size && !(l.owner && filters.owner.has(l.owner))) return false;
+      if (filters.prop.size && !filters.prop.has(l.prop)) return false;
+      if (filters.status.size && !filters.status.has(l.status || '(unassigned)')) return false;
+      return true;
+    });
+  }, [data, filters]);
+
+  return (
+    <DashboardContext.Provider value={{
+      data,
+      filters,
+      filteredLeads,
+      setFilter,
+      setDateRange,
+      clearFilters,
+      isLoading
+    }}>
+      {children}
+    </DashboardContext.Provider>
+  );
+}
+
+export function useDashboard() {
+  const ctx = useContext(DashboardContext);
+  if (!ctx) throw new Error('useDashboard must be used within DashboardProvider');
+  return ctx;
+}

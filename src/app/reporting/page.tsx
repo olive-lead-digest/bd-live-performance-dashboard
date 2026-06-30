@@ -1,0 +1,831 @@
+'use client';
+
+import { useDashboard } from '@/lib/DashboardContext';
+import { useMemo, useState } from 'react';
+import { 
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend,
+  PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis
+} from 'recharts';
+import clsx from 'clsx';
+import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { calculateRates, buildLeaderboard } from '@/lib/utils';
+import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+
+export default function Reporting() {
+  const { filteredLeads, data, isLoading } = useDashboard();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+
+  const bds = data?.bds || {};
+  const weights = data?.weights || { Q: 1, Cv: 1, Cmp: 1, Lv: 1, Cav: 1 };
+
+  const suggestions = useMemo(() => {
+    if (!searchQuery.trim() || !isFocused) return [];
+    const query = searchQuery.trim().toLowerCase();
+    
+    const options = new Set<string>();
+    
+    if ('spark'.includes(query)) options.add('Spark');
+    if ('open'.includes(query)) options.add('Open');
+    if ('olive'.includes(query)) options.add('Olive');
+
+    filteredLeads.forEach(l => {
+      if (l.owner && l.owner.toLowerCase().includes(query)) options.add(l.owner);
+      if (l.region && l.region.toLowerCase().includes(query)) options.add(l.region);
+      if (l.city && l.city.toLowerCase().includes(query)) options.add(l.city);
+    });
+
+    return Array.from(options).filter(opt => opt.toLowerCase() !== query).slice(0, 8);
+  }, [filteredLeads, searchQuery, isFocused]);
+
+  const reportData = useMemo(() => {
+    if (!filteredLeads.length) return null;
+
+    const query = searchQuery.trim().toLowerCase();
+    const allOwners = new Set(filteredLeads.map(l => l.owner?.toLowerCase()).filter(Boolean));
+    const isPersonSearch = allOwners.has(query);
+    const isBrandSearch = query === 'spark' || query === 'open' || query === 'olive';
+    const isLocationSearch = query !== '' && !isPersonSearch && !isBrandSearch;
+
+    const searchFiltered = filteredLeads.filter(l => {
+      if (!query) return true;
+      if (isBrandSearch) return l.brand && l.brand.toLowerCase() === query;
+      return (
+        (l.owner && l.owner.toLowerCase().includes(query)) ||
+        (l.region && l.region.toLowerCase().includes(query)) ||
+        (l.city && l.city.toLowerCase().includes(query))
+      );
+    });
+
+    if (!searchFiltered.length && !isBrandSearch) {
+      return { isEmpty: true, currName: "", prevName: "", currDay: 1 };
+    }
+
+    // Date Math
+    const maxDate = filteredLeads.reduce((max, l) => l.dt > max ? l.dt : max, '2000-01-01');
+    const currDate = new Date(maxDate);
+    const currYear = currDate.getFullYear();
+    const currMonth = currDate.getMonth();
+    const currDay = currDate.getDate();
+    const prevMonthDate = new Date(currYear, currMonth - 1, currDay);
+    const prevMonth = prevMonthDate.getMonth();
+    const prevYear = prevMonthDate.getFullYear();
+
+    const currMonthPrefix = `${currYear}-${String(currMonth + 1).padStart(2, '0')}`;
+    const prevMonthPrefix = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const currName = monthNames[currMonth];
+    const prevName = monthNames[prevMonth];
+
+    const currentLeads = searchFiltered.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+    const previousLeads = searchFiltered.filter(l => l.dt.startsWith(prevMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+    const currRates = calculateRates(currentLeads);
+    const prevRates = calculateRates(previousLeads);
+
+    const dailyMap: Record<number, any> = {};
+    for (let i = 1; i <= currDay; i++) {
+      if (isBrandSearch) dailyMap[i] = { day: i, spark: 0, open: 0, olive: 0 };
+      else dailyMap[i] = { day: i, curr: 0, prev: 0 };
+    }
+
+    if (isBrandSearch) {
+      const currentLeadsAll = filteredLeads.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+      currentLeadsAll.forEach(l => {
+        const d = parseInt(l.dt.split('-')[2]);
+        const brand = l.brand?.toLowerCase();
+        if (dailyMap[d] && brand && dailyMap[d][brand] !== undefined) dailyMap[d][brand]++;
+      });
+    } else {
+      currentLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].curr++; });
+      previousLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].prev++; });
+    }
+    const chartData = Object.values(dailyMap).sort((a, b) => a.day - b.day);
+
+    const baseData = {
+      isEmpty: false, isPersonSearch, isLocationSearch, isBrandSearch,
+      currName, prevName, currDay,
+      currTotal: currentLeads.length, prevTotal: previousLeads.length,
+      currActive: currRates.active, prevActive: prevRates.active,
+      chartData, zoomStats: { outreach: 0, connects: 0, recordings: 0, connectRate: 0 }
+    };
+
+    const leaderboardRecs = buildLeaderboard(searchFiltered, bds, weights);
+
+    if (isPersonSearch) {
+      // --- PERSON DASHBOARD ---
+      const globalLeaderboard = buildLeaderboard(filteredLeads, bds, weights);
+      const personRec = globalLeaderboard.find(r => r.owner.toLowerCase() === query);
+      
+      let gSoft=0, gBrand=0, gPitch=0, gSales=0, gConv=0, gDisc=0, gObj=0, gClose=0;
+      let validQCount = 0;
+      globalLeaderboard.forEach(r => {
+        if (r.q) {
+          validQCount++;
+          gSoft += r.q.soft_skills; gBrand += r.q.brand_alignment; gPitch += r.q.pitch_clarity;
+          gSales += r.q.sales_skill; gConv += r.q.conversion_skill; gDisc += r.q.discovery_quality;
+          gObj += r.q.objection_handling; gClose += r.q.closing_discipline;
+        }
+      });
+
+      const p = personRec?.q;
+      let radarData: any[] = [];
+      if (p) {
+        radarData = [
+          { subject: 'Soft Skills', Person: Math.round(p.soft_skills * 10), Global: Math.round((gSoft/validQCount)*10) },
+          { subject: 'Brand Align', Person: Math.round(p.brand_alignment * 10), Global: Math.round((gBrand/validQCount)*10) },
+          { subject: 'Pitch Clarity', Person: Math.round(p.pitch_clarity * 10), Global: Math.round((gPitch/validQCount)*10) },
+          { subject: 'Sales Skill', Person: Math.round(p.sales_skill * 10), Global: Math.round((gSales/validQCount)*10) },
+          { subject: 'Conversion', Person: Math.round(p.conversion_skill * 10), Global: Math.round((gConv/validQCount)*10) },
+          { subject: 'Discovery', Person: Math.round(p.discovery_quality * 10), Global: Math.round((gDisc/validQCount)*10) },
+          { subject: 'Objection', Person: Math.round(p.objection_handling * 10), Global: Math.round((gObj/validQCount)*10) },
+          { subject: 'Closing', Person: Math.round(p.closing_discipline * 10), Global: Math.round((gClose/validQCount)*10) },
+        ];
+      }
+
+      if (personRec?.bd?.zoom) {
+        baseData.zoomStats = {
+          outreach: personRec.bd.zoom.out, connects: personRec.bd.zoom.conn, 
+          recordings: personRec.bd.zoom.rec, connectRate: (personRec.bd.zoom.conn / personRec.bd.zoom.out) * 100
+        };
+      }
+
+      const rank = globalLeaderboard.findIndex(r => r.owner.toLowerCase() === query) + 1;
+
+      return { ...baseData, radarData, personRec, globalRank: rank, totalBDs: globalLeaderboard.length };
+    } 
+    else {
+      // --- LOCATION / MACRO DASHBOARD ---
+      let bandData = [
+        { name: 'Top performer', value: 0, color: '#10b981' },
+        { name: 'Strong', value: 0, color: '#3b82f6' },
+        { name: 'Developing', value: 0, color: '#f59e0b' },
+        { name: 'Priority coaching', value: 0, color: '#ef4444' }
+      ];
+      let totalZoom = { out: 0, conn: 0, rec: 0 };
+      let validBDsWithQ = 0;
+      const skillAvgs = { soft_skills: 0, brand_alignment: 0, pitch_clarity: 0, sales_skill: 0, conversion_skill: 0, discovery_quality: 0, objection_handling: 0, closing_discipline: 0 };
+      const scatterData: any[] = [];
+      
+      leaderboardRecs.forEach(rec => {
+        if (rec.bd?.zoom) {
+          totalZoom.out += rec.bd.zoom.out; totalZoom.conn += rec.bd.zoom.conn; totalZoom.rec += rec.bd.zoom.rec;
+        }
+        if (rec.bps) {
+          const bandItem = bandData.find(b => b.name === rec.band);
+          if (bandItem) bandItem.value++;
+          const pipelineVal = rec.n * 12500;
+          const securedRev = rec.active * 12500;
+          const winRate = rec.n > 0 ? (rec.active / rec.n) * 100 : 0;
+          scatterData.push({ 
+            name: rec.owner, 
+            pipeline: pipelineVal, 
+            revenue: securedRev, 
+            winRate: Math.round(winRate) 
+          });
+        }
+        if (rec.q) {
+          validBDsWithQ++;
+          skillAvgs.soft_skills += rec.q.soft_skills; skillAvgs.brand_alignment += rec.q.brand_alignment; skillAvgs.pitch_clarity += rec.q.pitch_clarity;
+          skillAvgs.sales_skill += rec.q.sales_skill; skillAvgs.conversion_skill += rec.q.conversion_skill; skillAvgs.discovery_quality += rec.q.discovery_quality;
+          skillAvgs.objection_handling += rec.q.objection_handling; skillAvgs.closing_discipline += rec.q.closing_discipline;
+        }
+      });
+      
+      let radarData: any[] = [];
+      if (validBDsWithQ > 0) {
+        radarData = [
+          { subject: 'Soft Skills', A: Math.round((skillAvgs.soft_skills / validBDsWithQ) * 10) },
+          { subject: 'Brand Align', A: Math.round((skillAvgs.brand_alignment / validBDsWithQ) * 10) },
+          { subject: 'Pitch Clarity', A: Math.round((skillAvgs.pitch_clarity / validBDsWithQ) * 10) },
+          { subject: 'Sales Skill', A: Math.round((skillAvgs.sales_skill / validBDsWithQ) * 10) },
+          { subject: 'Conversion', A: Math.round((skillAvgs.conversion_skill / validBDsWithQ) * 10) },
+          { subject: 'Discovery', A: Math.round((skillAvgs.discovery_quality / validBDsWithQ) * 10) },
+          { subject: 'Objection', A: Math.round((skillAvgs.objection_handling / validBDsWithQ) * 10) },
+          { subject: 'Closing', A: Math.round((skillAvgs.closing_discipline / validBDsWithQ) * 10) },
+        ];
+      }
+      
+      baseData.zoomStats = {
+        outreach: totalZoom.out, connects: totalZoom.conn, recordings: totalZoom.rec,
+        connectRate: totalZoom.out > 0 ? (totalZoom.conn / totalZoom.out) * 100 : 0
+      };
+      bandData = bandData.filter(b => b.value > 0);
+
+      // --- LOCATION SPECIFIC METRICS ---
+      let localLeaderboard: any[] = [];
+      let statusCounts: any[] = [];
+      let brandCounts: any[] = [];
+      
+      if (isLocationSearch) {
+         localLeaderboard = [...leaderboardRecs].sort((a, b) => (b.bps?.score || 0) - (a.bps?.score || 0)).slice(0, 5);
+         
+         const sCounts: Record<string, number> = {};
+         const bCounts: Record<string, number> = {};
+         searchFiltered.forEach(l => {
+           const s = l.status || 'New Leads';
+           
+           // Group into Macro Stages to reduce bar clutter
+           let stage = 'Other';
+           const sLower = s.toLowerCase();
+           if (sLower.includes('new') || sLower.includes('contact') || sLower.includes('follow') || sLower.includes('attempt')) stage = 'Discovery';
+           else if (sLower.includes('meet') || sLower.includes('propos') || sLower.includes('qual')) stage = 'Engagement';
+           else if (sLower.includes('site') || sLower.includes('nego')) stage = 'High Intent';
+           else if (sLower.includes('closur') || sLower.includes('won')) stage = 'Won';
+           else if (sLower.includes('lost') || sLower.includes('dead') || sLower.includes('junk') || sLower.includes('not int')) stage = 'Lost';
+
+           sCounts[stage] = (sCounts[stage] || 0) + 1;
+           
+           const b = l.brand || 'Olive';
+           bCounts[b] = (bCounts[b] || 0) + 1;
+         });
+         
+         statusCounts = Object.entries(sCounts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+         brandCounts = Object.entries(bCounts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+      }
+
+      return { ...baseData, scatterData, bandData, radarData, localLeaderboard, statusCounts, brandCounts };
+    }
+  }, [filteredLeads, bds, weights, searchQuery]);
+
+  const summaryBullets = useMemo<SummaryBullet[]>(() => {
+    const rd: any = reportData;
+    if (!rd || rd.isEmpty) return [];
+    const b: SummaryBullet[] = [];
+    const prefix = searchQuery ? `${searchQuery}: ` : '';
+    const volDiff = rd.currTotal - rd.prevTotal;
+    const volPct = rd.prevTotal ? (volDiff / rd.prevTotal) * 100 : 0;
+    b.push({ tone: volDiff >= 0 ? 'up' : 'down', text: `${prefix}MTD lead volume ${volDiff >= 0 ? 'up' : 'down'} ${Math.abs(volPct).toFixed(0)}% vs last month (${rd.currTotal.toLocaleString()} leads).` });
+    const actDiff = rd.currActive - rd.prevActive;
+    const actPct = rd.prevActive ? (actDiff / rd.prevActive) * 100 : 0;
+    b.push({ tone: actDiff >= 0 ? 'up' : 'down', text: `Active deals ${actDiff >= 0 ? 'up' : 'down'} ${Math.abs(actPct).toFixed(0)}% month-over-month (${rd.currActive.toLocaleString()} active).` });
+    if (rd.zoomStats) b.push({ tone: rd.zoomStats.connectRate >= 30 ? 'up' : 'warn', text: `Connect rate at ${rd.zoomStats.connectRate.toFixed(0)}% across ${rd.zoomStats.outreach.toLocaleString()} outreach attempts.` });
+    if (rd.isPersonSearch && rd.globalRank) b.push({ tone: 'info', text: `${searchQuery} ranks #${rd.globalRank} of ${rd.totalBDs} on the balanced leaderboard.` });
+    else if (rd.isLocationSearch && rd.localLeaderboard?.length) b.push({ tone: 'info', text: `Top local performer: ${rd.localLeaderboard[0].owner}.` });
+    return b;
+  }, [reportData, searchQuery]);
+
+  if (isLoading || !reportData) return null;
+
+  const { isEmpty, isBrandSearch, isPersonSearch, isLocationSearch, currName, prevName, currDay, currTotal, prevTotal, currActive, prevActive, chartData, zoomStats, personRec, globalRank, radarData, localLeaderboard, statusCounts, brandCounts, bandData } = reportData as any;
+
+  const renderComparisonCard = (title: string, currVal: number, prevVal: number, format: (v: number) => string) => {
+    const diff = currVal - prevVal;
+    const pct = prevVal > 0 ? (diff / prevVal) * 100 : (currVal > 0 ? 100 : 0);
+    const isPositive = diff >= 0;
+
+    return (
+      <div className="glass-card p-6 flex flex-col justify-between h-full">
+        <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{title}</h3>
+        <div className="mt-4 flex items-baseline gap-3">
+          <span className="text-3xl font-black text-white tracking-tight">{format(currVal)}</span>
+          <span className="text-sm font-semibold text-text-secondary">vs {format(prevVal)}</span>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          <div className={clsx(
+            "px-2 py-1 rounded-md flex items-center gap-1 text-xs font-bold border",
+            diff === 0 ? "bg-surface text-text-secondary border-border-subtle" :
+            isPositive ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"
+          )}>
+            {diff !== 0 && (isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />)}
+            {diff > 0 ? '+' : ''}{format(diff)}
+          </div>
+          <span className="text-xs font-medium text-text-secondary">
+            {diff > 0 ? '+' : ''}{pct.toFixed(1)}% compared to {prevName} 1-{currDay}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="pb-20">
+      <header className="mb-6 flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+            Growth & Reporting
+            {searchQuery && (
+              <span className="text-brand-pink-400 text-sm font-semibold bg-brand-pink-500/10 px-2.5 py-1 rounded-md border border-brand-pink-500/20 uppercase tracking-wider">
+                {searchQuery}
+              </span>
+            )}
+          </h1>
+          <p className="text-text-secondary text-sm mt-1">
+            {searchQuery ? `Showing filtered analytics for "${searchQuery}".` : "Deep Business Development Analytics & Volume Pacing."}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Search Bar */}
+          <div className="relative z-50">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
+            <input 
+              type="text" 
+              placeholder="Search BD, Region, or Brand..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+              className="w-full sm:w-72 pl-9 pr-4 py-2 bg-surface/50 border border-border-subtle rounded-lg text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-brand-pink-500/50 focus:bg-surface/80 transition-all shadow-[0_0_15px_rgba(218,26,132,0.1)]"
+            />
+            {suggestions.length > 0 && (
+              <div className="absolute top-full mt-2 left-0 w-full sm:w-72 bg-[#16151a] border border-border-subtle rounded-lg shadow-[0_4px_30px_rgba(0,0,0,0.5)] overflow-hidden z-50">
+                {suggestions.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      setSearchQuery(s);
+                      setIsFocused(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:bg-brand-purple-900/40 hover:text-white transition-colors border-b border-border-subtle/50 last:border-0"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2 px-3 py-2 sm:py-1.5 bg-brand-purple-900/40 border border-brand-purple-500/30 rounded-lg shrink-0 justify-center">
+            <CalendarDays className="w-4 h-4 text-brand-purple-300" />
+            <span className="text-sm font-semibold text-brand-purple-100">
+              MTD: {currName || "Curr"} 1-{currDay}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <ExecSummary bullets={summaryBullets} />
+
+      {isEmpty ? (
+        <div className="glass-panel p-12 flex flex-col items-center justify-center text-center">
+          <Search className="w-8 h-8 text-text-secondary mb-3" />
+          <h3 className="text-white font-bold text-lg">No Results Found</h3>
+          <p className="text-text-secondary text-sm mt-1">No data matches your search query "{searchQuery}".</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            {renderComparisonCard(isBrandSearch ? `Lead Volume (${searchQuery.toUpperCase()})` : "Total Lead Volume (MTD)", currTotal!, prevTotal!, v => Math.round(v).toLocaleString())}
+            {renderComparisonCard(isBrandSearch ? `Active Deals (${searchQuery.toUpperCase()})` : "Total Active Deals (MTD)", currActive!, prevActive!, v => Math.round(v).toLocaleString())}
+            
+            {/* Zoom Stats Card (Shared between Person and Macro view) */}
+            <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-4">
+                {isPersonSearch ? `${searchQuery}'s Telephony & Zoom Activity` : 'Telephony & Zoom Activity'}
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 items-center">
+                <div>
+                  <p className="text-[10px] text-text-secondary uppercase">Outreach</p>
+                  <p className="text-xl font-bold text-white flex items-center gap-1.5 mt-1">
+                    <PhoneCall className="w-4 h-4 text-brand-purple-400"/> {zoomStats!.outreach.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-text-secondary uppercase">Connects</p>
+                  <p className="text-xl font-bold text-white flex items-center gap-1.5 mt-1">
+                    <Users className="w-4 h-4 text-emerald-400"/> {zoomStats!.connects.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-text-secondary uppercase">Recordings</p>
+                  <p className="text-xl font-bold text-white flex items-center gap-1.5 mt-1">
+                    <PlaySquare className="w-4 h-4 text-brand-pink-400"/> {zoomStats!.recordings.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-text-secondary uppercase">Connect Rate</p>
+                  <p className="text-xl font-bold text-white flex items-center gap-1.5 mt-1">
+                    <Percent className="w-4 h-4 text-blue-400"/> {zoomStats!.connectRate.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* DYNAMIC DASHBOARD BIFURCATION */}
+          {isPersonSearch ? (
+            /* --- PERSON DOSSIER LAYOUT --- */
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Leaderboard Banner */}
+              <div className="glass-panel p-4 mb-6 flex items-center justify-between border-brand-pink-500/20 bg-gradient-to-r from-brand-pink-500/10 to-transparent">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-brand-pink-500/20 flex items-center justify-center border border-brand-pink-500/40">
+                    <User className="w-6 h-6 text-brand-pink-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white">{searchQuery}</h2>
+                    <p className="text-xs font-bold uppercase tracking-wider text-brand-pink-400">{personRec?.band}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1">
+                    <Trophy className="w-3 h-3" /> Global Rank
+                  </p>
+                  <p className="text-2xl font-black text-white">#{globalRank} <span className="text-sm font-normal text-text-secondary">/ {(reportData as any).totalBDs}</span></p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                {/* Comparative Radar */}
+                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Personal Skill Signature vs Global Average</h2>
+                  <div className="flex-1 w-full relative overflow-y-auto no-scrollbar pr-2">
+                    {radarData?.length > 0 ? (
+                      <div className="flex flex-col gap-4 pt-1">
+                        {radarData?.map((skill: any) => (
+                          <div key={skill.subject} className="flex flex-col gap-1.5 group">
+                             <div className="flex justify-between items-end">
+                                <span className="text-[11px] font-bold text-white uppercase tracking-widest">{skill.subject}</span>
+                                <div className="text-[10px] font-bold text-text-secondary flex gap-3">
+                                  <span><span className="text-brand-pink-400 text-xs">{skill.Person}</span> (Pers)</span>
+                                  <span><span className="text-white text-xs">{skill.Global}</span> (Glob)</span>
+                                </div>
+                             </div>
+                             <div className="relative h-2 w-full bg-surface rounded-full overflow-hidden border border-border-subtle/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
+                                {/* Global Average Bar (Background grey) */}
+                                <div className="absolute top-0 left-0 h-full bg-[#4a4957] rounded-full transition-all duration-1000" style={{ width: `${skill.Global}%` }} />
+                                {/* Person Bar (Foreground Pink) */}
+                                <div className="absolute top-0 left-0 h-full bg-brand-pink-500 rounded-full transition-all duration-1000 opacity-90 shadow-[0_0_10px_rgba(218,26,132,0.8)]" style={{ width: `${skill.Person}%` }} />
+                             </div>
+                          </div>
+                        ))}
+                        <div className="mt-4 flex items-center gap-4 text-[9px] font-bold uppercase tracking-widest text-text-secondary justify-center bg-black/20 py-2 rounded-lg border border-border-subtle/30">
+                           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-sm bg-brand-pink-500 shadow-[0_0_5px_rgba(218,26,132,0.8)]"/> Personal Score</div>
+                           <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-sm bg-[#4a4957]"/> Global Avg</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-text-secondary text-sm">No Q-score data available for this BD.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Personal Trendline */}
+                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Personal Growth Pacing</h2>
+                  <div className="flex-1 w-full relative">
+                    <div className="absolute inset-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
+                          <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                          <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
+                          <RechartsTooltip 
+                            contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                            itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
+                            labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
+                            formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
+                            labelFormatter={(label) => `Day ${label}`}
+                          />
+                          <Legend 
+                            wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
+                            formatter={(value) => value === 'curr' ? currName : prevName}
+                          />
+                          <Line type="monotone" dataKey="prev" stroke="#4a4957" strokeWidth={2} dot={false} name="prev" />
+                          <Line type="monotone" dataKey="curr" stroke="#da1a84" strokeWidth={3} dot={{ fill: '#da1a84', r: 3, strokeWidth: 0 }} activeDot={{ r: 6 }} name="curr" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Risk Profile */}
+              {personRec?.bd && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="glass-card p-6 border-emerald-500/20 bg-emerald-500/5 flex gap-4">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2">Core Strength</h3>
+                      <p className="text-sm text-white font-medium">{personRec.bd.strength || "Consistent performer with reliable outreach metrics."}</p>
+                    </div>
+                  </div>
+                  <div className="glass-card p-6 border-red-500/20 bg-red-500/5 flex gap-4">
+                    <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-red-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-red-400 mb-2">Identified Risk</h3>
+                      <p className="text-sm text-white font-medium">{personRec.bd.risk || "Monitor pacing to ensure end-of-month target is met."}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : isLocationSearch ? (
+            /* --- LOCATION DOSSIER LAYOUT --- */
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="glass-panel p-6 mb-6 flex items-center justify-between border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-transparent">
+                  <div>
+                    <h2 className="text-xl font-black text-white">{searchQuery}</h2>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-400">Regional Performance Dossier</p>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                 {/* Volume Chart */}
+                 <div className="glass-panel p-6 h-[400px] flex flex-col">
+                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Daily Volume Comparison</h2>
+                   <div className="flex-1 w-full relative">
+                     <div className="absolute inset-0">
+                       <ResponsiveContainer width="100%" height="100%">
+                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
+                           <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                           <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
+                           <RechartsTooltip 
+                             contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                             itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
+                             labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
+                             formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
+                             labelFormatter={(label) => `Day ${label}`}
+                           />
+                           <Legend 
+                             wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
+                             formatter={(value) => value === 'curr' ? currName : prevName}
+                           />
+                           <Line type="monotone" dataKey="prev" stroke="#4a4957" strokeWidth={2} dot={false} name="prev" />
+                           <Line type="monotone" dataKey="curr" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 3, strokeWidth: 0 }} activeDot={{ r: 6 }} name="curr" />
+                         </LineChart>
+                       </ResponsiveContainer>
+                     </div>
+                   </div>
+                 </div>
+
+                 {/* Top Local BDs */}
+                 <div className="glass-panel p-6 h-[400px] flex flex-col">
+                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0 flex items-center gap-2">
+                     <Trophy className="w-4 h-4 text-emerald-400" />
+                     Top Local Performers
+                   </h2>
+                   <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-3">
+                      {localLeaderboard!.length === 0 && (
+                        <div className="text-sm text-text-secondary">No BDs found in this region.</div>
+                      )}
+                      {localLeaderboard!.map((bd: any, i: number) => (
+                        <div key={bd.owner} className="flex items-center justify-between p-4 bg-surface/40 rounded-lg border border-border-subtle hover:border-emerald-500/30 transition-colors">
+                           <div className="flex items-center gap-4">
+                              <span className="text-xl font-black text-text-secondary w-4 text-right">#{i+1}</span>
+                              <div>
+                                <p className="text-sm font-bold text-white">{bd.owner}</p>
+                                <p className="text-[10px] text-text-secondary uppercase">{bd.band || 'Pending'}</p>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-sm font-bold text-emerald-400">{bd.active.toFixed(0)}% Act</p>
+                              <p className="text-[10px] text-text-secondary uppercase">Score: {Math.round(bd.bps?.score || 0)}</p>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                 </div>
+               </div>
+
+               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                 {/* Lead Status Pipeline */}
+                 <div className="glass-panel p-6 flex flex-col">
+                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Pipeline Funnel</h2>
+                   
+                   {/* Unified Multi-Segment Bar */}
+                   <div className="w-full h-8 flex rounded-xl overflow-hidden mb-6 bg-surface">
+                      {statusCounts!.map((status: any) => {
+                        const pct = (status.value / currTotal!) * 100;
+                        let color = 'bg-gray-500';
+                        if (status.name === 'Discovery') color = 'bg-blue-500';
+                        else if (status.name === 'Engagement') color = 'bg-purple-500';
+                        else if (status.name === 'High Intent') color = 'bg-brand-pink-500';
+                        else if (status.name === 'Won') color = 'bg-emerald-500';
+                        else if (status.name === 'Lost') color = 'bg-red-500/50';
+
+                        return (
+                          <div 
+                            key={status.name} 
+                            style={{ width: `${pct}%` }} 
+                            className={clsx("h-full transition-all duration-500 border-r border-black/20 last:border-0", color)}
+                            title={`${status.name}: ${status.value} (${pct.toFixed(1)}%)`}
+                          />
+                        );
+                      })}
+                   </div>
+
+                   {/* Legend */}
+                   <div className="grid grid-cols-2 gap-3">
+                     {statusCounts!.map((status: any) => {
+                       const pct = (status.value / currTotal!) * 100;
+                       let dotColor = 'bg-gray-500';
+                       if (status.name === 'Discovery') dotColor = 'bg-blue-500';
+                       else if (status.name === 'Engagement') dotColor = 'bg-purple-500';
+                       else if (status.name === 'High Intent') dotColor = 'bg-brand-pink-500';
+                       else if (status.name === 'Won') dotColor = 'bg-emerald-500';
+                       else if (status.name === 'Lost') dotColor = 'bg-red-500/50';
+
+                       return (
+                         <div key={status.name} className="flex items-center justify-between bg-surface/30 px-3 py-2 rounded-lg">
+                           <div className="flex items-center gap-2">
+                             <div className={clsx("w-2.5 h-2.5 rounded-full", dotColor)} />
+                             <span className="text-xs text-white font-medium">{status.name}</span>
+                           </div>
+                           <span className="text-xs font-bold text-text-secondary">{pct.toFixed(0)}%</span>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+
+                 {/* Brand Distribution */}
+                 <div className="glass-panel p-6 flex flex-col">
+                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Brand Distribution</h2>
+                   <div className="flex flex-col gap-4">
+                     {brandCounts!.map((brand: any) => {
+                       const pct = (brand.value / currTotal!) * 100;
+                       let color = 'bg-brand-purple-500';
+                       if (brand.name.toLowerCase() === 'spark') color = 'bg-brand-pink-500';
+                       if (brand.name.toLowerCase() === 'open hotels') color = 'bg-emerald-500';
+                       
+                       return (
+                         <div key={brand.name} className="flex flex-col gap-1.5">
+                           <div className="flex justify-between text-xs font-bold">
+                             <span className="text-white">{brand.name}</span>
+                             <span className="text-white">{brand.value} <span className="text-text-secondary font-normal ml-1">({pct.toFixed(1)}%)</span></span>
+                           </div>
+                           <div className="h-2 w-full bg-surface rounded-full overflow-hidden">
+                             <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               </div>
+            </div>
+          ) : (
+            /* --- MACRO (GLOBAL/BRAND) DASHBOARD LAYOUT --- */
+            <div className="animate-in fade-in duration-500">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+                <div className="glass-panel p-6 h-[400px] flex flex-col xl:col-span-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
+                    {isBrandSearch ? "Brand Performance Comparison (MTD)" : "Daily Volume Comparison"}
+                  </h2>
+                  <div className="flex-1 w-full relative">
+                    <div className="absolute inset-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
+                          <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                          <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
+                          
+                          {isBrandSearch ? (
+                            <>
+                              <RechartsTooltip 
+                                contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                                itemStyle={{ fontSize: '13px', fontWeight: 600 }}
+                                labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
+                                labelFormatter={(label) => `Day ${label} (${currName})`}
+                              />
+                              <Legend wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }} />
+                              <Line type="monotone" dataKey="spark" stroke="#da1a84" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Spark" />
+                              <Line type="monotone" dataKey="olive" stroke="#502875" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Olive" />
+                              <Line type="monotone" dataKey="open" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="Open" />
+                            </>
+                          ) : (
+                            <>
+                              <RechartsTooltip 
+                                contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                                itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
+                                labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
+                                formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
+                                labelFormatter={(label) => `Day ${label}`}
+                              />
+                              <Legend 
+                                wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
+                                formatter={(value) => value === 'curr' ? currName : prevName}
+                              />
+                              <Line type="monotone" dataKey="prev" stroke="#4a4957" strokeWidth={2} dot={false} name="prev" />
+                              <Line type="monotone" dataKey="curr" stroke="#da1a84" strokeWidth={3} dot={{ fill: '#da1a84', r: 3, strokeWidth: 0 }} activeDot={{ r: 6 }} name="curr" />
+                            </>
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-panel p-6 h-[400px] flex flex-col xl:col-span-1">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
+                    {isLocationSearch ? `Performance Bands (${searchQuery})` : 'Performance Bands'}
+                  </h2>
+                  <div className="flex-1 w-full relative">
+                    <div className="absolute inset-0 overflow-y-auto no-scrollbar flex flex-col justify-center">
+                      {bandData!.length > 0 ? (
+                        <div className="flex flex-col gap-6">
+                          {(() => {
+                            const totalBDs = bandData!.reduce((acc: number, b: any) => acc + b.value, 0);
+                            return bandData!.map((band: any) => {
+                              const pct = totalBDs > 0 ? (band.value / totalBDs) * 100 : 0;
+                              return (
+                                <div key={band.name} className="flex flex-col gap-2.5">
+                                  <div className="flex justify-between items-end">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: band.color, color: band.color }} />
+                                      <span className="text-sm font-bold text-white">{band.name}</span>
+                                    </div>
+                                    <span className="text-sm font-semibold text-text-secondary">{band.value} Reps <span className="text-[10px] uppercase ml-1 opacity-70">({pct.toFixed(0)}%)</span></span>
+                                  </div>
+                                  <div className="h-2 w-full bg-surface/80 rounded-full overflow-hidden border border-border-subtle/30">
+                                    <div 
+                                      className="h-full rounded-full transition-all duration-1000 relative" 
+                                      style={{ width: `${pct}%`, backgroundColor: band.color }} 
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-text-secondary text-sm">No band data available</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
+                    {isLocationSearch ? `Regional Skill Matrix (${searchQuery})` : 'Team Skill Matrix'}
+                  </h2>
+                  <div className="flex-1 w-full relative overflow-y-auto no-scrollbar pr-2">
+                    {radarData!.length > 0 ? (
+                      <div className="flex flex-col gap-4 pt-1">
+                        {radarData!.map((skill: any) => (
+                          <div key={skill.subject} className="flex flex-col gap-1.5 group">
+                             <div className="flex justify-between items-end">
+                                <span className="text-[11px] font-bold text-white uppercase tracking-widest">{skill.subject}</span>
+                                <span className="text-xs font-bold text-brand-pink-400">{skill.A}</span>
+                             </div>
+                             <div className="relative h-2 w-full bg-surface rounded-full overflow-hidden border border-border-subtle/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
+                                <div className="absolute top-0 left-0 h-full bg-brand-pink-500 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(218,26,132,0.8)]" style={{ width: `${skill.A}%` }} />
+                             </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-text-secondary text-sm">No skill data available</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
+                    {isLocationSearch ? `Revenue Efficiency Matrix (${searchQuery})` : 'Revenue Efficiency Matrix'}
+                  </h2>
+                  <div className="flex-1 w-full relative">
+                    <div className="absolute inset-0">
+                      {(reportData as any).scatterData!.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" />
+                            <XAxis 
+                              type="number" 
+                              dataKey="pipeline" 
+                              name="Pipeline" 
+                              tick={{ fill: '#9896a3', fontSize: 11 }} 
+                              stroke="#9896a3" 
+                              tickFormatter={(v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                            />
+                            <YAxis 
+                              type="number" 
+                              dataKey="revenue" 
+                              name="Secured Revenue" 
+                              tick={{ fill: '#9896a3', fontSize: 11 }} 
+                              stroke="#9896a3" 
+                              tickFormatter={(v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                            />
+                            <ZAxis type="number" dataKey="winRate" range={[50, 300]} name="Win Rate" />
+                            <RechartsTooltip 
+                              cursor={{ strokeDasharray: '3 3' }} 
+                              contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                              itemStyle={{ fontSize: '13px', fontWeight: 600 }}
+                              formatter={(value: any, name: any) => [name === 'Win Rate' ? `${value}%` : `$${value.toLocaleString()}`, name]}
+                            />
+                            <Scatter name="BDs" data={(reportData as any).scatterData} fill="#10b981" fillOpacity={0.7} />
+                          </ScatterChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-text-secondary text-sm">No efficiency data available</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
