@@ -68,7 +68,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
 
       <div className="flex-1 min-w-[120px] flex items-center gap-2 scroll-smooth">
         {activeChips.length === 0 && currentBrand === 'All' ? (
-          <span className="text-sm text-text-secondary font-medium">All data · Last 90 days</span>
+          <span className="text-sm text-text-secondary font-medium">All data · No filters applied</span>
         ) : (
           <>
             <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider shrink-0 mr-2">Active:</span>

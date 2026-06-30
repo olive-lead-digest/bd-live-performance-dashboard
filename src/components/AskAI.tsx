@@ -54,9 +54,10 @@ export function AskAI({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
               </div>
               <div className="flex-1">
                 <p className="text-sm text-text-primary leading-relaxed">
-                  I'm analyzing the data for "{query}"... 
+                  The natural-language assistant isn&apos;t connected to a backend yet, so I can&apos;t answer
+                  &ldquo;{query}&rdquo; here.
                   <br/><br/>
-                  <span className="text-xs text-brand-purple-300 italic">(Note: The AI reasoning backend is mocked for this UI build.)</span>
+                  <span className="text-xs text-brand-purple-300">In the meantime, use the filters and the Reporting, Compare, Leaderboard and Geography pages — they cover this from live data.</span>
                 </p>
               </div>
             </div>
