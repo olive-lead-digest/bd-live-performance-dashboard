@@ -1,7 +1,7 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, groupCounts, buildLeaderboard } from '@/lib/utils';
+import { calculateRates, groupCounts, buildLeaderboard, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { ComposableMap, Geographies, Geography as GeoPath, ZoomableGroup, Marker, Line as GeoLine } from 'react-simple-maps';
 import clsx from 'clsx';
@@ -9,7 +9,8 @@ import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity 
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
 const geoUrl = "/world.json";
-const AVG_DEAL_SIZE = 12500;
+// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
+const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 const formatCurrency = (num: number) => {
   if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
@@ -53,7 +54,7 @@ export default function Geography() {
     const options = new Set<string>();
     
     if ('spark'.includes(query)) options.add('Spark');
-    if ('open'.includes(query)) options.add('Open');
+    if ('open hotels'.includes(query)) options.add('Open Hotels');
     if ('olive'.includes(query)) options.add('Olive');
 
     filteredLeads.forEach(l => {
