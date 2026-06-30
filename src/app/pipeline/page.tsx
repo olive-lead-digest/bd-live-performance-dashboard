@@ -3,11 +3,13 @@
 import { useDashboard } from '@/lib/DashboardContext';
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import { PhoneCall, MessagesSquare, BadgeCheck, XCircle, MapPin, Layers, Trophy, ArrowRight } from 'lucide-react';
+import { PhoneCall, MessagesSquare, BadgeCheck, XCircle, MapPin, Layers, Trophy, ArrowRight, Inbox } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
-// Pipeline stages in logical progression order. "Lead Dropped" is tracked separately as fall-out.
+// Pipeline stages in logical progression order, matching the real status taxonomy
+// (dashboard_data.json). "Lead Dropped" is tracked separately as fall-out.
 const STAGES = [
+  { key: 'New Leads', label: 'New', color: '#5a7ea3', icon: Inbox },
   { key: 'Lead Contacted', label: 'Contacted', color: '#6d3a9e', icon: PhoneCall },
   { key: 'Under Discussion', label: 'Under Discussion', color: '#9d4edd', icon: MessagesSquare },
   { key: 'Awaiting Business Approval', label: 'Awaiting Approval', color: '#da1a84', icon: BadgeCheck },
@@ -45,7 +47,7 @@ export default function Pipeline() {
 
   // Overall pipeline totals across the current filter.
   const overview = useMemo(() => {
-    const t: Record<string, number> = { 'Lead Contacted': 0, 'Under Discussion': 0, 'Awaiting Business Approval': 0, 'Lead Dropped': 0 };
+    const t: Record<string, number> = Object.fromEntries(STAGES.map(s => [s.key, 0]));
     filteredLeads.forEach(l => {
       if (l.status && t[l.status] !== undefined) t[l.status]++;
     });
@@ -60,24 +62,11 @@ export default function Pipeline() {
     };
   }, [filteredLeads]);
 
-  // Curated Mock Data for Top 15 BDs (executive presentation).
-  const MOCK_BD_DATA: Row[] = [
-    { name: 'Harshit S.', total: 1450, 'Lead Contacted': 300, 'Under Discussion': 450, 'Awaiting Business Approval': 600, 'Lead Dropped': 100 },
-    { name: 'Arjun K.', total: 1320, 'Lead Contacted': 250, 'Under Discussion': 500, 'Awaiting Business Approval': 450, 'Lead Dropped': 120 },
-    { name: 'Neha R.', total: 1280, 'Lead Contacted': 400, 'Under Discussion': 380, 'Awaiting Business Approval': 410, 'Lead Dropped': 90 },
-    { name: 'Rahul V.', total: 1150, 'Lead Contacted': 310, 'Under Discussion': 340, 'Awaiting Business Approval': 380, 'Lead Dropped': 120 },
-    { name: 'Priya M.', total: 1090, 'Lead Contacted': 200, 'Under Discussion': 410, 'Awaiting Business Approval': 390, 'Lead Dropped': 90 },
-    { name: 'Amit T.', total: 1020, 'Lead Contacted': 280, 'Under Discussion': 290, 'Awaiting Business Approval': 310, 'Lead Dropped': 140 },
-    { name: 'Sneha P.', total: 980, 'Lead Contacted': 150, 'Under Discussion': 300, 'Awaiting Business Approval': 450, 'Lead Dropped': 80 },
-    { name: 'Karan D.', total: 940, 'Lead Contacted': 240, 'Under Discussion': 260, 'Awaiting Business Approval': 320, 'Lead Dropped': 120 },
-    { name: 'Rohan G.', total: 890, 'Lead Contacted': 180, 'Under Discussion': 280, 'Awaiting Business Approval': 330, 'Lead Dropped': 100 },
-    { name: 'Pooja J.', total: 850, 'Lead Contacted': 210, 'Under Discussion': 240, 'Awaiting Business Approval': 290, 'Lead Dropped': 110 },
-    { name: 'Vikram S.', total: 810, 'Lead Contacted': 250, 'Under Discussion': 200, 'Awaiting Business Approval': 240, 'Lead Dropped': 120 },
-    { name: 'Divya C.', total: 770, 'Lead Contacted': 140, 'Under Discussion': 230, 'Awaiting Business Approval': 310, 'Lead Dropped': 90 },
-    { name: 'Siddharth B.', total: 730, 'Lead Contacted': 190, 'Under Discussion': 210, 'Awaiting Business Approval': 230, 'Lead Dropped': 100 },
-    { name: 'Aisha N.', total: 690, 'Lead Contacted': 160, 'Under Discussion': 180, 'Awaiting Business Approval': 260, 'Lead Dropped': 90 },
-    { name: 'Varun M.', total: 650, 'Lead Contacted': 120, 'Under Discussion': 190, 'Awaiting Business Approval': 260, 'Lead Dropped': 80 },
-  ];
+  // Real per-BD breakdown — top BDs by lead volume, same stage shape as Region/Tier rows.
+  const bdData = useMemo(
+    () => getSplitData('owner').filter(r => r.name !== 'Unknown' && r.name !== '(unassigned)'),
+    [filteredLeads]
+  );
 
   if (isLoading) return null;
 
@@ -91,7 +80,7 @@ export default function Pipeline() {
     { tone: overview.activeRate >= overview.dropRate ? 'up' : 'warn', text: `${overview.activeRate.toFixed(0)}% of the pipeline is still active and ${overview.dropRate.toFixed(0)}% has dropped, across ${num(overview.total)} leads.` },
     ...(dominantStage ? [{ tone: 'info' as const, text: `Most leads sit in "${dominantStage.label}" (${num(dominantStage.v)}) — the current bottleneck stage.` }] : []),
     ...(topRegionRow ? [{ tone: 'info' as const, text: `${topRegionRow.name} carries the largest pipeline at ${num(topRegionRow.total as number)} leads.` }] : []),
-    { tone: 'up', text: `${MOCK_BD_DATA[0].name} leads all reps by volume (${num(MOCK_BD_DATA[0].total as number)} leads).` },
+    ...(bdData[0] ? [{ tone: 'up' as const, text: `${bdData[0].name} leads all reps by volume (${num(bdData[0].total as number)} leads).` }] : []),
   ];
 
   // Slim multi-stage bar used in every list row.
@@ -251,7 +240,7 @@ export default function Pipeline() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" /> Top Performers
           </h2>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">Mocked Data</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">By lead volume</span>
         </div>
 
         {/* Legend */}
@@ -265,9 +254,10 @@ export default function Pipeline() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-1">
+          {bdData.length === 0 && <div className="text-sm text-text-secondary py-6 text-center xl:col-span-2">No assigned-owner data in this view.</div>}
           {(() => {
-            const max = MOCK_BD_DATA.reduce((m, r) => Math.max(m, r.total as number), 0);
-            return MOCK_BD_DATA.map((row, i) => (
+            const max = bdData.reduce((m, r) => Math.max(m, r.total as number), 0);
+            return bdData.map((row, i) => (
               <button
                 key={row.name}
                 onClick={() => setFilter('owner' as any, row.name)}
