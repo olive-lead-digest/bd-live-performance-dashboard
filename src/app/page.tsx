@@ -11,6 +11,8 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { InsightsDropdown } from '@/components/InsightsDropdown';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { HeroAsk } from '@/components/HeroAsk';
+import { PropertyStatusCard } from '@/components/PropertyStatusCard';
+import { CallingQualityCard } from '@/components/CallingQualityCard';
 
 // Illustrative estimate only — leads carry no monetary amount (see utils.ts). Every "₹" below is count x this.
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
@@ -305,6 +307,11 @@ export default function Overview() {
 
         </div>
       )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 relative z-10">
+        <PropertyStatusCard />
+        <CallingQualityCard />
+      </div>
 
       {/* Main Analytical Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
