@@ -11,7 +11,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { InsightsDropdown } from '@/components/InsightsDropdown';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
-// Illustrative estimate only — leads carry no monetary amount (see utils.ts). Every "$" below is count x this.
+// Illustrative estimate only — leads carry no monetary amount (see utils.ts). Every "₹" below is count x this.
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 export default function Overview() {
@@ -146,7 +146,7 @@ export default function Overview() {
         ? { tone: 'warn', text: `Conversion is essentially flat across account tiers (~${tierTop.rate.toFixed(0)}%) — top-value accounts aren't outperforming low-value ones.` }
         : { tone: 'warn', text: `${tierBot.t} converts at ${tierBot.rate.toFixed(0)}% vs ${tierTop.t} at ${tierTop.rate.toFixed(0)}% — a ${gap.toFixed(0)}pt gap to close.` });
     }
-    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~$${(projected / 1e6).toFixed(1)}M this month (illustrative — based on active leads × est. deal value; no booked deals in this feed).` });
+    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~₹${(projected >= 1e7 ? (projected / 1e7).toFixed(1) + 'Cr' : projected >= 1e5 ? (projected / 1e5).toFixed(1) + 'L' : (projected / 1e3).toFixed(0) + 'K')} this month (illustrative — based on active leads × est. deal value; no booked deals in this feed).` });
 
     // ---- Risk watchlist ----
     const risks: { sev: string; label: string; detail: string }[] = [];
@@ -194,12 +194,12 @@ export default function Overview() {
   }
 
   const formatCurrency = (num: number) => {
-    return Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(num);
+    return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
   };
 
   const BRAND_COLORS: Record<string, string> = {
-    'Olive': '#502875', 
-    'Spark': '#da1a84', 
+    'Olive': '#502875',
+    'Spark': '#da1a84',
     'Open Hotels': '#a470d6'
   };
 
@@ -217,7 +217,7 @@ export default function Overview() {
           </h1>
           <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline velocity and revenue projections.</p>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <InsightsDropdown />
         </div>
@@ -234,7 +234,7 @@ export default function Overview() {
           subtitle={`${totalLeads.toLocaleString()} Leads · est.`}
           icon={Building2}
           color="#a470d6"
-          prefix="$"
+          prefix="₹"
         />
         <FinancialCard
           title="Est. Active Value"
@@ -242,7 +242,7 @@ export default function Overview() {
           subtitle={`${activeDealsCount.toLocaleString()} Active Deals · est.`}
           icon={DollarSign}
           color="#34d399"
-          prefix="$"
+          prefix="₹"
         />
         <FinancialCard
           title="Active Rate"
@@ -262,11 +262,11 @@ export default function Overview() {
           prefix=""
           suffix="%"
         />
-        <FinancialCard 
-          title="Contact Rate" 
-          value={metrics.contact.toFixed(1)} 
+        <FinancialCard
+          title="Contact Rate"
+          value={metrics.contact.toFixed(1)}
           subtitle={`${metrics.n.toLocaleString()} Accounts Engaged`}
-          icon={Activity} 
+          icon={Activity}
           color="#38bdf8"
           prefix=""
           suffix="%"
@@ -288,8 +288,8 @@ export default function Overview() {
             </div>
 
             <div className="flex items-baseline gap-2 relative z-10">
-              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">${formatCurrency(exec.target.achieved)}</span>
-              <span className="text-sm font-bold text-text-secondary">active pipeline (est.) of ${formatCurrency(exec.target.target)} illustrative goal</span>
+              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">₹{formatCurrency(exec.target.achieved)}</span>
+              <span className="text-sm font-bold text-text-secondary">active pipeline (est.) of ₹{formatCurrency(exec.target.target)} illustrative goal</span>
             </div>
 
             {/* Attainment track with expected-pace marker */}
@@ -313,11 +313,11 @@ export default function Overview() {
               </div>
               <div className="rounded-xl bg-black/20 border border-border-subtle/50 p-3">
                 <div className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Projected EOM</div>
-                <div className="text-lg font-black text-white leading-tight">${formatCurrency(exec.target.projected)}</div>
+                <div className="text-lg font-black text-white leading-tight">₹{formatCurrency(exec.target.projected)}</div>
               </div>
               <div className="rounded-xl bg-black/20 border border-border-subtle/50 p-3">
                 <div className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Gap to Goal</div>
-                <div className="text-lg font-black text-white leading-tight">${formatCurrency(Math.max(0, exec.target.target - exec.target.achieved))}</div>
+                <div className="text-lg font-black text-white leading-tight">₹{formatCurrency(Math.max(0, exec.target.target - exec.target.achieved))}</div>
               </div>
             </div>
           </div>
@@ -351,7 +351,7 @@ export default function Overview() {
 
       {/* Main Analytical Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-        
+
         {/* Pipeline Funnel */}
         <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
@@ -386,18 +386,18 @@ export default function Overview() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
                 <XAxis dataKey="month" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                <YAxis 
-                  stroke="#9896a3" 
-                  tick={{fill: '#9896a3', fontSize: 11}} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickFormatter={(val) => `$${formatCurrency(val)}`}
+                <YAxis
+                  stroke="#9896a3"
+                  tick={{fill: '#9896a3', fontSize: 11}}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(val) => `₹${formatCurrency(val)}`}
                 />
-                <RechartsTooltip 
+                <RechartsTooltip
                   contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
                   itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}
                   labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
-                  formatter={(value: any) => [`$${Number(value || 0).toLocaleString()}`, undefined]}
+                  formatter={(value: any) => [`₹${Number(value || 0).toLocaleString('en-IN')}`, undefined]}
                 />
                 <Area type="monotone" name="Pipeline Volume" dataKey="Pipeline Volume" stroke="#a470d6" strokeWidth={2} fillOpacity={1} fill="url(#colorPipeline)" />
                 <Area type="monotone" name="Active Pipeline (est.)" dataKey="Active Pipeline (est.)" stroke="#34d399" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
@@ -408,7 +408,7 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-        
+
         {/* Executive Leaderboard */}
         <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between border-b border-border-subtle pb-4">
@@ -435,7 +435,7 @@ export default function Overview() {
                   <div className="text-[10px] text-text-secondary uppercase tracking-wider mt-0.5">{bd.n} Leads &bull; {score.toFixed(0)} Score</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-black text-brand-pink-400">${formatCurrency(bd.n * AVG_DEAL_SIZE)}</div>
+                  <div className="text-sm font-black text-brand-pink-400">₹{formatCurrency(bd.n * AVG_DEAL_SIZE)}</div>
                   <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{activePct.toFixed(1)}% Active</div>
                 </div>
               </div>
@@ -454,28 +454,28 @@ export default function Overview() {
               <ComposedChart data={regionalData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
                 <XAxis dataKey="region" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                <YAxis 
+                <YAxis
                   yAxisId="left"
-                  stroke="#9896a3" 
-                  tick={{fill: '#9896a3', fontSize: 11}} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickFormatter={(val) => `$${formatCurrency(val)}`}
+                  stroke="#9896a3"
+                  tick={{fill: '#9896a3', fontSize: 11}}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(val) => `₹${formatCurrency(val)}`}
                 />
-                <YAxis 
-                  yAxisId="right" 
-                  orientation="right" 
-                  stroke="#9896a3" 
-                  tick={{fill: '#9896a3', fontSize: 11}} 
-                  tickLine={false} 
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#9896a3"
+                  tick={{fill: '#9896a3', fontSize: 11}}
+                  tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `${val}%`}
                 />
-                <RechartsTooltip 
+                <RechartsTooltip
                   contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
                   itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}
                   formatter={(value: any, name: any) => [
-                    name === 'Conversion %' ? `${Number(value || 0).toFixed(1)}%` : `$${Number(value || 0).toLocaleString()}`, 
+                    name === 'Conversion %' ? `${Number(value || 0).toFixed(1)}%` : `₹${Number(value || 0).toLocaleString('en-IN')}`,
                     name
                   ]}
                 />
@@ -499,7 +499,7 @@ export default function Overview() {
           <div className="flex flex-col gap-6 w-full">
             {(() => {
               const totalBrandValue = brandData.reduce((acc, b) => acc + b.value, 0);
-              
+
               if (totalBrandValue === 0) return <div className="text-sm text-text-secondary">No data available</div>;
 
               return (
@@ -509,7 +509,7 @@ export default function Overview() {
                     {brandData.map(b => {
                       const pct = (b.value / totalBrandValue) * 100;
                       return (
-                        <div 
+                        <div
                           key={b.name}
                           className="h-full transition-all duration-1000 relative border-r border-black/50 last:border-0"
                           style={{ width: `${pct}%`, backgroundColor: BRAND_COLORS[b.name] || '#4a4957' }}
@@ -519,7 +519,7 @@ export default function Overview() {
                       )
                     })}
                   </div>
-                  
+
                   {/* Legend and Metrics */}
                   <div className="flex flex-col gap-3 mt-2">
                     {brandData.map(b => {
@@ -534,7 +534,7 @@ export default function Overview() {
                             </div>
                           </div>
                           <div className="text-right text-base font-black" style={{ color: BRAND_COLORS[b.name] || '#ffffff' }}>
-                            ${formatCurrency(b.value)}
+                            ₹{formatCurrency(b.value)}
                           </div>
                         </div>
                       )
@@ -553,22 +553,22 @@ export default function Overview() {
             Operations Integrity Diagnostics
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <DiagnosticItem 
+            <DiagnosticItem
               value={`${filteredLeads.length ? Math.round(((filteredLeads.length - metrics.n) / filteredLeads.length) * 100) : 0}%`}
               label="Unassigned Pipeline"
               warning={((filteredLeads.length - metrics.n) / Math.max(1, filteredLeads.length)) > 0.4}
             />
-            <DiagnosticItem 
+            <DiagnosticItem
               value={`${filteredLeads.length ? Math.round((unkRegion / filteredLeads.length) * 100) : 0}%`}
               label="Routing Failures"
               warning={(unkRegion / Math.max(1, filteredLeads.length)) > 0.25}
             />
-            <DiagnosticItem 
+            <DiagnosticItem
               value={`${filteredLeads.length ? Math.round((noCity / filteredLeads.length) * 100) : 0}%`}
               label="Incomplete Data Capture"
               warning={(noCity / Math.max(1, filteredLeads.length)) > 0.25}
             />
-            <DiagnosticItem 
+            <DiagnosticItem
               value={noAi.toString()}
               label="Reps Evading QA"
               warning={noAi > 0}
@@ -586,7 +586,7 @@ function FinancialCard({ title, value, subtitle, icon: Icon, color, prefix = '',
       {/* Dynamic hover shadow trick */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{ boxShadow: `inset 0 0 40px ${color}15, 0 10px 40px ${color}20` }} />
       <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] -mr-10 -mt-10 opacity-20 group-hover:opacity-40 transition-opacity duration-700 pointer-events-none" style={{ backgroundColor: color }} />
-      
+
       <div className="flex justify-between items-start mb-4 relative z-10">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary w-2/3 leading-tight">{title}</h3>
         <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 shadow-lg" style={{ backgroundColor: `${color}10`, borderColor: `${color}30` }}>
