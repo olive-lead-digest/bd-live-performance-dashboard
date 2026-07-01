@@ -83,8 +83,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Assistant is unavailable (${res.status}).` }, { status: 502 });
     }
     const data = await res.json().catch(() => ({}));
+    const ans = typeof data?.answer === 'string' ? data.answer.trim() : '';
+    if (!ans || ans === 'No answer returned.') {
+      // Upstream (Gemini free tier) returned nothing — almost always the daily usage cap.
+      return NextResponse.json(
+        { error: "The AI assistant has reached today's free usage limit. It resets daily — please try again later." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({
-      answer: typeof data?.answer === 'string' ? data.answer : 'No answer returned.',
+      answer: ans,
       sources: Array.isArray(data?.sources) ? data.sources : [],
     });
   } catch (e) {
