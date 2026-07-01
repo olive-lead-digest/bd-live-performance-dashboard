@@ -149,7 +149,7 @@ export default function Geography() {
     const b: SummaryBullet[] = [];
     if (!cityData.length && !regionalData.length) return b;
     const topCity = cityData[0];
-    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with $${formatCurrency(topCity.securedRevenue)} secured (${topCity.active.toFixed(1)}% active).` });
+    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with $${formatCurrency(topCity.securedRevenue)} est. active pipeline (${topCity.active.toFixed(1)}% active).` });
     const topRegion = regionalData[0];
     if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all regions by pipeline at $${formatCurrency(topRegion.pipelineValue)}.` });
     const healthy = cityData.filter(c => c.active >= 15).length;
@@ -197,7 +197,7 @@ export default function Geography() {
     <div className="pb-20">
       <header className="mb-6 flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
             Spatial Performance Engine
             {searchQuery && (
               <span className="text-brand-pink-400 text-sm font-semibold bg-brand-pink-500/10 px-2.5 py-1 rounded-md border border-brand-pink-500/20 uppercase tracking-wider">
@@ -269,7 +269,7 @@ export default function Geography() {
                 <div className="flex justify-between items-end mt-2">
                   <div className="flex flex-col">
                     <span className="text-xl font-black text-white">${formatCurrency(r.securedRevenue)}</span>
-                    <span className="text-[10px] text-text-secondary uppercase">Secured Rev</span>
+                    <span className="text-[10px] text-text-secondary uppercase">Active Pipeline (est.)</span>
                   </div>
                   <span className={clsx("text-sm font-bold px-2 py-0.5 rounded-md", health.bg, health.text)}>{r.activeRate.toFixed(1)}% Act</span>
                 </div>
@@ -279,9 +279,9 @@ export default function Geography() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Map */}
-        <div className="glass-panel p-6 xl:col-span-2 min-h-[500px] flex flex-col relative overflow-hidden group border-brand-purple-500/20 shadow-[0_0_30px_rgba(80,40,117,0.15)]">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] sm:min-h-[500px] flex flex-col relative overflow-hidden group border-brand-purple-500/20 shadow-[0_0_30px_rgba(80,40,117,0.15)]">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-purple-900/30 via-transparent to-transparent opacity-60" />
           
           <div className="flex items-center justify-between z-10 relative mb-4">
@@ -378,7 +378,7 @@ export default function Geography() {
                       key={city.name} 
                       coordinates={city.coords}
                       onClick={() => handleCityClick(city.name, city.coords)}
-                      onMouseEnter={() => setTooltipContent(`${city.name}: $${formatCurrency(city.securedRevenue)} Secured (${city.active.toFixed(1)}%)`)}
+                      onMouseEnter={() => setTooltipContent(`${city.name}: $${formatCurrency(city.securedRevenue)} est. active pipeline (${city.active.toFixed(1)}%)`)}
                       onMouseLeave={() => setTooltipContent("")}
                     >
                       <g className="cursor-pointer group">
@@ -461,7 +461,7 @@ export default function Geography() {
         </div>
 
         {/* Right Panel: City Dossier OR Top Nodes */}
-        <div className="glass-panel p-6 xl:col-span-1 flex flex-col min-h-[500px] max-h-[600px] overflow-y-auto no-scrollbar">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 flex flex-col min-h-[420px] sm:min-h-[500px] max-h-[600px] overflow-y-auto no-scrollbar">
           {selectedCity && dossierData ? (
             <div className="flex flex-col h-full animate-in fade-in zoom-in duration-300">
               <div className="flex items-center justify-between mb-6">
@@ -480,7 +480,7 @@ export default function Geography() {
                   <p className="text-xl font-bold text-white mt-1">${formatCurrency(dossierData.total * AVG_DEAL_SIZE)}</p>
                 </div>
                 <div className={clsx("p-4 rounded-lg border", getHealthColor(dossierData.activeRate).bg, getHealthColor(dossierData.activeRate).border)}>
-                  <p className="text-[10px] text-text-secondary uppercase">Secured Revenue</p>
+                  <p className="text-[10px] text-text-secondary uppercase">Active Pipeline (est.)</p>
                   <p className={clsx("text-xl font-bold mt-1", getHealthColor(dossierData.activeRate).text)}>
                     ${formatCurrency(dossierData.active * AVG_DEAL_SIZE)} <span className="text-sm font-normal">({dossierData.activeRate.toFixed(1)}%)</span>
                   </p>
