@@ -36,15 +36,12 @@ async function fromUrl(url: string): Promise<unknown> {
   return parseMaybeJsWrapper(await res.text());
 }
 
-export async function GET() {
-  const url = process.env.DASHBOARD_DATA_URL;
+// Public raw-GitHub feed the hourly pipeline publishes to. Overridable via env.
+const DEFAULT_DATA_URL =
+  'https://raw.githubusercontent.com/olive-lead-digest/bd-live-performance-dashboard/data/dashboard_data.json';
 
-  if (!url) {
-    return NextResponse.json(
-      { error: 'Live data feed is not configured. Set DASHBOARD_DATA_URL to the published Zoho/Zoom/Sheets feed.' },
-      { status: 503 }
-    );
-  }
+export async function GET() {
+  const url = process.env.DASHBOARD_DATA_URL || DEFAULT_DATA_URL;
 
   // Serve the cached copy while it is still fresh.
   if (urlCache && Date.now() - urlCache.at < URL_TTL_MS) {
