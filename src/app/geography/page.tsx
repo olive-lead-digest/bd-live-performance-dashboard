@@ -13,10 +13,7 @@ const geoUrl = "/world.json";
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 const formatCurrency = (num: number) => {
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-  if (num >= 1e3) return (num / 1e3).toFixed(1) + 'k';
-  return num.toString();
+  return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
 };
 
 const CITY_DATA: Record<string, { coords: [number, number], state: string }> = {
@@ -149,9 +146,9 @@ export default function Geography() {
     const b: SummaryBullet[] = [];
     if (!cityData.length && !regionalData.length) return b;
     const topCity = cityData[0];
-    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with $${formatCurrency(topCity.securedRevenue)} est. active pipeline (${topCity.active.toFixed(1)}% active).` });
+    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with ₹${formatCurrency(topCity.securedRevenue)} est. active pipeline (${topCity.active.toFixed(1)}% active).` });
     const topRegion = regionalData[0];
-    if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all regions by pipeline at $${formatCurrency(topRegion.pipelineValue)}.` });
+    if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all regions by pipeline at ₹${formatCurrency(topRegion.pipelineValue)}.` });
     const healthy = cityData.filter(c => c.active >= 15).length;
     const weak = cityData.filter(c => c.active < 10).length;
     b.push(weak > healthy
@@ -268,7 +265,7 @@ export default function Geography() {
                 <h3 className="text-[10px] text-text-secondary uppercase tracking-wider group-hover:text-white transition-colors">{r.name} Region</h3>
                 <div className="flex justify-between items-end mt-2">
                   <div className="flex flex-col">
-                    <span className="text-xl font-black text-white">${formatCurrency(r.securedRevenue)}</span>
+                    <span className="text-xl font-black text-white">₹{formatCurrency(r.securedRevenue)}</span>
                     <span className="text-[10px] text-text-secondary uppercase">Active Pipeline (est.)</span>
                   </div>
                   <span className={clsx("text-sm font-bold px-2 py-0.5 rounded-md", health.bg, health.text)}>{r.activeRate.toFixed(1)}% Act</span>
@@ -378,7 +375,7 @@ export default function Geography() {
                       key={city.name} 
                       coordinates={city.coords}
                       onClick={() => handleCityClick(city.name, city.coords)}
-                      onMouseEnter={() => setTooltipContent(`${city.name}: $${formatCurrency(city.securedRevenue)} est. active pipeline (${city.active.toFixed(1)}%)`)}
+                      onMouseEnter={() => setTooltipContent(`${city.name}: ₹${formatCurrency(city.securedRevenue)} est. active pipeline (${city.active.toFixed(1)}%)`)}
                       onMouseLeave={() => setTooltipContent("")}
                     >
                       <g className="cursor-pointer group">
@@ -425,7 +422,7 @@ export default function Geography() {
                               {city.name}
                             </text>
                             <text x="8" y="7" fill={health.fill} fontSize="12px" fontWeight="900" fontFamily="Inter, system-ui, sans-serif">
-                              ${formatCurrency(city.securedRevenue)}
+                              ₹{formatCurrency(city.securedRevenue)}
                             </text>
                           </g>
                         )}
@@ -477,12 +474,12 @@ export default function Geography() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-surface/50 p-4 rounded-lg border border-border-subtle">
                   <p className="text-[10px] text-text-secondary uppercase">Pipeline Value</p>
-                  <p className="text-xl font-bold text-white mt-1">${formatCurrency(dossierData.total * AVG_DEAL_SIZE)}</p>
+                  <p className="text-xl font-bold text-white mt-1">₹{formatCurrency(dossierData.total * AVG_DEAL_SIZE)}</p>
                 </div>
                 <div className={clsx("p-4 rounded-lg border", getHealthColor(dossierData.activeRate).bg, getHealthColor(dossierData.activeRate).border)}>
                   <p className="text-[10px] text-text-secondary uppercase">Active Pipeline (est.)</p>
                   <p className={clsx("text-xl font-bold mt-1", getHealthColor(dossierData.activeRate).text)}>
-                    ${formatCurrency(dossierData.active * AVG_DEAL_SIZE)} <span className="text-sm font-normal">({dossierData.activeRate.toFixed(1)}%)</span>
+                    ₹{formatCurrency(dossierData.active * AVG_DEAL_SIZE)} <span className="text-sm font-normal">({dossierData.activeRate.toFixed(1)}%)</span>
                   </p>
                 </div>
               </div>
@@ -547,7 +544,7 @@ export default function Geography() {
                            <span className="text-white font-medium group-hover:text-brand-pink-400 transition-colors">{c.name}</span>
                            <span className="text-[9px] uppercase font-bold text-brand-purple-400 bg-brand-purple-900/30 px-1.5 py-0.5 rounded border border-brand-purple-500/30">{c.state}</span>
                          </div>
-                         <span className="text-white font-bold">${formatCurrency(c.pipelineValue)}</span>
+                         <span className="text-white font-bold">₹{formatCurrency(c.pipelineValue)}</span>
                        </div>
                        <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden relative z-10 mt-1">
                          <div 
