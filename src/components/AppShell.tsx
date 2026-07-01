@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 pl-16 flex flex-col min-h-screen overflow-hidden">
         <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
         
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8">
           <div className="max-w-[1600px] mx-auto w-full">
             {children}
           </div>

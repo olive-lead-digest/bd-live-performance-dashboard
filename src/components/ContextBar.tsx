@@ -34,7 +34,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
   };
 
   return (
-    <div className="sticky top-0 z-30 w-full glass-card border-x-0 border-t-0 rounded-none h-14 flex items-center px-3 sm:px-6 gap-3 sm:gap-4 overflow-x-auto no-scrollbar">
+    <div className="sticky top-0 z-30 w-full glass-card border-x-0 border-t-0 rounded-none h-14 flex items-center px-2 sm:px-6 gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
       <button
         onClick={onOpenFilters}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface hover:bg-brand-purple-800/50 border border-border-subtle transition-colors group shrink-0"
@@ -53,7 +53,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
             key={b}
             onClick={() => handleBrandSelect(b)}
             className={clsx(
-              "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
+              "px-2 sm:px-3 py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all",
               currentBrand === b 
                 ? "bg-brand-purple-500/20 text-brand-purple-400 shadow-[0_0_10px_rgba(80,40,117,0.3)]" 
                 : "text-text-secondary hover:text-white hover:bg-white/5"
@@ -68,7 +68,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
 
       <div className="flex-1 min-w-[120px] flex items-center gap-2 scroll-smooth">
         {activeChips.length === 0 && currentBrand === 'All' ? (
-          <span className="text-sm text-text-secondary font-medium">All data · No filters applied</span>
+          <span className="hidden sm:inline text-sm text-text-secondary font-medium">All data · No filters applied</span>
         ) : (
           <>
             <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider shrink-0 mr-2">Active:</span>

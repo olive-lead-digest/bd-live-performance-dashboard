@@ -95,8 +95,8 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
 
       case 'data-table':
         return (
-          <div className="mt-6">
-            <table className="w-full text-left border-collapse">
+          <div className="mt-6 overflow-x-auto no-scrollbar">
+            <table className="w-full min-w-[320px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle text-xs uppercase tracking-wider text-text-secondary">
                   {insight.evidenceData.columns.map((col: string, i: number) => (
@@ -140,10 +140,10 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
   return (
     <>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] transition-opacity animate-in fade-in" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-panel border border-border-subtle shadow-[0_0_80px_rgba(0,0,0,0.5)] rounded-2xl z-[110] overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-1.5rem)] max-w-3xl max-h-[90vh] overflow-y-auto no-scrollbar bg-panel border border-border-subtle shadow-[0_0_80px_rgba(0,0,0,0.5)] rounded-2xl z-[110] animate-in zoom-in-95 duration-300">
         
         {/* Header */}
-        <div className="px-8 py-6 border-b border-border-subtle bg-surface/30 flex items-start justify-between">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border-subtle bg-surface/30 flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-purple-900/40 border border-brand-purple-500/30 flex items-center justify-center shrink-0">
               <Target className="w-5 h-5 text-brand-purple-400" />
@@ -159,7 +159,7 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
         </div>
 
         {/* Content */}
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           <div className="bg-surface/50 border border-border-subtle p-5 rounded-xl mb-8 relative overflow-hidden flex gap-4 items-start">
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-pink-500" />
             <Zap className="w-5 h-5 text-brand-pink-400 mt-0.5 shrink-0" />
