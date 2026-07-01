@@ -1,38 +1,23 @@
 import { NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 /*
- * Server-side data route. Three sources, in priority order:
- *   1. DASHBOARD_DATA_URL  — a live feed (e.g. raw GitHub data branch) that a
- *      frequent refresh job keeps current. Fetched at runtime and cached ~10 min,
- *      so the public link is always-fresh WITHOUT rebuilding the site. This is the
- *      "always live" path used in production (Netlify).
- *   2. DASHBOARD_DATA_PATH — absolute local file (dev / custom deploys).
- *   3. Bundled/local dashboard_data.json next to the app or the OliveScripts pipeline.
+ * Server-side data route. LIVE FEED ONLY.
  *
- * No Zoho/Google/Zoom credentials live in the web app — the refresh job owns all
- * external fetching and publishes a plain JSON feed. The data is the same shape
- * regardless of source.
+ * The dashboard shows exclusively the real data pushed by the refresh job
+ * (Zoho CRM + Zoom Phone + the Partner-With-Us Google Sheet), published as a
+ * plain JSON feed at DASHBOARD_DATA_URL and fetched here at runtime (cached
+ * ~10 min so the public link is always fresh without rebuilding the site).
+ *
+ * There is deliberately NO bundled / placeholder / mock fallback: if the live
+ * feed is ever unreachable and we have no recent copy in memory, this returns
+ * an explicit error rather than showing stale or sample data. No Zoho/Google/
+ * Zoom credentials live in the web app — the refresh job owns all fetching.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const URL_TTL_MS = 10 * 60 * 1000; // 10 minutes — keeps the feed fresh without hammering it
 
-function candidatePaths(): string[] {
-  const fromEnv = process.env.DASHBOARD_DATA_PATH;
-  const cwd = process.cwd();
-  return [
-    fromEnv,
-    path.resolve(cwd, 'data', 'dashboard_data.json'),
-    path.resolve(cwd, 'public', 'dashboard_data.json'),
-    path.resolve(cwd, '..', '..', 'dashboard_data.json'),
-    path.resolve(cwd, '..', '..', 'dashboard_data.js'),
-  ].filter(Boolean) as string[];
-}
-
-let fileCache: { path: string; mtimeMs: number; data: unknown } | null = null;
 let urlCache: { at: number; data: unknown } | null = null;
 
 function parseMaybeJsWrapper(raw: string): unknown {
@@ -52,44 +37,31 @@ async function fromUrl(url: string): Promise<unknown> {
 }
 
 export async function GET() {
-  // 1) Live feed (production)
   const url = process.env.DASHBOARD_DATA_URL;
-  if (url) {
-    if (urlCache && Date.now() - urlCache.at < URL_TTL_MS) {
-      return NextResponse.json(urlCache.data);
-    }
-    try {
-      const data = await fromUrl(url);
-      urlCache = { at: Date.now(), data };
-      return NextResponse.json(data);
-    } catch {
-      // Feed hiccup — serve the last good copy if we have one, else fall through to a local file.
-      if (urlCache) return NextResponse.json(urlCache.data);
-    }
+
+  if (!url) {
+    return NextResponse.json(
+      { error: 'Live data feed is not configured. Set DASHBOARD_DATA_URL to the published Zoho/Zoom/Sheets feed.' },
+      { status: 503 }
+    );
   }
 
-  // 2 & 3) Local file (dev / fallback)
-  for (const p of candidatePaths()) {
-    try {
-      const stat = await fs.stat(p);
-      if (fileCache && fileCache.path === p && fileCache.mtimeMs === stat.mtimeMs) {
-        return NextResponse.json(fileCache.data);
-      }
-      const raw = await fs.readFile(p, 'utf8');
-      const data = parseMaybeJsWrapper(raw);
-      fileCache = { path: p, mtimeMs: stat.mtimeMs, data };
-      return NextResponse.json(data);
-    } catch {
-      // try next candidate
-    }
+  // Serve the cached copy while it is still fresh.
+  if (urlCache && Date.now() - urlCache.at < URL_TTL_MS) {
+    return NextResponse.json(urlCache.data);
   }
 
-  return NextResponse.json(
-    {
-      error:
-        'No dashboard data available. Set DASHBOARD_DATA_URL to your live feed, or provide a local ' +
-        'dashboard_data.json (run the OliveScripts pipeline / refresh_leads_live.py).',
-    },
-    { status: 503 }
-  );
+  try {
+    const data = await fromUrl(url);
+    urlCache = { at: Date.now(), data };
+    return NextResponse.json(data);
+  } catch {
+    // Feed hiccup — serve the last good LIVE copy if we have one; otherwise an
+    // honest error. We never fall back to bundled/placeholder data.
+    if (urlCache) return NextResponse.json(urlCache.data);
+    return NextResponse.json(
+      { error: 'The live data feed is temporarily unavailable. Please try again shortly.' },
+      { status: 503 }
+    );
+  }
 }
