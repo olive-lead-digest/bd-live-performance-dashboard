@@ -116,7 +116,7 @@ export default function Pipeline() {
   const BreakdownCard = ({ title, icon: Icon, data, filterKey }: { title: string; icon: any; data: Row[]; filterKey: string }) => {
     const max = data.reduce((m, r) => Math.max(m, r.total as number), 0);
     return (
-      <div className="glass-panel p-6 flex flex-col">
+      <div className="glass-panel p-4 sm:p-6 flex flex-col">
         <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-5 flex items-center gap-2 shrink-0">
           <Icon className="w-4 h-4 text-brand-purple-400" /> {title}
         </h2>
@@ -144,16 +144,16 @@ export default function Pipeline() {
   };
 
   return (
-    <div className="pb-20 flex flex-col gap-6">
+    <div className="pb-20 flex flex-col gap-4 sm:gap-6">
       <header>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Pipeline Stages</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Pipeline Stages</h1>
         <p className="text-text-secondary text-sm mt-1">Where every lead sits right now — and how much is still in play.</p>
       </header>
 
       <ExecSummary bullets={summaryBullets} />
 
       {/* ── Pipeline Overview ───────────────────────────── */}
-      <div className="glass-panel p-6 relative overflow-hidden">
+      <div className="glass-panel p-4 sm:p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-72 h-72 bg-brand-pink-500/5 blur-[120px] rounded-full pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 relative z-10">
@@ -235,7 +235,7 @@ export default function Pipeline() {
       </div>
 
       {/* ── Top BDs leaderboard ─────────────────────────── */}
-      <div className="glass-panel p-6">
+      <div className="glass-panel p-4 sm:p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" /> Top Performers
