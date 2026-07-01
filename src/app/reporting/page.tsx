@@ -2,7 +2,7 @@
 
 import { useDashboard } from '@/lib/DashboardContext';
 import { useMemo, useState } from 'react';
-import { 
+import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend,
   PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis
 } from 'recharts';
@@ -22,9 +22,9 @@ export default function Reporting() {
   const suggestions = useMemo(() => {
     if (!searchQuery.trim() || !isFocused) return [];
     const query = searchQuery.trim().toLowerCase();
-    
+
     const options = new Set<string>();
-    
+
     if ('spark'.includes(query)) options.add('Spark');
     if ('open hotels'.includes(query)) options.add('Open Hotels');
     if ('olive'.includes(query)) options.add('Olive');
@@ -115,7 +115,7 @@ export default function Reporting() {
       // --- PERSON DASHBOARD ---
       const globalLeaderboard = buildLeaderboard(filteredLeads, bds, weights);
       const personRec = globalLeaderboard.find(r => r.owner.toLowerCase() === query);
-      
+
       let gSoft=0, gBrand=0, gPitch=0, gSales=0, gConv=0, gDisc=0, gObj=0, gClose=0;
       let validQCount = 0;
       globalLeaderboard.forEach(r => {
@@ -144,7 +144,7 @@ export default function Reporting() {
 
       if (personRec?.bd?.zoom) {
         baseData.zoomStats = {
-          outreach: personRec.bd.zoom.out, connects: personRec.bd.zoom.conn, 
+          outreach: personRec.bd.zoom.out, connects: personRec.bd.zoom.conn,
           recordings: personRec.bd.zoom.rec, connectRate: (personRec.bd.zoom.conn / personRec.bd.zoom.out) * 100
         };
       }
@@ -152,7 +152,7 @@ export default function Reporting() {
       const rank = globalLeaderboard.findIndex(r => r.owner.toLowerCase() === query) + 1;
 
       return { ...baseData, radarData, personRec, globalRank: rank, totalBDs: globalLeaderboard.length };
-    } 
+    }
     else {
       // --- LOCATION / MACRO DASHBOARD ---
       let bandData = [
@@ -165,7 +165,7 @@ export default function Reporting() {
       let validBDsWithQ = 0;
       const skillAvgs = { soft_skills: 0, brand_alignment: 0, pitch_clarity: 0, sales_skill: 0, conversion_skill: 0, discovery_quality: 0, objection_handling: 0, closing_discipline: 0 };
       const scatterData: any[] = [];
-      
+
       leaderboardRecs.forEach(rec => {
         if (rec.bd?.zoom) {
           totalZoom.out += rec.bd.zoom.out; totalZoom.conn += rec.bd.zoom.conn; totalZoom.rec += rec.bd.zoom.rec;
@@ -176,11 +176,11 @@ export default function Reporting() {
           const pipelineVal = rec.n * 12500;
           const securedRev = rec.active * 12500;
           const winRate = rec.n > 0 ? (rec.active / rec.n) * 100 : 0;
-          scatterData.push({ 
-            name: rec.owner, 
-            pipeline: pipelineVal, 
-            revenue: securedRev, 
-            winRate: Math.round(winRate) 
+          scatterData.push({
+            name: rec.owner,
+            pipeline: pipelineVal,
+            revenue: securedRev,
+            winRate: Math.round(winRate)
           });
         }
         if (rec.q) {
@@ -190,7 +190,7 @@ export default function Reporting() {
           skillAvgs.objection_handling += rec.q.objection_handling; skillAvgs.closing_discipline += rec.q.closing_discipline;
         }
       });
-      
+
       let radarData: any[] = [];
       if (validBDsWithQ > 0) {
         radarData = [
@@ -204,7 +204,7 @@ export default function Reporting() {
           { subject: 'Closing', A: Math.round((skillAvgs.closing_discipline / validBDsWithQ) * 10) },
         ];
       }
-      
+
       baseData.zoomStats = {
         outreach: totalZoom.out, connects: totalZoom.conn, recordings: totalZoom.rec,
         connectRate: totalZoom.out > 0 ? (totalZoom.conn / totalZoom.out) * 100 : 0
@@ -215,15 +215,15 @@ export default function Reporting() {
       let localLeaderboard: any[] = [];
       let statusCounts: any[] = [];
       let brandCounts: any[] = [];
-      
+
       if (isLocationSearch) {
          localLeaderboard = [...leaderboardRecs].sort((a, b) => (b.bps?.score || 0) - (a.bps?.score || 0)).slice(0, 5);
-         
+
          const sCounts: Record<string, number> = {};
          const bCounts: Record<string, number> = {};
          searchFiltered.forEach(l => {
            const s = l.status || 'New Leads';
-           
+
            // Group into Macro Stages to reduce bar clutter.
            // Mapped to the real status taxonomy: New/Contacted -> Discovery,
            // Under Discussion -> Engagement, Awaiting Business Approval -> High Intent,
@@ -237,11 +237,11 @@ export default function Reporting() {
            else if (sLower.includes('drop') || sLower.includes('lost') || sLower.includes('dead') || sLower.includes('junk') || sLower.includes('not int') || sLower.includes('not qual')) stage = 'Lost';
 
            sCounts[stage] = (sCounts[stage] || 0) + 1;
-           
+
            const b = l.brand || 'Olive';
            bCounts[b] = (bCounts[b] || 0) + 1;
          });
-         
+
          statusCounts = Object.entries(sCounts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
          brandCounts = Object.entries(bCounts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
       }
@@ -320,9 +320,9 @@ export default function Reporting() {
           {/* Search Bar */}
           <div className="relative z-50">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" />
-            <input 
-              type="text" 
-              placeholder="Search BD, Region, or Brand..." 
+            <input
+              type="text"
+              placeholder="Search BD, Region, or Brand..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setIsFocused(true)}
@@ -346,7 +346,7 @@ export default function Reporting() {
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2 px-3 py-2 sm:py-1.5 bg-brand-purple-900/40 border border-brand-purple-500/30 rounded-lg shrink-0 justify-center">
             <CalendarDays className="w-4 h-4 text-brand-purple-300" />
             <span className="text-sm font-semibold text-brand-purple-100">
@@ -369,7 +369,7 @@ export default function Reporting() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             {renderComparisonCard(isBrandSearch ? `Lead Volume (${searchQuery.toUpperCase()})` : "Total Lead Volume (MTD)", currTotal!, prevTotal!, v => Math.round(v).toLocaleString())}
             {renderComparisonCard(isBrandSearch ? `Active Deals (${searchQuery.toUpperCase()})` : "Total Active Deals (MTD)", currActive!, prevActive!, v => Math.round(v).toLocaleString())}
-            
+
             {/* Zoom Stats Card (Shared between Person and Macro view) */}
             <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2">
               <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-4">
@@ -472,14 +472,14 @@ export default function Reporting() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
                           <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
                           <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                          <RechartsTooltip 
+                          <RechartsTooltip
                             contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                             itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
                             labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
                             formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
                             labelFormatter={(label) => `Day ${label}`}
                           />
-                          <Legend 
+                          <Legend
                             wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
                             formatter={(value) => value === 'curr' ? currName : prevName}
                           />
@@ -537,14 +537,14 @@ export default function Reporting() {
                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
                            <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
                            <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                           <RechartsTooltip 
+                           <RechartsTooltip
                              contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                              itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
                              labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
                              formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
                              labelFormatter={(label) => `Day ${label}`}
                            />
-                           <Legend 
+                           <Legend
                              wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
                              formatter={(value) => value === 'curr' ? currName : prevName}
                            />
@@ -589,7 +589,7 @@ export default function Reporting() {
                  {/* Lead Status Pipeline */}
                  <div className="glass-panel p-4 sm:p-6 flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Pipeline Funnel</h2>
-                   
+
                    {/* Unified Multi-Segment Bar */}
                    <div className="w-full h-8 flex rounded-xl overflow-hidden mb-6 bg-surface">
                       {statusCounts!.map((status: any) => {
@@ -602,9 +602,9 @@ export default function Reporting() {
                         else if (status.name === 'Lost') color = 'bg-red-500/50';
 
                         return (
-                          <div 
-                            key={status.name} 
-                            style={{ width: `${pct}%` }} 
+                          <div
+                            key={status.name}
+                            style={{ width: `${pct}%` }}
                             className={clsx("h-full transition-all duration-500 border-r border-black/20 last:border-0", color)}
                             title={`${status.name}: ${status.value} (${pct.toFixed(1)}%)`}
                           />
@@ -645,7 +645,7 @@ export default function Reporting() {
                        let color = 'bg-brand-purple-500';
                        if (brand.name.toLowerCase() === 'spark') color = 'bg-brand-pink-500';
                        if (brand.name.toLowerCase() === 'open hotels') color = 'bg-emerald-500';
-                       
+
                        return (
                          <div key={brand.name} className="flex flex-col gap-1.5">
                            <div className="flex justify-between text-xs font-bold">
@@ -677,10 +677,10 @@ export default function Reporting() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
                           <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
                           <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                          
+
                           {isBrandSearch ? (
                             <>
-                              <RechartsTooltip 
+                              <RechartsTooltip
                                 contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                                 itemStyle={{ fontSize: '13px', fontWeight: 600 }}
                                 labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
@@ -693,14 +693,14 @@ export default function Reporting() {
                             </>
                           ) : (
                             <>
-                              <RechartsTooltip 
+                              <RechartsTooltip
                                 contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                                 itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}
                                 labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
                                 formatter={(value: any, name: any) => [value, name === 'curr' ? currName : prevName]}
                                 labelFormatter={(label) => `Day ${label}`}
                               />
-                              <Legend 
+                              <Legend
                                 wrapperStyle={{ fontSize: '12px', color: '#e8e6ef', paddingTop: '20px' }}
                                 formatter={(value) => value === 'curr' ? currName : prevName}
                               />
@@ -736,9 +736,9 @@ export default function Reporting() {
                                     <span className="text-sm font-semibold text-text-secondary">{band.value} Reps <span className="text-[10px] uppercase ml-1 opacity-70">({pct.toFixed(0)}%)</span></span>
                                   </div>
                                   <div className="h-2 w-full bg-surface/80 rounded-full overflow-hidden border border-border-subtle/30">
-                                    <div 
-                                      className="h-full rounded-full transition-all duration-1000 relative" 
-                                      style={{ width: `${pct}%`, backgroundColor: band.color }} 
+                                    <div
+                                      className="h-full rounded-full transition-all duration-1000 relative"
+                                      style={{ width: `${pct}%`, backgroundColor: band.color }}
                                     >
                                       <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
                                     </div>
@@ -792,28 +792,28 @@ export default function Reporting() {
                         <ResponsiveContainer width="100%" height="100%">
                           <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" />
-                            <XAxis 
-                              type="number" 
-                              dataKey="pipeline" 
-                              name="Pipeline" 
-                              tick={{ fill: '#9896a3', fontSize: 11 }} 
-                              stroke="#9896a3" 
-                              tickFormatter={(v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                            <XAxis
+                              type="number"
+                              dataKey="pipeline"
+                              name="Pipeline"
+                              tick={{ fill: '#9896a3', fontSize: 11 }}
+                              stroke="#9896a3"
+                              tickFormatter={(v) => v >= 1e7 ? `₹${(v/1e7).toFixed(1)}Cr` : v >= 1e5 ? `₹${(v/1e5).toFixed(1)}L` : v >= 1e3 ? `₹${(v/1e3).toFixed(0)}K` : `₹${v}`}
                             />
-                            <YAxis 
-                              type="number" 
-                              dataKey="revenue" 
+                            <YAxis
+                              type="number"
+                              dataKey="revenue"
                               name="Active Pipeline (est.)"
-                              tick={{ fill: '#9896a3', fontSize: 11 }} 
-                              stroke="#9896a3" 
-                              tickFormatter={(v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+                              tick={{ fill: '#9896a3', fontSize: 11 }}
+                              stroke="#9896a3"
+                              tickFormatter={(v) => v >= 1e7 ? `₹${(v/1e7).toFixed(1)}Cr` : v >= 1e5 ? `₹${(v/1e5).toFixed(1)}L` : v >= 1e3 ? `₹${(v/1e3).toFixed(0)}K` : `₹${v}`}
                             />
                             <ZAxis type="number" dataKey="winRate" range={[50, 300]} name="Win Rate" />
-                            <RechartsTooltip 
-                              cursor={{ strokeDasharray: '3 3' }} 
+                            <RechartsTooltip
+                              cursor={{ strokeDasharray: '3 3' }}
                               contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                               itemStyle={{ fontSize: '13px', fontWeight: 600 }}
-                              formatter={(value: any, name: any) => [name === 'Win Rate' ? `${value}%` : `$${value.toLocaleString()}`, name]}
+                              formatter={(value: any, name: any) => [name === 'Win Rate' ? `${value}%` : `₹${value.toLocaleString('en-IN')}`, name]}
                             />
                             <Scatter name="BDs" data={(reportData as any).scatterData} fill="#10b981" fillOpacity={0.7} />
                           </ScatterChart>
