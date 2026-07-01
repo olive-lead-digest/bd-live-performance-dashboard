@@ -112,8 +112,11 @@ export function HeroAsk() {
         <span className="text-sm font-bold uppercase tracking-widest text-white">Ask AI</span>
       </div>
 
-      {/* Input row */}
-      <div className="relative flex items-center gap-1 rounded-xl bg-black/30 border border-border-subtle focus-within:border-brand-pink-500/50 transition-colors px-3 sm:px-4 py-1 relative z-10">
+      {/* Input row — a real <form> so the mobile keyboard "Go/Send" and Enter both submit */}
+      <form
+        onSubmit={(e) => { e.preventDefault(); ask(query); }}
+        className="relative flex items-center gap-1 rounded-xl bg-black/30 border border-border-subtle focus-within:border-brand-pink-500/50 transition-colors px-3 sm:px-4 py-1 z-10"
+      >
         {loading ? <Loader2 className="w-5 h-5 text-brand-pink-500 shrink-0 animate-spin" /> : <Sparkles className="w-5 h-5 text-brand-pink-500 shrink-0" />}
 
         <div className="relative flex-1 min-w-0">
@@ -122,9 +125,14 @@ export function HeroAsk() {
             onChange={e => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            onKeyDown={e => { if (e.key === 'Enter') ask(query); }}
-            placeholder=""
-            className="w-full bg-transparent border-none outline-none text-white px-3 sm:px-4 py-3 text-base min-w-0"
+            type="text"
+            inputMode="text"
+            enterKeyHint="send"
+            autoComplete="off"
+            autoCorrect="off"
+            aria-label="Ask a question about BD performance"
+            placeholder={animate ? '' : 'Ask anything about BD performance…'}
+            className="w-full bg-transparent border-none outline-none text-white placeholder:text-text-secondary px-3 sm:px-4 py-3 text-base min-w-0"
           />
           {animate && (
             <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-base text-text-secondary pointer-events-none truncate max-w-[calc(100%-1rem)]">
@@ -134,20 +142,21 @@ export function HeroAsk() {
         </div>
 
         {query && (
-          <button onClick={clearAll} title="Clear" aria-label="Clear input" className="p-1.5 rounded-md text-text-secondary hover:text-white hover:bg-surface transition-colors shrink-0">
+          <button type="button" onClick={clearAll} title="Clear" aria-label="Clear input" className="p-2 rounded-md text-text-secondary hover:text-white hover:bg-surface transition-colors shrink-0">
             <Eraser className="w-4 h-4" />
           </button>
         )}
-        <button onClick={() => ask(query)} disabled={loading || !query.trim()} title="Ask" aria-label="Ask" className="p-2 rounded-md bg-brand-pink-500/20 text-brand-pink-400 hover:bg-brand-pink-500/30 disabled:opacity-40 transition-colors shrink-0">
+        <button type="submit" disabled={loading || !query.trim()} title="Ask" aria-label="Ask" className="p-2.5 rounded-md bg-brand-pink-500/20 text-brand-pink-400 hover:bg-brand-pink-500/30 disabled:opacity-40 transition-colors shrink-0">
           <ArrowRight className="w-4 h-4" />
         </button>
-      </div>
+      </form>
 
       {/* Suggestion chips */}
       <div className="flex flex-wrap gap-2 mt-3 relative z-10">
         {CHIPS.map(c => (
           <button
             key={c}
+            type="button"
             onClick={() => { setQuery(c); ask(c); }}
             className="px-3 py-1.5 rounded-full text-xs font-medium bg-brand-purple-900/40 border border-border-subtle text-text-secondary hover:text-white hover:border-brand-pink-500/40 transition-colors"
           >
