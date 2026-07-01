@@ -50,13 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
-  const webhook = process.env.N8N_ASK_WEBHOOK_URL;
-  if (!webhook) {
-    return NextResponse.json(
-      { error: 'Ask-AI is not configured yet (missing N8N_ASK_WEBHOOK_URL).' },
-      { status: 503 }
-    );
-  }
+  const webhook = process.env.N8N_ASK_WEBHOOK_URL || 'https://olivehospitality.app.n8n.cloud/webhook/ask-ai';
 
   const ip = clientIp(req);
   if (rateLimited(ip)) {
