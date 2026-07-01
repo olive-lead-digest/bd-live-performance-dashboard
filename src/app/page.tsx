@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
 import { calculateRates, buildLeaderboard, isActive, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
 import { FunnelChart } from '@/components/FunnelChart';
-import { DollarSign, TrendingUp, Target, BarChart2, Award, Zap, Building2, Info, AlertTriangle, ChevronRight, Activity, Users, Sparkles, Gauge, ShieldAlert, ArrowUpRight, ArrowDownRight, AlertCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, Target, BarChart2, Award, Zap, Building2, Info, AlertTriangle, ChevronRight, Activity, Users, Sparkles, ShieldAlert, ArrowUpRight, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ComposedChart, Bar, Line, Legend } from 'recharts';
 
@@ -214,7 +214,7 @@ export default function Overview() {
       <header className="mb-2 flex flex-col sm:flex-row sm:items-start justify-between gap-3 relative z-40">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
-            Global Command Centre
+            Business Development Dashboard
             <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(218,26,132,0.3)]">Executive View</span>
           </h1>
           <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline velocity and revenue projections.</p>
@@ -277,55 +277,10 @@ export default function Overview() {
 
       {/* Revenue Target Pacing + Risk Watchlist */}
       {exec && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-
-          {/* Target Pacing */}
-          <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 blur-[90px] rounded-full pointer-events-none" />
-            <div className="flex items-center justify-between mb-5 relative z-10">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                <Gauge className="w-4 h-4 text-emerald-400" /> Revenue Target Pacing
-              </h2>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-text-secondary bg-surface/60 px-2 py-0.5 rounded">Illustrative target</span>
-            </div>
-
-            <div className="flex items-baseline gap-2 relative z-10">
-              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">₹{formatCurrency(exec.target.achieved)}</span>
-              <span className="text-sm font-bold text-text-secondary">active pipeline (est.) of ₹{formatCurrency(exec.target.target)} illustrative goal</span>
-            </div>
-
-            {/* Attainment track with expected-pace marker */}
-            <div className="mt-4 relative h-3 w-full bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] relative z-10">
-              <div className="h-full rounded-full bg-gradient-to-r from-brand-pink-500 to-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(100, exec.target.attainment)}%` }} />
-            </div>
-            <div className="relative h-3 -mt-3 w-full z-20 pointer-events-none">
-              <div className="absolute top-0 bottom-0 w-0.5 bg-white/70" style={{ left: `${Math.min(100, exec.target.elapsed * 100)}%` }} title="Expected pace" />
-            </div>
-            <div className="flex justify-between mt-1.5 text-[9px] font-bold uppercase tracking-widest text-text-secondary relative z-10">
-              <span>{exec.target.attainment.toFixed(0)}% attained</span>
-              <span>Day {exec.target.maxDay} of {exec.target.daysInMonth}</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mt-5 relative z-10">
-              <div className="rounded-xl bg-black/20 border border-border-subtle/50 p-3">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Pace</div>
-                <div className={`text-lg font-black leading-tight ${exec.target.pacePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {exec.target.pacePct >= 0 ? '+' : ''}{exec.target.pacePct.toFixed(0)}% {exec.target.pacePct >= 0 ? 'ahead' : 'behind'}
-                </div>
-              </div>
-              <div className="rounded-xl bg-black/20 border border-border-subtle/50 p-3">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Projected EOM</div>
-                <div className="text-lg font-black text-white leading-tight">₹{formatCurrency(exec.target.projected)}</div>
-              </div>
-              <div className="rounded-xl bg-black/20 border border-border-subtle/50 p-3">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Gap to Goal</div>
-                <div className="text-lg font-black text-white leading-tight">₹{formatCurrency(Math.max(0, exec.target.target - exec.target.achieved))}</div>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 relative z-10">
 
           {/* Risk Watchlist */}
-          <div className="glass-panel p-4 sm:p-6 xl:col-span-1 flex flex-col">
+          <div className="glass-panel p-4 sm:p-6 flex flex-col">
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
               <ShieldAlert className="w-4 h-4 text-amber-400" /> Risk Watchlist
             </h2>
