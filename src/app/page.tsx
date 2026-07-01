@@ -46,7 +46,7 @@ export default function Overview() {
     return Object.keys(tm).sort().map(m => ({
       month: m,
       'Pipeline Volume': tm[m].leads * AVG_DEAL_SIZE,
-      'Secured Revenue': tm[m].revenue
+      'Active Pipeline (est.)': tm[m].revenue
     }));
   }, [filteredLeads]);
 
@@ -146,7 +146,7 @@ export default function Overview() {
         ? { tone: 'warn', text: `Conversion is essentially flat across account tiers (~${tierTop.rate.toFixed(0)}%) — top-value accounts aren't outperforming low-value ones.` }
         : { tone: 'warn', text: `${tierBot.t} converts at ${tierBot.rate.toFixed(0)}% vs ${tierTop.t} at ${tierTop.rate.toFixed(0)}% — a ${gap.toFixed(0)}pt gap to close.` });
     }
-    summary.push({ tone: pacePct >= 0 ? 'up' : 'down', text: `On pace for ~$${(projected / 1e6).toFixed(1)}M secured this month — ${pacePct >= 0 ? '+' : ''}${pacePct.toFixed(0)}% vs target run-rate.` });
+    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~$${(projected / 1e6).toFixed(1)}M this month (illustrative — based on active leads × est. deal value; no booked deals in this feed).` });
 
     // ---- Risk watchlist ----
     const risks: { sev: string; label: string; detail: string }[] = [];
@@ -204,14 +204,14 @@ export default function Overview() {
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-20 relative">
+    <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
       {/* Background ambient glows */}
       <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] bg-brand-pink-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[20%] right-[-100px] w-[600px] h-[600px] bg-brand-purple-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       <header className="mb-2 flex flex-col sm:flex-row sm:items-start justify-between gap-3 relative z-40">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
             Global Command Centre
             <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(218,26,132,0.3)]">Executive View</span>
           </h1>
@@ -275,10 +275,10 @@ export default function Overview() {
 
       {/* Revenue Target Pacing + Risk Watchlist */}
       {exec && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 relative z-10">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
 
           {/* Target Pacing */}
-          <div className="glass-panel p-6 xl:col-span-2 flex flex-col relative overflow-hidden">
+          <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col relative overflow-hidden">
             <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 blur-[90px] rounded-full pointer-events-none" />
             <div className="flex items-center justify-between mb-5 relative z-10">
               <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
@@ -288,8 +288,8 @@ export default function Overview() {
             </div>
 
             <div className="flex items-baseline gap-2 relative z-10">
-              <span className="text-3xl font-black text-white tracking-tight">${formatCurrency(exec.target.achieved)}</span>
-              <span className="text-sm font-bold text-text-secondary">secured of ${formatCurrency(exec.target.target)} goal</span>
+              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">${formatCurrency(exec.target.achieved)}</span>
+              <span className="text-sm font-bold text-text-secondary">active pipeline (est.) of ${formatCurrency(exec.target.target)} illustrative goal</span>
             </div>
 
             {/* Attainment track with expected-pace marker */}
@@ -323,7 +323,7 @@ export default function Overview() {
           </div>
 
           {/* Risk Watchlist */}
-          <div className="glass-panel p-6 xl:col-span-1 flex flex-col">
+          <div className="glass-panel p-4 sm:p-6 xl:col-span-1 flex flex-col">
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
               <ShieldAlert className="w-4 h-4 text-amber-400" /> Risk Watchlist
             </h2>
@@ -350,10 +350,10 @@ export default function Overview() {
       )}
 
       {/* Main Analytical Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 relative z-10">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
         
         {/* Pipeline Funnel */}
-        <div className="glass-panel p-6 xl:col-span-1 min-h-[380px] flex flex-col relative overflow-hidden group">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
             <span>Pipeline Conversion Matrix</span>
@@ -365,7 +365,7 @@ export default function Overview() {
         </div>
 
         {/* Revenue Velocity Trend */}
-        <div className="glass-panel p-6 xl:col-span-2 min-h-[380px] flex flex-col relative overflow-hidden group">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-32 bg-brand-pink-500/5 blur-[100px] rounded-full pointer-events-none" />
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
             <span>Revenue Velocity Trend</span>
@@ -400,17 +400,17 @@ export default function Overview() {
                   formatter={(value: any) => [`$${Number(value || 0).toLocaleString()}`, undefined]}
                 />
                 <Area type="monotone" name="Pipeline Volume" dataKey="Pipeline Volume" stroke="#a470d6" strokeWidth={2} fillOpacity={1} fill="url(#colorPipeline)" />
-                <Area type="monotone" name="Secured Revenue" dataKey="Secured Revenue" stroke="#34d399" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" name="Active Pipeline (est.)" dataKey="Active Pipeline (est.)" stroke="#34d399" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 relative z-10">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
         
         {/* Executive Leaderboard */}
-        <div className="glass-panel p-6 xl:col-span-1 min-h-[380px] flex flex-col">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between border-b border-border-subtle pb-4">
             <span className="flex items-center gap-2"><Award className="w-4 h-4 text-brand-pink-400"/> Elite Performers</span>
             <span className="text-[10px] text-text-secondary bg-surface px-2 py-1 rounded">By Pipeline Generated</span>
@@ -444,7 +444,7 @@ export default function Overview() {
         </div>
 
         {/* Regional Market Penetration */}
-        <div className="glass-panel p-6 xl:col-span-2 min-h-[380px] flex flex-col">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
             <span>Strategic Market Penetration</span>
             <Building2 className="w-4 h-4 text-text-secondary" />
@@ -490,9 +490,9 @@ export default function Overview() {
 
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 relative z-10">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
         {/* Brand Capitalization */}
-        <div className="glass-panel p-6 xl:col-span-1 min-h-[280px] flex flex-col justify-center">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[280px] flex flex-col justify-center">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6">
             Brand Capitalization
           </h2>
@@ -547,7 +547,7 @@ export default function Overview() {
         </div>
 
         {/* Operations Integrity Strip */}
-        <div className="glass-panel p-6 xl:col-span-2 flex flex-col justify-center bg-gradient-to-r from-black/40 to-brand-purple-900/10">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col justify-center bg-gradient-to-r from-black/40 to-brand-purple-900/10">
           <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-6 flex items-center gap-2">
             <Info className="w-4 h-4 text-brand-purple-400" />
             Operations Integrity Diagnostics
@@ -596,7 +596,7 @@ function FinancialCard({ title, value, subtitle, icon: Icon, color, prefix = '',
       <div className="relative z-10">
         <div className="flex items-baseline gap-0.5">
           {prefix && <span className="text-xl font-bold text-text-secondary -translate-y-1">{prefix}</span>}
-          <span className="text-3xl font-black tracking-tight text-white">{value}</span>
+          <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">{value}</span>
           {suffix && <span className="text-xl font-bold text-text-secondary -translate-y-1">{suffix}</span>}
         </div>
         <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-text-secondary/80 border-t border-border-subtle/50 pt-2 flex items-center justify-between">
