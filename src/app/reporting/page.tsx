@@ -280,7 +280,7 @@ export default function Reporting() {
       <div className="glass-card p-6 flex flex-col justify-between h-full">
         <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{title}</h3>
         <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-3xl font-black text-white tracking-tight">{format(currVal)}</span>
+          <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">{format(currVal)}</span>
           <span className="text-sm font-semibold text-text-secondary">vs {format(prevVal)}</span>
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -304,7 +304,7 @@ export default function Reporting() {
     <div className="pb-20">
       <header className="mb-6 flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
             Growth & Reporting
             {searchQuery && (
               <span className="text-brand-pink-400 text-sm font-semibold bg-brand-pink-500/10 px-2.5 py-1 rounded-md border border-brand-pink-500/20 uppercase tracking-wider">
@@ -429,7 +429,7 @@ export default function Reporting() {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
                 {/* Comparative Radar */}
-                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Personal Skill Signature vs Global Average</h2>
                   <div className="flex-1 w-full relative overflow-y-auto no-scrollbar pr-2">
                     {radarData?.length > 0 ? (
@@ -463,7 +463,7 @@ export default function Reporting() {
                 </div>
 
                 {/* Personal Trendline */}
-                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Personal Growth Pacing</h2>
                   <div className="flex-1 w-full relative">
                     <div className="absolute inset-0">
@@ -519,7 +519,7 @@ export default function Reporting() {
           ) : isLocationSearch ? (
             /* --- LOCATION DOSSIER LAYOUT --- */
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <div className="glass-panel p-6 mb-6 flex items-center justify-between border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-transparent">
+               <div className="glass-panel p-4 sm:p-6 mb-6 flex items-center justify-between border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-transparent">
                   <div>
                     <h2 className="text-xl font-black text-white">{searchQuery}</h2>
                     <p className="text-xs font-bold uppercase tracking-wider text-blue-400">Regional Performance Dossier</p>
@@ -528,7 +528,7 @@ export default function Reporting() {
 
                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
                  {/* Volume Chart */}
-                 <div className="glass-panel p-6 h-[400px] flex flex-col">
+                 <div className="glass-panel p-4 sm:p-6 h-[300px] sm:h-[400px] flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Daily Volume Comparison</h2>
                    <div className="flex-1 w-full relative">
                      <div className="absolute inset-0">
@@ -557,7 +557,7 @@ export default function Reporting() {
                  </div>
 
                  {/* Top Local BDs */}
-                 <div className="glass-panel p-6 h-[400px] flex flex-col">
+                 <div className="glass-panel p-4 sm:p-6 h-[300px] sm:h-[400px] flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0 flex items-center gap-2">
                      <Trophy className="w-4 h-4 text-emerald-400" />
                      Top Local Performers
@@ -587,7 +587,7 @@ export default function Reporting() {
 
                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
                  {/* Lead Status Pipeline */}
-                 <div className="glass-panel p-6 flex flex-col">
+                 <div className="glass-panel p-4 sm:p-6 flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Pipeline Funnel</h2>
                    
                    {/* Unified Multi-Segment Bar */}
@@ -637,7 +637,7 @@ export default function Reporting() {
                  </div>
 
                  {/* Brand Distribution */}
-                 <div className="glass-panel p-6 flex flex-col">
+                 <div className="glass-panel p-4 sm:p-6 flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Brand Distribution</h2>
                    <div className="flex flex-col gap-4">
                      {brandCounts!.map((brand: any) => {
@@ -666,7 +666,7 @@ export default function Reporting() {
             /* --- MACRO (GLOBAL/BRAND) DASHBOARD LAYOUT --- */
             <div className="animate-in fade-in duration-500">
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-                <div className="glass-panel p-6 h-[400px] flex flex-col xl:col-span-2">
+                <div className="glass-panel p-4 sm:p-6 h-[300px] sm:h-[400px] flex flex-col xl:col-span-2">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
                     {isBrandSearch ? "Brand Performance Comparison (MTD)" : "Daily Volume Comparison"}
                   </h2>
@@ -714,7 +714,7 @@ export default function Reporting() {
                   </div>
                 </div>
 
-                <div className="glass-panel p-6 h-[400px] flex flex-col xl:col-span-1">
+                <div className="glass-panel p-4 sm:p-6 h-[300px] sm:h-[400px] flex flex-col xl:col-span-1">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
                     {isLocationSearch ? `Performance Bands (${searchQuery})` : 'Performance Bands'}
                   </h2>
@@ -757,7 +757,7 @@ export default function Reporting() {
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
                     {isLocationSearch ? `Regional Skill Matrix (${searchQuery})` : 'Team Skill Matrix'}
                   </h2>
@@ -782,7 +782,7 @@ export default function Reporting() {
                   </div>
                 </div>
 
-                <div className="glass-panel p-6 h-[450px] flex flex-col">
+                <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
                     {isLocationSearch ? `Revenue Efficiency Matrix (${searchQuery})` : 'Revenue Efficiency Matrix'}
                   </h2>
@@ -803,7 +803,7 @@ export default function Reporting() {
                             <YAxis 
                               type="number" 
                               dataKey="revenue" 
-                              name="Secured Revenue" 
+                              name="Active Pipeline (est.)"
                               tick={{ fill: '#9896a3', fontSize: 11 }} 
                               stroke="#9896a3" 
                               tickFormatter={(v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
