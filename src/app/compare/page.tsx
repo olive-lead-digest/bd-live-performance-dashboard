@@ -11,10 +11,7 @@ import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 const formatCurrency = (num: number) => {
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-  if (num >= 1e3) return (num / 1e3).toFixed(1) + 'k';
-  return num.toLocaleString();
+  return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
 };
 
 type FilterSelection = { type: string, value: string };
@@ -311,9 +308,9 @@ export default function Compare() {
 
         {/* Metrics Body */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pt-2">
-          {renderMetricBox("Est. Active Value", "securedRevenue", v => formatCurrency(v), "$")}
-          {renderMetricBox("Est. Pipeline Value", "pipelineValue", v => formatCurrency(v), "$")}
-          {renderMetricBox("Est. Yield per Lead", "yieldPerLead", v => formatCurrency(v), "$")}
+          {renderMetricBox("Est. Active Value", "securedRevenue", v => formatCurrency(v), "₹")}
+          {renderMetricBox("Est. Pipeline Value", "pipelineValue", v => formatCurrency(v), "₹")}
+          {renderMetricBox("Est. Yield per Lead", "yieldPerLead", v => formatCurrency(v), "₹")}
           {renderMetricBox("Active Rate", "highIntentRate", v => v.toFixed(1), "", "%")}
           {renderMetricBox("Tier 1 Concentration", "tier1Concentration", v => v.toFixed(1), "", "%")}
           {renderMetricBox("Contact Rate", "winRate", v => v.toFixed(1), "", "%")}
@@ -341,7 +338,7 @@ export default function Compare() {
     winLbl
       ? { tone: 'up', text: `${winLbl} leads overall, winning ${overallSummary.topScore} of 9 metrics.` }
       : { tone: 'info', text: `The cohorts are statistically tied across the 9 metrics.` },
-    { tone: 'info', text: `Highest est. active value: ${revRank[0].l} at $${formatCurrency(revRank[0].v)}.` },
+    { tone: 'info', text: `Highest est. active value: ${revRank[0].l} at ₹${formatCurrency(revRank[0].v)}.` },
     { tone: 'info', text: `Best contact rate: ${wrRank[0].l} (${wrRank[0].v.toFixed(1)}%).` },
     ...(ciRank[0].v > 0 ? [{ tone: 'warn' as const, text: `${ciRank[0].l} carries the highest competitor exposure (${ciRank[0].v.toFixed(1)}%).` }] : []),
   ];
