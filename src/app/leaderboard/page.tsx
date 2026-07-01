@@ -110,7 +110,7 @@ export default function Leaderboard() {
     <div className="pb-20 relative">
       <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Performance Leaderboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Performance Leaderboard</h1>
           <p className="text-text-secondary text-sm mt-1">Balanced scoring across quality, conversion, and volume.</p>
         </div>
         <div className="flex items-center gap-2 bg-surface p-1.5 rounded-lg border border-border-subtle shrink-0">
