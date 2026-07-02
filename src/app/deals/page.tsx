@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
 } from 'recharts';
 import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
+import { ProposalsStageCard } from '@/components/ProposalsStageCard';
 
 const inr = (n?: number | null) =>
   n == null
@@ -53,6 +54,10 @@ export default function DealsPage() {
   const byBrand: Record<string, any> = deals.byBrand || {};
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
   const propertyType: Record<string, number> = deals.propertyType || {};
+
+  const leadsCount = Array.isArray(data?.leads) ? data!.leads.length : null;
+  const proposalsCount =
+    data?.proposals?.totals?.proposals != null ? Number(data.proposals.totals.proposals) : null;
 
   const maxFunnel = Math.max(1, ...funnel.map((f) => f.count));
   const propData = Object.entries(propertyType).map(([name, value]) => ({ name, value: Number(value) || 0 }));
@@ -104,20 +109,34 @@ export default function DealsPage() {
           <Handshake className="w-4 h-4 text-brand-pink-400" /> Signing Funnel
         </h2>
 
-        {/* End-to-end funnel connector: Leads → Proposals (dept approvals) → Deals.
-            We do NOT have proposals data in the feed yet, so no counts are shown —
-            this is a labeled reminder that approvals sit between leads and deals. */}
+        {/* End-to-end funnel connector: Leads → Proposals (dept approvals) → Deals,
+            with real counts from the leads feed, the proposals feed and the deals feed. */}
         <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-secondary/70 flex-wrap">
-          <span>Leads</span>
-          <ArrowRight className="w-3 h-3 shrink-0" />
-          <span
-            className="px-2 py-0.5 rounded border border-dashed border-border-subtle text-text-secondary/60 normal-case tracking-normal"
-            title="Department approvals / proposals sit between the leads funnel and the deals funnel. Not yet in the feed — no counts shown."
-          >
-            Proposals &amp; approvals
+          <span className="flex items-center gap-1.5">
+            Leads
+            {leadsCount != null && (
+              <span className="text-white tabular-nums normal-case">{leadsCount.toLocaleString('en-IN')}</span>
+            )}
           </span>
           <ArrowRight className="w-3 h-3 shrink-0" />
-          <span className="text-brand-pink-400">Deals</span>
+          <span
+            className="px-2 py-0.5 rounded border border-brand-pink-500/40 bg-brand-pink-500/10 text-brand-pink-300 flex items-center gap-1.5"
+            title="Proposals awaiting or completing department approvals (Zoho Awaiting_BusinessApproval). Once approved, a deal auto-creates."
+          >
+            Proposals
+            {proposalsCount != null ? (
+              <span className="text-white tabular-nums normal-case">{proposalsCount.toLocaleString('en-IN')}</span>
+            ) : (
+              <span className="text-text-secondary/60 normal-case tracking-normal">&amp; approvals</span>
+            )}
+          </span>
+          <ArrowRight className="w-3 h-3 shrink-0" />
+          <span className="text-brand-pink-400 flex items-center gap-1.5">
+            Deals
+            {totals.deals != null && (
+              <span className="text-white tabular-nums normal-case">{Number(totals.deals).toLocaleString('en-IN')}</span>
+            )}
+          </span>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -148,6 +167,10 @@ export default function DealsPage() {
           })}
         </div>
       </div>
+
+      {/* Proposals / department approvals — the pre-deal stage. Renders only
+          when the proposals feed is present. */}
+      <ProposalsStageCard />
 
       {/* Signing probability — renders only when the feed carries it */}
       <SigningProbabilityCard />
