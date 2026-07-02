@@ -52,9 +52,51 @@ export interface DashData {
   leads: Lead[];
   bds: Record<string, BD>;
   deals?: any;
+  // Proposals / department-approval stage (Zoho Awaiting_BusinessApproval).
+  // The pre-deal, under-approval funnel entity between Leads and Deals.
+  proposals?: Proposals;
   // NEW feed keys — may be undefined until the pipeline reruns; always guard.
   leadsBySource?: Record<string, { l: number; c: number; a: number; d: number }>;
   dropReasons?: Record<string, number>;
+}
+
+export interface ApprovalDept {
+  approved: number;
+  rejected: number;
+  pending: number;
+  none: number;
+}
+
+export interface ArrOcc {
+  avg: number | null;
+  n: number;
+}
+
+export interface Proposals {
+  generated: string;
+  totals: {
+    proposals: number;
+    approved: number;
+    rejected: number;
+    pending: number;
+    notRouted: number;
+    approvalRatePct: number;
+  };
+  byDeptApproval: {
+    salesRevenue: ApprovalDept;
+    design: ApprovalDept;
+    ops: ApprovalDept;
+  };
+  byBrand: Record<string, { proposals: number; approved: number; rejected: number; pending: number }>;
+  byModel: Record<string, { proposals: number; approved: number; rejected: number; pending: number }>;
+  arrOccupancy: {
+    year1Arr: ArrOcc;
+    year1Occ: ArrOcc;
+    stabilisedArr: ArrOcc;
+    stabilisedOcc: ArrOcc;
+    landlordArr: ArrOcc;
+    landlordOcc: ArrOcc;
+  };
 }
 
 export interface SourceStat {
