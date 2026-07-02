@@ -2,11 +2,12 @@
 
 import { useDashboard } from '@/lib/DashboardContext';
 import {
-  Handshake, IndianRupee, Building2, XCircle, KeyRound, TrendingUp, Users, Layers,
+  Handshake, IndianRupee, Building2, XCircle, KeyRound, TrendingUp, Users, Layers, ArrowRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
 } from 'recharts';
+import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
 
 const inr = (n?: number | null) =>
   n == null
@@ -48,7 +49,7 @@ export default function DealsPage() {
 
   const totals = deals.totals || {};
   const fees = deals.fees || {};
-  const funnel: Array<{ stage: string; count: number; type: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
+  const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
   const propertyType: Record<string, number> = deals.propertyType || {};
@@ -97,19 +98,46 @@ export default function DealsPage() {
         <KpiCard title="Keys Contracted" value={(totals.keysContracted ?? 0).toLocaleString('en-IN')} icon={KeyRound} color="#34d399" />
       </div>
 
-      {/* Full funnel */}
+      {/* Full funnel — rendered in the feed's canonical order, no re-sort */}
       <div className="glass-panel p-4 sm:p-6 relative z-10">
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-6">
           <Handshake className="w-4 h-4 text-brand-pink-400" /> Signing Funnel
         </h2>
+
+        {/* End-to-end funnel connector: Leads → Proposals (dept approvals) → Deals.
+            We do NOT have proposals data in the feed yet, so no counts are shown —
+            this is a labeled reminder that approvals sit between leads and deals. */}
+        <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-secondary/70 flex-wrap">
+          <span>Leads</span>
+          <ArrowRight className="w-3 h-3 shrink-0" />
+          <span
+            className="px-2 py-0.5 rounded border border-dashed border-border-subtle text-text-secondary/60 normal-case tracking-normal"
+            title="Department approvals / proposals sit between the leads funnel and the deals funnel. Not yet in the feed — no counts shown."
+          >
+            Proposals &amp; approvals
+          </span>
+          <ArrowRight className="w-3 h-3 shrink-0" />
+          <span className="text-brand-pink-400">Deals</span>
+        </div>
+
         <div className="flex flex-col gap-3">
           {funnel.map((f) => {
             const pct = (f.count / maxFunnel) * 100;
             const color = typeColor(f.type);
             return (
               <div key={f.stage}>
-                <div className="flex items-center justify-between text-[11px] mb-1">
-                  <span className="text-text-secondary font-medium truncate pr-2">{f.stage}</span>
+                <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
+                  <span className="text-text-secondary font-medium truncate pr-2 flex items-baseline gap-1.5 min-w-0">
+                    <span className="truncate">{f.stage}</span>
+                    {f.note && (
+                      <span
+                        className="text-[9px] uppercase tracking-wider text-brand-purple-400/80 whitespace-nowrap shrink-0"
+                        title={f.note}
+                      >
+                        ({f.note})
+                      </span>
+                    )}
+                  </span>
                   <span className="text-white font-bold shrink-0">{f.count.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="w-full h-3 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
@@ -120,6 +148,9 @@ export default function DealsPage() {
           })}
         </div>
       </div>
+
+      {/* Signing probability — renders only when the feed carries it */}
+      <SigningProbabilityCard />
 
       {/* Revenue */}
       <div className="glass-panel p-4 sm:p-6 relative z-10">
