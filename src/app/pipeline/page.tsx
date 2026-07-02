@@ -3,20 +3,22 @@
 import { useDashboard } from '@/lib/DashboardContext';
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import { PhoneCall, MessagesSquare, BadgeCheck, XCircle, MapPin, Layers, Trophy, ArrowRight, Inbox } from 'lucide-react';
+import { PhoneCall, MessagesSquare, XCircle, MapPin, Layers, Trophy, ArrowRight, Inbox } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { LeadsBySourceCard } from '@/components/LeadsBySourceCard';
+import { DropReasonsCard } from '@/components/DropReasonsCard';
 
 // Pipeline stages in logical progression order, matching the real status taxonomy
 // (dashboard_data.json). "Lead Dropped" is tracked separately as fall-out.
 const STAGES = [
   { key: 'New Leads', label: 'New', color: '#5a7ea3', icon: Inbox },
   { key: 'Lead Contacted', label: 'Contacted', color: '#6d3a9e', icon: PhoneCall },
-  { key: 'Under Discussion', label: 'Under Discussion', color: '#9d4edd', icon: MessagesSquare },
-  { key: 'Awaiting Business Approval', label: 'Awaiting Approval', color: '#da1a84', icon: BadgeCheck },
+  { key: 'Under Discussion', label: 'Under Discussion', color: '#da1a84', icon: MessagesSquare },
   { key: 'Lead Dropped', label: 'Dropped', color: '#4a4957', icon: XCircle },
 ];
 
-const ACTIVE_KEYS = ['Under Discussion', 'Awaiting Business Approval'];
+// Active = Under Discussion only (per the 4-status official taxonomy).
+const ACTIVE_KEYS = ['Under Discussion'];
 
 type Row = { name: string; total: number; [stage: string]: number | string };
 
@@ -232,6 +234,12 @@ export default function Pipeline() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <BreakdownCard title="By Region" icon={MapPin} data={regionData} filterKey="region" />
         <BreakdownCard title="By Tier" icon={Layers} data={tierData} filterKey="tier" />
+      </div>
+
+      {/* ── Source & Drop-reason breakdowns (render only when feed carries them) ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <LeadsBySourceCard />
+        <DropReasonsCard />
       </div>
 
       {/* ── Top BDs leaderboard ─────────────────────────── */}
