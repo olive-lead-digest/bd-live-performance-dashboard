@@ -41,10 +41,13 @@ const DEFAULT_DATA_URL =
   'https://raw.githubusercontent.com/olive-lead-digest/bd-live-performance-dashboard/data/dashboard_data.json';
 const DEFAULT_DEALS_URL =
   'https://raw.githubusercontent.com/olive-lead-digest/bd-live-performance-dashboard/data/deals.json';
+const DEFAULT_PROPOSALS_URL =
+  'https://raw.githubusercontent.com/olive-lead-digest/bd-live-performance-dashboard/data/proposals.json';
 
 export async function GET() {
   const url = process.env.DASHBOARD_DATA_URL || DEFAULT_DATA_URL;
   const dealsUrl = process.env.DEALS_DATA_URL || DEFAULT_DEALS_URL;
+  const proposalsUrl = process.env.PROPOSALS_DATA_URL || DEFAULT_PROPOSALS_URL;
 
   // Serve the cached copy while it is still fresh.
   if (urlCache && Date.now() - urlCache.at < URL_TTL_MS) {
@@ -52,12 +55,17 @@ export async function GET() {
   }
 
   try {
-    // Leads feed is required; the Deals feed is best-effort (won't break the page).
-    const [data, deals] = await Promise.all([
+    // Leads feed is required; the Deals and Proposals feeds are best-effort
+    // (a hiccup there must not break the page).
+    const [data, deals, proposals] = await Promise.all([
       fromUrl(url),
       fromUrl(dealsUrl).catch(() => null),
+      fromUrl(proposalsUrl).catch(() => null),
     ]);
-    const merged = data && typeof data === 'object' ? { ...(data as Record<string, unknown>), deals } : data;
+    const merged =
+      data && typeof data === 'object'
+        ? { ...(data as Record<string, unknown>), deals, proposals }
+        : data;
     urlCache = { at: Date.now(), data: merged };
     return NextResponse.json(merged);
   } catch {
