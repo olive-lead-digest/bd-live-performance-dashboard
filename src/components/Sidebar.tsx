@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Trophy, GitMerge, Map, Users, Settings, Filter, SplitSquareHorizontal, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Trophy, GitMerge, Map, Users, Settings, Filter, SplitSquareHorizontal, BarChart3, Handshake } from 'lucide-react';
 import clsx from 'clsx';
 
 const NAV_ITEMS = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Leaderboard', href: '/leaderboard', icon: Trophy },
+  { name: 'Deals', href: '/deals', icon: Handshake },
   { name: 'Pipeline', href: '/pipeline', icon: GitMerge },
   { name: 'Geography', href: '/geography', icon: Map },
   { name: 'Reporting', href: '/reporting', icon: BarChart3 },
