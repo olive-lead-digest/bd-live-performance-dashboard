@@ -52,6 +52,16 @@ export interface DashData {
   leads: Lead[];
   bds: Record<string, BD>;
   deals?: any;
+  // NEW feed keys — may be undefined until the pipeline reruns; always guard.
+  leadsBySource?: Record<string, { l: number; c: number; a: number; d: number }>;
+  dropReasons?: Record<string, number>;
+}
+
+export interface SourceStat {
+  l: number; // total leads
+  c: number; // contacted
+  a: number; // active
+  d: number; // dropped
 }
 
 export interface Rates {

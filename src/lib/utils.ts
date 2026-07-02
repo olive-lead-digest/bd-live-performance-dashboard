@@ -20,20 +20,23 @@ export function pctile(vals: number[]): number[] {
 }
 
 /*
- * Status taxonomy — reconciled to the REAL pipeline output (dashboard_data.json),
- * whose lead statuses are: New Leads, Lead Contacted, Under Discussion,
- * Awaiting Business Approval, Lead Dropped, null.
+ * Status taxonomy — the 4 OFFICIAL lead statuses are:
+ *   New Leads, Lead Contacted, Under Discussion, Lead Dropped.
+ * ("Awaiting Business Approval" is NOT an official lead status — it lives in the
+ * Deals module, not the lead pipeline — so it has been removed from every set.)
  *
- * CONT_STATUSES  = a lead that has been engaged at least once (past "New Leads").
- * ACT_STATUSES   = a lead in an active, live conversation right now.
+ * CONT_STATUSES  = a lead that has been engaged at least once (past "New Leads")
+ *                  = { Lead Contacted, Under Discussion }.
+ * ACT_STATUSES   = a lead in an active, live conversation right now
+ *                  = { Under Discussion } only.
  * WON_STATUSES   = closed-won. The current Leads-by-phone pipeline carries almost
  *                  no won status (won deals live in the CRM Deals module), so this
  *                  is near-empty today but kept forward-compatible: if the pipeline
  *                  later surfaces Closure/Won/Signed, win-rate starts working with
  *                  no further code change.
  */
-export const CONT_STATUSES = new Set(['Lead Contacted', 'Under Discussion', 'Awaiting Business Approval']);
-export const ACT_STATUSES = new Set(['Under Discussion', 'Awaiting Business Approval']);
+export const CONT_STATUSES = new Set(['Lead Contacted', 'Under Discussion']);
+export const ACT_STATUSES = new Set(['Under Discussion']);
 export const WON_STATUSES = new Set(['Closure', 'Won', 'Signed', 'Qualified (WON)']);
 export const DROP_STATUSES = new Set(['Lead Dropped', 'Lost Lead', 'Junk Lead', 'Not Qualified']);
 
@@ -99,7 +102,7 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       byo[l.owner].push(l);
     }
   });
-  
+
   const recs: LeaderboardRec[] = Object.keys(byo).map(owner => {
     const ls = byo[owner];
     const rt = calculateRates(ls);
@@ -124,18 +127,18 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       band: ''
     };
   });
-  
+
   const Lv = pctile(recs.map(r => r.n));
   const Cav = pctile(recs.map(r => r.conn));
-  
+
   recs.forEach((r, i) => {
     if (r.reviewed && r.q) {
       const Q = r.q.overall * 10;
       const Cmp = r.q.brand_alignment * 10;
       const Cv = clamp(50 + r.active * 2.2 + (r.contact - 40) * 0.25 - Math.max(0, r.drop - 10) * 1.1);
-      
+
       const sc = weights.Q * Q + weights.Cv * Cv + weights.Cmp * Cmp + weights.Lv * Lv[i] + weights.Cav * Cav[i];
-      
+
       r.bps = { Q, Cv, Cmp, Lv: Lv[i], Cav: Cav[i], score: sc };
       r.band = sc >= 72 ? 'Top performer' : sc >= 63 ? 'Strong' : sc >= 54 ? 'Developing' : 'Priority coaching';
     } else {
@@ -143,7 +146,7 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       r.band = 'Pending review';
     }
   });
-  
+
   return recs;
 }
 
