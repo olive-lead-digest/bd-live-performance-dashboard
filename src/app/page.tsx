@@ -11,6 +11,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { InsightsDropdown } from '@/components/InsightsDropdown';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { HeroAsk } from '@/components/HeroAsk';
+import { DealsOverview } from '@/components/DealsOverview';
 import { PropertyStatusCard } from '@/components/PropertyStatusCard';
 import { CallingQualityCard } from '@/components/CallingQualityCard';
 
@@ -209,6 +210,7 @@ export default function Overview() {
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
       <HeroAsk />
+      <DealsOverview />
       {/* Background ambient glows */}
       <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] bg-brand-pink-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[20%] right-[-100px] w-[600px] h-[600px] bg-brand-purple-500/10 rounded-full blur-[150px] pointer-events-none" />
