@@ -22,7 +22,7 @@ export function Sidebar({ onOpenFilters }: { onOpenFilters: () => void }) {
     <aside className="fixed left-0 top-0 bottom-0 z-40 w-16 hover:w-64 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-panel/90 backdrop-blur-2xl border-r border-border-subtle flex flex-col group overflow-hidden shadow-2xl">
       <div className="flex h-16 shrink-0 items-center justify-center group-hover:justify-start group-hover:px-6 w-full relative">
         <span className="w-10 h-10 shrink-0 rounded-lg bg-white/95 flex items-center justify-center p-1 shadow-[0_0_12px_rgba(255,255,255,0.15)]">
-          <img src="/olive-spoke.svg" alt="Olive Hospitality" className="w-full h-full object-contain" />
+          <img src="/olive-spoke-pink.svg" alt="Olive Hospitality" className="w-full h-full object-contain" />
         </span>
         <span className="ml-3 text-white font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-sm tracking-wide">
           Olive Hospitality
