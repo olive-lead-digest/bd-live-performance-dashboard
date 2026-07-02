@@ -1,0 +1,298 @@
+'use client';
+
+import { useDashboard } from '@/lib/DashboardContext';
+import {
+  Handshake, IndianRupee, Building2, XCircle, KeyRound, TrendingUp, Users, Layers,
+} from 'lucide-react';
+import {
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
+} from 'recharts';
+
+const inr = (n?: number | null) =>
+  n == null
+    ? '—'
+    : new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        notation: 'compact',
+        maximumFractionDigits: 2,
+      }).format(n);
+
+const BRAND_COLORS: Record<string, string> = {
+  Olive: '#502875',
+  Spark: '#da1a84',
+  'Open Hotels': '#a470d6',
+};
+
+const PROP_COLORS = ['#502875', '#da1a84', '#a470d6', '#34d399'];
+
+function typeColor(type: string) {
+  if (type === 'signed') return '#da1a84';
+  if (type === 'dropped') return '#6b7280';
+  return '#502875';
+}
+
+export default function DealsPage() {
+  const { data } = useDashboard();
+  const deals = data?.deals;
+
+  if (!deals) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 relative z-10 max-w-xl mx-auto text-center px-6 py-20">
+        <Handshake className="w-10 h-10 text-brand-purple-400" />
+        <div className="text-white font-bold tracking-widest uppercase text-sm">Deals</div>
+        <div className="text-text-secondary text-sm">Deals data is loading or unavailable.</div>
+      </div>
+    );
+  }
+
+  const totals = deals.totals || {};
+  const fees = deals.fees || {};
+  const funnel: Array<{ stage: string; count: number; type: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
+  const byBrand: Record<string, any> = deals.byBrand || {};
+  const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
+  const propertyType: Record<string, number> = deals.propertyType || {};
+
+  const maxFunnel = Math.max(1, ...funnel.map((f) => f.count));
+  const propData = Object.entries(propertyType).map(([name, value]) => ({ name, value: Number(value) || 0 }));
+  const brandNames = Object.keys(byBrand);
+  const maxBrandSigned = Math.max(1, ...brandNames.map((b) => Number(byBrand[b]?.signed) || 0));
+
+  return (
+    <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
+      {/* Ambient glows */}
+      <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] bg-brand-pink-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[20%] right-[-100px] w-[600px] h-[600px] bg-brand-purple-500/10 rounded-full blur-[150px] pointer-events-none" />
+
+      <header className="mb-2 relative z-10">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
+          Deals &amp; Signings
+          <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest">
+            Zoho CRM
+          </span>
+        </h1>
+        <p className="text-text-secondary text-sm mt-1 font-medium">
+          Real hotel-signing pipeline &amp; fees from Zoho CRM
+        </p>
+      </header>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 relative z-10">
+        <KpiCard title="Total Deals" value={(totals.deals ?? 0).toLocaleString('en-IN')} icon={Layers} color="#a470d6" />
+        <KpiCard
+          title="MA Signed"
+          value={(totals.signed ?? 0).toLocaleString('en-IN')}
+          sub={totals.signRatePct != null ? `${totals.signRatePct}% sign rate` : undefined}
+          icon={Handshake}
+          color="#da1a84"
+        />
+        <KpiCard title="In-Progress" value={(totals.active ?? 0).toLocaleString('en-IN')} sub="active" icon={TrendingUp} color="#502875" />
+        <KpiCard
+          title="Dropped"
+          value={(totals.dropped ?? 0).toLocaleString('en-IN')}
+          sub={totals.dropRatePct != null ? `${totals.dropRatePct}% drop rate` : undefined}
+          icon={XCircle}
+          color="#ef4444"
+        />
+        <KpiCard title="Keys Contracted" value={(totals.keysContracted ?? 0).toLocaleString('en-IN')} icon={KeyRound} color="#34d399" />
+      </div>
+
+      {/* Full funnel */}
+      <div className="glass-panel p-4 sm:p-6 relative z-10">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-6">
+          <Handshake className="w-4 h-4 text-brand-pink-400" /> Signing Funnel
+        </h2>
+        <div className="flex flex-col gap-3">
+          {funnel.map((f) => {
+            const pct = (f.count / maxFunnel) * 100;
+            const color = typeColor(f.type);
+            return (
+              <div key={f.stage}>
+                <div className="flex items-center justify-between text-[11px] mb-1">
+                  <span className="text-text-secondary font-medium truncate pr-2">{f.stage}</span>
+                  <span className="text-white font-bold shrink-0">{f.count.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="w-full h-3 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(2, pct)}%`, backgroundColor: color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Revenue */}
+      <div className="glass-panel p-4 sm:p-6 relative z-10">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-6">
+          <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          <RevStat label="Contracted" value={inr(fees.contracted)} />
+          <RevStat label="Collected" value={inr(fees.collected)} accent="#34d399" />
+          <RevStat label="Pending" value={inr(fees.pending)} accent="#ffb020" warn />
+          <RevStat label="Expected" value={inr(fees.expectedAmount)} />
+          <RevStat label="Actual" value={inr(fees.actualAmount)} />
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
+                <th className="text-left py-2 pr-4 font-bold">Brand</th>
+                <th className="text-right py-2 px-4 font-bold">Deals</th>
+                <th className="text-right py-2 px-4 font-bold">Signed</th>
+                <th className="text-right py-2 px-4 font-bold">Contracted</th>
+                <th className="text-right py-2 px-4 font-bold">Collected</th>
+                <th className="text-right py-2 pl-4 font-bold">Pending</th>
+              </tr>
+            </thead>
+            <tbody>
+              {brandNames.map((b) => {
+                const row = byBrand[b] || {};
+                return (
+                  <tr key={b} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                    <td className="py-2.5 pr-4">
+                      <span className="inline-flex items-center gap-2 font-bold text-white">
+                        <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: BRAND_COLORS[b] || '#4a4957' }} />
+                        {b}
+                      </span>
+                    </td>
+                    <td className="text-right py-2.5 px-4 text-text-secondary">{(row.deals ?? 0).toLocaleString('en-IN')}</td>
+                    <td className="text-right py-2.5 px-4 text-white font-bold">{(row.signed ?? 0).toLocaleString('en-IN')}</td>
+                    <td className="text-right py-2.5 px-4 text-white">{inr(row.feeContracted)}</td>
+                    <td className="text-right py-2.5 px-4 text-emerald-400">{inr(row.feeCollected)}</td>
+                    <td className="text-right py-2.5 pl-4 text-amber-400">{inr(row.feePending)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Closer scorecard + property/brand splits */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
+        {/* Closer scorecard */}
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-2">
+            <Users className="w-4 h-4 text-brand-pink-400" /> BD Closer Scorecard
+          </h2>
+          <p className="text-[10px] text-text-secondary/70 mb-4 italic">
+            Blank / &quot;Unassigned&quot; owners are legacy or house accounts.
+          </p>
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
+                  <th className="text-left py-2 pr-4 font-bold">#</th>
+                  <th className="text-left py-2 px-4 font-bold">BD</th>
+                  <th className="text-right py-2 px-4 font-bold">Signed</th>
+                  <th className="text-right py-2 pl-4 font-bold">Fee Contracted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closers.slice(0, 15).map((c, i) => (
+                  <tr key={`${c.bd}-${i}`} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                    <td className="py-2.5 pr-4 text-text-secondary">{i + 1}</td>
+                    <td className="py-2.5 px-4 text-white font-bold">{c.bd || 'Unassigned'}</td>
+                    <td className="text-right py-2.5 px-4 text-white">{(c.signed ?? 0).toLocaleString('en-IN')}</td>
+                    <td className="text-right py-2.5 pl-4 text-brand-pink-400 font-bold">{inr(c.feeContracted)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Property type + brand */}
+        <div className="flex flex-col gap-4 sm:gap-6">
+          <div className="glass-panel p-4 sm:p-6 flex flex-col">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-4">
+              <Building2 className="w-4 h-4 text-brand-purple-400" /> Property Type
+            </h2>
+            {propData.length > 0 ? (
+              <div className="w-full h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={propData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                      {propData.map((entry, i) => (
+                        <Cell key={entry.name} fill={PROP_COLORS[i % PROP_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
+                      itemStyle={{ color: '#fff', fontSize: '12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="text-sm text-text-secondary">No data available</div>
+            )}
+            <div className="flex flex-col gap-2 mt-2">
+              {propData.map((p, i) => (
+                <div key={p.name} className="flex items-center justify-between text-[11px]">
+                  <span className="inline-flex items-center gap-2 text-text-secondary">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: PROP_COLORS[i % PROP_COLORS.length] }} />
+                    {p.name}
+                  </span>
+                  <span className="text-white font-bold">{p.value.toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-panel p-4 sm:p-6 flex flex-col">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-4">
+              <Handshake className="w-4 h-4 text-brand-pink-400" /> Signings by Brand
+            </h2>
+            <div className="flex flex-col gap-3">
+              {brandNames.map((b) => {
+                const signed = Number(byBrand[b]?.signed) || 0;
+                const pct = (signed / maxBrandSigned) * 100;
+                return (
+                  <div key={b}>
+                    <div className="flex items-center justify-between text-[11px] mb-1">
+                      <span className="text-text-secondary font-medium">{b}</span>
+                      <span className="text-white font-bold">{signed.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(3, pct)}%`, backgroundColor: BRAND_COLORS[b] || '#4a4957' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ title, value, sub, icon: Icon, color }: any) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-black/40 border border-border-subtle p-5 backdrop-blur-xl">
+      <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] -mr-10 -mt-10 opacity-20 pointer-events-none" style={{ backgroundColor: color }} />
+      <div className="flex justify-between items-start mb-4 relative z-10">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary leading-tight">{title}</h3>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: `${color}10`, borderColor: `${color}30` }}>
+          <Icon className="w-4 h-4" style={{ color }} />
+        </div>
+      </div>
+      <div className="relative z-10">
+        <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">{value}</span>
+        {sub && <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-text-secondary/80">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function RevStat({ label, value, accent, warn }: { label: string; value: string; accent?: string; warn?: boolean }) {
+  return (
+    <div className={`flex flex-col justify-center p-3 rounded-xl border ${warn ? 'bg-amber-500/5 border-amber-500/20' : 'bg-black/20 border-border-subtle/50'}`}>
+      <span className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-1">{label}</span>
+      <span className="text-lg sm:text-xl font-black tracking-tight" style={{ color: accent || '#ffffff' }}>{value}</span>
+    </div>
+  );
+}
