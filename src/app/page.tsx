@@ -2,11 +2,10 @@
 
 import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, buildLeaderboard, isActive, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
+import { calculateRates, buildLeaderboard, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
 import { FunnelChart } from '@/components/FunnelChart';
-import { DollarSign, TrendingUp, Target, BarChart2, Award, Zap, Building2, Info, AlertTriangle, ChevronRight, Activity, Users, Sparkles, ShieldAlert, ArrowUpRight, ArrowDownRight, AlertCircle } from 'lucide-react';
+import { Target, BarChart2, Award, Zap, Info, AlertTriangle, ChevronRight, Activity, Users, ShieldAlert } from 'lucide-react';
 import { useMemo } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ComposedChart, Bar, Line, Legend } from 'recharts';
 
 import { InsightsDropdown } from '@/components/InsightsDropdown';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
@@ -15,7 +14,8 @@ import { DealsOverview } from '@/components/DealsOverview';
 import { PropertyStatusCard } from '@/components/PropertyStatusCard';
 import { CallingQualityCard } from '@/components/CallingQualityCard';
 
-// Illustrative estimate only — leads carry no monetary amount (see utils.ts). Every "₹" below is count x this.
+// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
+// Used solely for the executive-summary language; real revenue comes from the Deals feed.
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
 export default function Overview() {
@@ -25,66 +25,28 @@ export default function Overview() {
     return calculateRates(filteredLeads);
   }, [filteredLeads]);
 
+  // Top 4 BDs by balanced score. buildLeaderboard does NOT sort, so we sort here:
+  // prefer reviewed reps with a computed bps.score (desc); if fewer than 4 are
+  // reviewed, fall back to sorting by active rate so the card always fills.
   const leaderboard = useMemo(() => {
     if (!data || !data.weights) return [];
-    return buildLeaderboard(filteredLeads, data.bds, data.weights).slice(0, 4); // Top 4 BDs
+    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights);
+    const scored = lb
+      .filter(r => r.reviewed && r.bps && typeof r.bps.score === 'number')
+      .sort((a, b) => (b.bps!.score) - (a.bps!.score));
+    if (scored.length >= 4) return scored.slice(0, 4);
+    // Defensive fallback: fill remaining slots by active rate.
+    const rest = lb
+      .filter(r => !scored.includes(r))
+      .sort((a, b) => (b.active || 0) - (a.active || 0));
+    return [...scored, ...rest].slice(0, 4);
   }, [filteredLeads, data]);
 
-  // Executive Financial Metrics
+  // Real lead metrics (no monetary estimates).
   const totalLeads = filteredLeads.length;
-  const activeDealsCount = calculateRates(filteredLeads).active;
-  const totalPipelineValue = totalLeads * AVG_DEAL_SIZE;
-  const projectedRevenue = activeDealsCount * AVG_DEAL_SIZE;
-  // "Active rate" = active deals / total leads (NOT a true win rate — won deals live in the CRM Deals module).
+  const activeDealsCount = metrics.active;
+  // "Active rate" = active leads / total leads (NOT a true win rate — won deals live in the CRM Deals module).
   const activeRate = totalLeads > 0 ? (activeDealsCount / totalLeads) * 100 : 0;
-
-  // Trend Data - Revenue mapped
-  const trendData = useMemo(() => {
-    const tm: Record<string, { leads: number, revenue: number }> = {};
-    filteredLeads.forEach(l => {
-      const m = l.dt.slice(0, 7);
-      if (!tm[m]) tm[m] = { leads: 0, revenue: 0 };
-      tm[m].leads++;
-      if (isActive(l.status)) tm[m].revenue += AVG_DEAL_SIZE;
-    });
-    return Object.keys(tm).sort().map(m => ({
-      month: m,
-      'Pipeline Volume': tm[m].leads * AVG_DEAL_SIZE,
-      'Active Pipeline (est.)': tm[m].revenue
-    }));
-  }, [filteredLeads]);
-
-  // Regional Revenue Composed Chart
-  const regionalData = useMemo(() => {
-    const rm: Record<string, { active: number, total: number }> = {};
-    filteredLeads.forEach(l => {
-      const r = l.region || 'Unknown';
-      if (!rm[r]) rm[r] = { active: 0, total: 0 };
-      rm[r].total += AVG_DEAL_SIZE;
-      if (isActive(l.status)) rm[r].active += AVG_DEAL_SIZE;
-    });
-    return Object.keys(rm)
-      .filter(r => r !== 'Unknown' && rm[r].total > 0)
-      .sort((a, b) => rm[b].total - rm[a].total)
-      .map(r => ({
-        region: r,
-        'Total Pipeline': rm[r].total,
-        'Active Revenue': rm[r].active,
-        'Conversion %': (rm[r].active / rm[r].total) * 100
-      }));
-  }, [filteredLeads]);
-
-  const brandData = useMemo(() => {
-    const m: Record<string, number> = {};
-    filteredLeads.forEach(l => {
-      const b = l.brand || 'Unknown';
-      m[b] = (m[b] || 0) + AVG_DEAL_SIZE;
-    });
-    return Object.keys(m).sort().map(name => ({
-      name,
-      value: m[name]
-    }));
-  }, [filteredLeads]);
 
   // === Executive intelligence (illustrative targets where the dataset has none) ===
   const exec = useMemo(() => {
@@ -100,18 +62,14 @@ export default function Overview() {
     const prev = months[months.length - 2];
     const momPct = prev ? ((byMonth[curr] - byMonth[prev]) / byMonth[prev]) * 100 : 0;
 
-    // Current-month secured revenue + pacing
+    // Current-month secured value + pacing (illustrative)
     const currLeads = filteredLeads.filter(l => l.dt.slice(0, 7) === curr);
     const achieved = calculateRates(currLeads).active * AVG;
     const [cy, cm] = curr.split('-').map(Number);
     const daysInMonth = new Date(cy, cm, 0).getDate();
     const maxDay = currLeads.reduce((mx, l) => Math.max(mx, parseInt(l.dt.split('-')[2]) || 0), 0) || daysInMonth;
     const elapsed = Math.min(1, maxDay / daysInMonth);
-    let target = elapsed > 0 ? achieved / elapsed / 1.03 : achieved / 0.76;
-    target = Math.max(500000, Math.round(target / 500000) * 500000);
-    const attainment = target ? (achieved / target) * 100 : 0;
     const projected = elapsed > 0 ? achieved / elapsed : achieved;
-    const pacePct = target ? ((projected / target) - 1) * 100 : 0;
 
     // Region leadership / fall-out
     const byRegion: Record<string, any[]> = {};
@@ -150,7 +108,7 @@ export default function Overview() {
         ? { tone: 'warn', text: `Conversion is essentially flat across account tiers (~${tierTop.rate.toFixed(0)}%) — top-value accounts aren't outperforming low-value ones.` }
         : { tone: 'warn', text: `${tierBot.t} converts at ${tierBot.rate.toFixed(0)}% vs ${tierTop.t} at ${tierTop.rate.toFixed(0)}% — a ${gap.toFixed(0)}pt gap to close.` });
     }
-    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~₹${(projected >= 1e7 ? (projected / 1e7).toFixed(1) + 'Cr' : projected >= 1e5 ? (projected / 1e5).toFixed(1) + 'L' : (projected / 1e3).toFixed(0) + 'K')} this month (illustrative — based on active leads × est. deal value; no booked deals in this feed).` });
+    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~₹${(projected >= 1e7 ? (projected / 1e7).toFixed(1) + 'Cr' : projected >= 1e5 ? (projected / 1e5).toFixed(1) + 'L' : (projected / 1e3).toFixed(0) + 'K')} this month (illustrative — active leads × est. deal value; real signings shown above).` });
 
     // ---- Risk watchlist ----
     const risks: { sev: string; label: string; detail: string }[] = [];
@@ -166,7 +124,7 @@ export default function Overview() {
 
     return {
       summary,
-      target: { target, achieved, attainment, projected, pacePct, elapsed, curr, daysInMonth, maxDay, topPerf },
+      target: { topPerf },
       risks: risks.slice(0, 5),
     };
   }, [filteredLeads, data]);
@@ -197,14 +155,8 @@ export default function Overview() {
     );
   }
 
-  const formatCurrency = (num: number) => {
+  const formatCompact = (num: number) => {
     return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
-  };
-
-  const BRAND_COLORS: Record<string, string> = {
-    'Olive': '#502875',
-    'Spark': '#da1a84',
-    'Open Hotels': '#a470d6'
   };
 
   return (
@@ -221,7 +173,7 @@ export default function Overview() {
             Business Development Dashboard
             <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(218,26,132,0.3)]">Executive View</span>
           </h1>
-          <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline velocity and revenue projections.</p>
+          <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline health, signings, and rep performance.</p>
         </div>
 
         <div className="flex items-center gap-4">
@@ -232,28 +184,29 @@ export default function Overview() {
       {/* Executive Summary */}
       {exec && <ExecSummary bullets={exec.summary as SummaryBullet[]} />}
 
-      {/* Financial KPI Rail */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 relative z-10">
+      {/* KPI Rail — all real lead metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
         <FinancialCard
-          title="Est. Pipeline Value"
-          value={formatCurrency(totalPipelineValue)}
-          subtitle={`${totalLeads.toLocaleString()} Leads · est.`}
-          icon={Building2}
+          title="Total Leads"
+          value={formatCompact(totalLeads)}
+          subtitle={`${metrics.n.toLocaleString()} Assigned`}
+          icon={Users}
           color="#a470d6"
-          prefix="₹"
+          prefix=""
         />
         <FinancialCard
-          title="Est. Active Value"
-          value={formatCurrency(projectedRevenue)}
-          subtitle={`${activeDealsCount.toLocaleString()} Active Deals · est.`}
-          icon={DollarSign}
-          color="#34d399"
-          prefix="₹"
+          title="Contact Rate"
+          value={metrics.contact.toFixed(1)}
+          subtitle={`${metrics.contacted.toLocaleString()} Engaged`}
+          icon={Activity}
+          color="#38bdf8"
+          prefix=""
+          suffix="%"
         />
         <FinancialCard
           title="Active Rate"
           value={activeRate.toFixed(1)}
-          subtitle={`${activeDealsCount.toLocaleString()} of ${metrics.n.toLocaleString()} assigned`}
+          subtitle={`${activeDealsCount.toLocaleString()} in live discussion`}
           icon={Target}
           color="#da1a84"
           prefix=""
@@ -268,58 +221,39 @@ export default function Overview() {
           prefix=""
           suffix="%"
         />
-        <FinancialCard
-          title="Contact Rate"
-          value={metrics.contact.toFixed(1)}
-          subtitle={`${metrics.n.toLocaleString()} Accounts Engaged`}
-          icon={Activity}
-          color="#38bdf8"
-          prefix=""
-          suffix="%"
-        />
       </div>
 
-      {/* Revenue Target Pacing + Risk Watchlist */}
+      {/* Risk Watchlist */}
       {exec && (
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 relative z-10">
-
-          {/* Risk Watchlist */}
-          <div className="glass-panel p-4 sm:p-6 flex flex-col">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
-              <ShieldAlert className="w-4 h-4 text-amber-400" /> Risk Watchlist
-            </h2>
-            <div className="flex flex-col gap-3 flex-1">
-              {exec.risks.length === 0 && (
-                <div className="text-sm text-text-secondary flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-400" /> No material risks flagged.</div>
-              )}
-              {exec.risks.map((r: any, i: number) => {
-                const dot = r.sev === 'high' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : r.sev === 'med' ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]' : 'bg-slate-400';
-                return (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot}`} />
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-white">{r.label}</div>
-                      <div className="text-[11px] text-text-secondary leading-snug">{r.detail}</div>
-                    </div>
+        <div className="glass-panel p-4 sm:p-6 flex flex-col relative z-10">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
+            <ShieldAlert className="w-4 h-4 text-amber-400" /> Risk Watchlist
+          </h2>
+          <div className="flex flex-col gap-3 flex-1">
+            {exec.risks.length === 0 && (
+              <div className="text-sm text-text-secondary flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-400" /> No material risks flagged.</div>
+            )}
+            {exec.risks.map((r: any, i: number) => {
+              const dot = r.sev === 'high' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : r.sev === 'med' ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]' : 'bg-slate-400';
+              return (
+                <div key={i} className="flex items-start gap-3">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dot}`} />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white">{r.label}</div>
+                    <div className="text-[11px] text-text-secondary leading-snug">{r.detail}</div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 relative z-10">
-        <PropertyStatusCard />
-        <CallingQualityCard />
-      </div>
-
-      {/* Main Analytical Grid */}
+      {/* Pipeline Funnel + Elite Performers */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
 
-        {/* Pipeline Funnel */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col relative overflow-hidden group">
+        {/* Pipeline Funnel (lead-stage — distinct from the deal funnel above) */}
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
             <span>Pipeline Conversion Matrix</span>
@@ -330,56 +264,11 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* Revenue Velocity Trend */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-32 bg-brand-pink-500/5 blur-[100px] rounded-full pointer-events-none" />
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
-            <span>Revenue Velocity Trend</span>
-            <TrendingUp className="w-4 h-4 text-text-secondary" />
-          </h2>
-          <div className="flex-1 w-full min-h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorPipeline" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#502875" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#502875" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.6}/>
-                    <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-                <XAxis dataKey="month" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#9896a3"
-                  tick={{fill: '#9896a3', fontSize: 11}}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `₹${formatCurrency(val)}`}
-                />
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
-                  itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}
-                  labelStyle={{ color: '#9896a3', fontSize: '11px', marginBottom: '4px' }}
-                  formatter={(value: any) => [`₹${Number(value || 0).toLocaleString('en-IN')}`, undefined]}
-                />
-                <Area type="monotone" name="Pipeline Volume" dataKey="Pipeline Volume" stroke="#a470d6" strokeWidth={2} fillOpacity={1} fill="url(#colorPipeline)" />
-                <Area type="monotone" name="Active Pipeline (est.)" dataKey="Active Pipeline (est.)" stroke="#34d399" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-
-        {/* Executive Leaderboard */}
+        {/* Executive Leaderboard — Top BDs by balanced score */}
         <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[380px] flex flex-col">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between border-b border-border-subtle pb-4">
             <span className="flex items-center gap-2"><Award className="w-4 h-4 text-brand-pink-400"/> Elite Performers</span>
-            <span className="text-[10px] text-text-secondary bg-surface px-2 py-1 rounded">By Pipeline Generated</span>
+            <span className="text-[10px] text-text-secondary bg-surface px-2 py-1 rounded">By Balanced Score</span>
           </h2>
           <div className="flex-1 flex flex-col gap-4">
             {leaderboard.map((bd, i) => {
@@ -401,7 +290,7 @@ export default function Overview() {
                   <div className="text-[10px] text-text-secondary uppercase tracking-wider mt-0.5">{bd.n} Leads &bull; {score.toFixed(0)} Score</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-black text-brand-pink-400">₹{formatCurrency(bd.n * AVG_DEAL_SIZE)}</div>
+                  <div className="text-sm font-black text-brand-pink-400">{score.toFixed(0)}</div>
                   <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{activePct.toFixed(1)}% Active</div>
                 </div>
               </div>
@@ -409,137 +298,41 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* Regional Market Penetration */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
-            <span>Strategic Market Penetration</span>
-            <Building2 className="w-4 h-4 text-text-secondary" />
-          </h2>
-          <div className="flex-1 w-full min-h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={regionalData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-                <XAxis dataKey="region" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
-                <YAxis
-                  yAxisId="left"
-                  stroke="#9896a3"
-                  tick={{fill: '#9896a3', fontSize: 11}}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `₹${formatCurrency(val)}`}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="#9896a3"
-                  tick={{fill: '#9896a3', fontSize: 11}}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `${val}%`}
-                />
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
-                  itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}
-                  formatter={(value: any, name: any) => [
-                    name === 'Conversion %' ? `${Number(value || 0).toFixed(1)}%` : `₹${Number(value || 0).toLocaleString('en-IN')}`,
-                    name
-                  ]}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Bar yAxisId="left" dataKey="Total Pipeline" fill="#502875" radius={[4, 4, 0, 0]} barSize={40} />
-                <Bar yAxisId="left" dataKey="Active Revenue" fill="#da1a84" radius={[4, 4, 0, 0]} barSize={40} />
-                <Line yAxisId="right" type="monotone" dataKey="Conversion %" stroke="#34d399" strokeWidth={3} dot={{ r: 4, fill: '#16151a', strokeWidth: 2 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-        {/* Brand Capitalization */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 min-h-[280px] flex flex-col justify-center">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6">
-            Brand Capitalization
-          </h2>
-          <div className="flex flex-col gap-6 w-full">
-            {(() => {
-              const totalBrandValue = brandData.reduce((acc, b) => acc + b.value, 0);
+      {/* Property Status + Calling Quality */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 relative z-10">
+        <PropertyStatusCard />
+        <CallingQualityCard />
+      </div>
 
-              if (totalBrandValue === 0) return <div className="text-sm text-text-secondary">No data available</div>;
-
-              return (
-                <>
-                  {/* Single Stacked Bar */}
-                  <div className="w-full h-4 bg-surface rounded-full overflow-hidden flex shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
-                    {brandData.map(b => {
-                      const pct = (b.value / totalBrandValue) * 100;
-                      return (
-                        <div
-                          key={b.name}
-                          className="h-full transition-all duration-1000 relative border-r border-black/50 last:border-0"
-                          style={{ width: `${pct}%`, backgroundColor: BRAND_COLORS[b.name] || '#4a4957' }}
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Legend and Metrics */}
-                  <div className="flex flex-col gap-3 mt-2">
-                    {brandData.map(b => {
-                      const pct = (b.value / totalBrandValue) * 100;
-                      return (
-                        <div key={b.name} className="flex items-center justify-between p-3 rounded-lg bg-black/20 border border-border-subtle/50 hover:bg-surface/40 transition-colors group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-3 h-3 rounded-sm shadow-[0_0_10px_currentColor]" style={{ backgroundColor: BRAND_COLORS[b.name] || '#4a4957', color: BRAND_COLORS[b.name] || '#4a4957' }} />
-                            <div>
-                              <p className="text-sm font-bold text-white group-hover:text-brand-pink-400 transition-colors">{b.name}</p>
-                              <p className="text-[10px] text-text-secondary uppercase tracking-wider">{pct.toFixed(1)}% Share</p>
-                            </div>
-                          </div>
-                          <div className="text-right text-base font-black" style={{ color: BRAND_COLORS[b.name] || '#ffffff' }}>
-                            ₹{formatCurrency(b.value)}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-
-        {/* Operations Integrity Strip */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col justify-center bg-gradient-to-r from-black/40 to-brand-purple-900/10">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-6 flex items-center gap-2">
-            <Info className="w-4 h-4 text-brand-purple-400" />
-            Operations Integrity Diagnostics
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <DiagnosticItem
-              value={`${filteredLeads.length ? Math.round(((filteredLeads.length - metrics.n) / filteredLeads.length) * 100) : 0}%`}
-              label="Unassigned Pipeline"
-              warning={((filteredLeads.length - metrics.n) / Math.max(1, filteredLeads.length)) > 0.4}
-            />
-            <DiagnosticItem
-              value={`${filteredLeads.length ? Math.round((unkRegion / filteredLeads.length) * 100) : 0}%`}
-              label="Routing Failures"
-              warning={(unkRegion / Math.max(1, filteredLeads.length)) > 0.25}
-            />
-            <DiagnosticItem
-              value={`${filteredLeads.length ? Math.round((noCity / filteredLeads.length) * 100) : 0}%`}
-              label="Incomplete Data Capture"
-              warning={(noCity / Math.max(1, filteredLeads.length)) > 0.25}
-            />
-            <DiagnosticItem
-              value={noAi.toString()}
-              label="Reps Evading QA"
-              warning={noAi > 0}
-            />
-          </div>
+      {/* Operations Integrity Strip */}
+      <div className="glass-panel p-4 sm:p-6 flex flex-col justify-center bg-gradient-to-r from-black/40 to-brand-purple-900/10 relative z-10">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-6 flex items-center gap-2">
+          <Info className="w-4 h-4 text-brand-purple-400" />
+          Operations Integrity Diagnostics
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <DiagnosticItem
+            value={`${filteredLeads.length ? Math.round(((filteredLeads.length - metrics.n) / filteredLeads.length) * 100) : 0}%`}
+            label="Unassigned Pipeline"
+            warning={((filteredLeads.length - metrics.n) / Math.max(1, filteredLeads.length)) > 0.4}
+          />
+          <DiagnosticItem
+            value={`${filteredLeads.length ? Math.round((unkRegion / filteredLeads.length) * 100) : 0}%`}
+            label="Routing Failures"
+            warning={(unkRegion / Math.max(1, filteredLeads.length)) > 0.25}
+          />
+          <DiagnosticItem
+            value={`${filteredLeads.length ? Math.round((noCity / filteredLeads.length) * 100) : 0}%`}
+            label="Incomplete Data Capture"
+            warning={(noCity / Math.max(1, filteredLeads.length)) > 0.25}
+          />
+          <DiagnosticItem
+            value={noAi.toString()}
+            label="Reps Evading QA"
+            warning={noAi > 0}
+          />
         </div>
       </div>
     </div>
