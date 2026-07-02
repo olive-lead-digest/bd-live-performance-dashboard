@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Sparkles, ArrowRight, Loader2, Eraser } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 
@@ -25,6 +26,81 @@ const TYPE_SPEED = 55;
 const DELETE_SPEED = 30;
 const HOLD_MS = 1200;
 
+// ---- Tiny inline Markdown renderer (no dependencies) ----
+function renderInline(text: string, keyPrefix: string) {
+  const parts = text.split(/\*\*(.+?)\*\*/);
+  return parts.map((part, i) =>
+    i % 2 === 1
+      ? <strong key={`${keyPrefix}-${i}`} className="text-white font-semibold">{part}</strong>
+      : <span key={`${keyPrefix}-${i}`}>{part}</span>
+  );
+}
+
+function renderAnswer(md: string) {
+  const lines = md.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+  let headlineUsed = false;
+
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    const items = bullets;
+    bullets = [];
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="space-y-2 my-1">
+        {items.map((b, i) => (
+          <li key={i} className="flex gap-2.5 text-sm text-text-primary leading-relaxed">
+            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-brand-pink-400 shrink-0" />
+            <span>{renderInline(b, `li-${blocks.length}-${i}`)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  lines.forEach((line, idx) => {
+    const boldWrap = line.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
+    const isBottomLine = /^\*\*\s*Bottom line/i.test(line) || /^Bottom line/i.test(line);
+
+    if (line.startsWith('- ')) {
+      bullets.push(line.slice(2).trim());
+      return;
+    }
+    flushBullets();
+
+    if (isBottomLine) {
+      blocks.push(
+        <div
+          key={`bl-${idx}`}
+          className="mt-3 rounded-xl bg-brand-pink-500/10 border border-brand-pink-500/30 px-4 py-3 text-sm text-text-primary leading-relaxed"
+        >
+          {renderInline(line.replace(/\*\*/g, ''), `bl-${idx}`)}
+        </div>
+      );
+      return;
+    }
+
+    if (!headlineUsed && boldWrap && boldWrap[1] && !boldWrap[2]) {
+      headlineUsed = true;
+      blocks.push(
+        <p key={`h-${idx}`} className="text-base font-bold text-white leading-snug">
+          {renderInline(boldWrap[1], `h-${idx}`)}
+        </p>
+      );
+      return;
+    }
+
+    blocks.push(
+      <p key={`p-${idx}`} className="text-sm text-text-primary leading-relaxed">
+        {renderInline(line, `p-${idx}`)}
+      </p>
+    );
+  });
+  flushBullets();
+
+  return <div className="space-y-2.5">{blocks}</div>;
+}
+
 export function HeroAsk() {
   const { data } = useDashboard();
   const [query, setQuery] = useState('');
@@ -33,7 +109,6 @@ export function HeroAsk() {
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
 
-  // Typewriter animation
   const [typed, setTyped] = useState('');
   const phraseIdx = useRef(0);
   const charIdx = useRef(0);
@@ -104,18 +179,18 @@ export function HeroAsk() {
   };
 
   return (
-    <div className="glass-panel rounded-2xl p-4 sm:p-6 border border-brand-pink-500/30 shadow-[0_0_50px_rgba(218,26,132,0.2)] relative overflow-hidden z-20">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-brand-pink-500/10 blur-[100px] rounded-full pointer-events-none" />
+    <div className="glass-panel rounded-2xl p-5 sm:p-8 border border-brand-pink-500/30 shadow-[0_0_70px_rgba(218,26,132,0.28)] relative overflow-hidden z-20">
+      <div className="absolute top-0 right-0 w-72 h-72 bg-brand-pink-500/15 blur-[110px] rounded-full pointer-events-none" />
+      <div className="absolute -bottom-10 -left-10 w-56 h-56 bg-brand-purple-500/10 blur-[100px] rounded-full pointer-events-none" />
 
       <div className="flex items-center gap-2 mb-4 relative z-10">
-        <Sparkles className="w-5 h-5 text-brand-pink-500 shrink-0" />
-        <span className="text-sm font-bold uppercase tracking-widest text-white">Ask AI</span>
+        <Sparkles className="w-6 h-6 text-brand-pink-500 shrink-0" />
+        <span className="text-base sm:text-lg font-bold uppercase tracking-widest text-white">Ask AI</span>
       </div>
 
-      {/* Input row — a real <form> so the mobile keyboard "Go/Send" and Enter both submit */}
       <form
         onSubmit={(e) => { e.preventDefault(); ask(query); }}
-        className="relative flex items-center gap-1 rounded-xl bg-black/30 border border-border-subtle focus-within:border-brand-pink-500/50 transition-colors px-3 sm:px-4 py-1 z-10"
+        className="relative flex items-center gap-1 rounded-xl bg-black/30 border border-border-subtle focus-within:border-brand-pink-500/60 focus-within:shadow-[0_0_25px_rgba(218,26,132,0.2)] transition-all px-3 sm:px-5 py-1.5 z-10"
       >
         {loading ? <Loader2 className="w-5 h-5 text-brand-pink-500 shrink-0 animate-spin" /> : <Sparkles className="w-5 h-5 text-brand-pink-500 shrink-0" />}
 
@@ -132,10 +207,10 @@ export function HeroAsk() {
             autoCorrect="off"
             aria-label="Ask a question about BD performance"
             placeholder={animate ? '' : 'Ask anything about BD performance…'}
-            className="w-full bg-transparent border-none outline-none text-white placeholder:text-text-secondary px-3 sm:px-4 py-3 text-base min-w-0"
+            className="w-full bg-transparent border-none outline-none text-white placeholder:text-text-secondary px-3 sm:px-4 py-4 text-base sm:text-lg min-w-0"
           />
           {animate && (
-            <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-base text-text-secondary pointer-events-none truncate max-w-[calc(100%-1rem)]">
+            <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-base sm:text-lg text-text-secondary pointer-events-none truncate max-w-[calc(100%-1rem)]">
               {typed}<span className="animate-pulse">|</span>
             </span>
           )}
@@ -151,7 +226,6 @@ export function HeroAsk() {
         </button>
       </form>
 
-      {/* Suggestion chips */}
       <div className="flex flex-wrap gap-2 mt-3 relative z-10">
         {CHIPS.map(c => (
           <button
@@ -165,7 +239,6 @@ export function HeroAsk() {
         ))}
       </div>
 
-      {/* Answer / loading / error */}
       {(loading || answer || error) && (
         <div className="mt-4 p-4 sm:p-5 rounded-xl border-t border-border-subtle bg-background/50 relative z-10">
           <div className="flex gap-3">
@@ -177,8 +250,10 @@ export function HeroAsk() {
               {error && <p className="text-sm text-red-400">{error}</p>}
               {answer && (
                 <>
-                  <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{answer}</p>
-                  <p className="mt-3 text-[11px] text-text-secondary">
+                  <div className="max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
+                    {renderAnswer(answer)}
+                  </div>
+                  <p className="mt-4 pt-3 border-t border-border-subtle/60 text-[11px] text-text-secondary">
                     {data?.generated ? `Based on data last updated ${data.generated} UTC` : 'Based on the latest available data'}
                   </p>
                 </>
