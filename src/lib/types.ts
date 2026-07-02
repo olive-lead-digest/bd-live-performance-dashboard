@@ -51,6 +51,7 @@ export interface DashData {
   dims: string[];
   leads: Lead[];
   bds: Record<string, BD>;
+  deals?: any;
 }
 
 export interface Rates {
