@@ -12,7 +12,7 @@ type InsightCategory = {
   insights: InsightData[];
 };
 
-const STAGE_ORDER = ['New Leads', 'Lead Contacted', 'Under Discussion', 'Awaiting Business Approval', 'Lead Dropped'];
+const STAGE_ORDER = ['New Leads', 'Lead Contacted', 'Under Discussion', 'Lead Dropped'];
 const num = (n: number) => Math.round(n).toLocaleString('en-IN');
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
 

@@ -13,13 +13,15 @@ const inr = (n?: number | null) =>
         maximumFractionDigits: 2,
       }).format(n);
 
-// Ordered active -> signed stages we want to spotlight in the compact funnel.
-const SPOTLIGHT_STAGES = [
+// Stages we want to spotlight in the compact funnel. This is a membership filter
+// only — the render order below always follows the feed's canonical funnel order,
+// never this list's order.
+const SPOTLIGHT_STAGES = new Set([
   'Under Negotiation',
   'Business Approval Received',
   'LOI Signed',
   'MA Signed',
-];
+]);
 
 const STAGE_COLORS: Record<string, string> = {
   'Under Negotiation': '#502875',
@@ -35,14 +37,14 @@ export function DealsOverview() {
 
   const totals = deals.totals || {};
   const fees = deals.fees || {};
-  const funnel: Array<{ stage: string; count: number; type: string }> = Array.isArray(deals.funnel)
+  const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel)
     ? deals.funnel
     : [];
 
-  const spotlight = SPOTLIGHT_STAGES.map((stage) => {
-    const row = funnel.find((f) => f.stage === stage);
-    return { stage, count: row?.count ?? 0 };
-  });
+  // Keep the feed's canonical order; just filter to the spotlight stages.
+  const spotlight = funnel
+    .filter((f) => SPOTLIGHT_STAGES.has(f.stage))
+    .map((f) => ({ stage: f.stage, count: f.count ?? 0, note: f.note }));
   const maxCount = Math.max(1, ...spotlight.map((s) => s.count));
 
   return (
@@ -73,8 +75,18 @@ export function DealsOverview() {
             const color = STAGE_COLORS[s.stage] || '#502875';
             return (
               <div key={s.stage}>
-                <div className="flex items-center justify-between text-[11px] mb-1">
-                  <span className="text-text-secondary font-medium truncate pr-2">{s.stage}</span>
+                <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
+                  <span className="text-text-secondary font-medium truncate pr-2 flex items-baseline gap-1.5 min-w-0">
+                    <span className="truncate">{s.stage}</span>
+                    {s.note && (
+                      <span
+                        className="text-[9px] uppercase tracking-wider text-brand-purple-400/80 whitespace-nowrap shrink-0"
+                        title={s.note}
+                      >
+                        ({s.note})
+                      </span>
+                    )}
+                  </span>
                   <span className="text-white font-bold shrink-0">{s.count.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
