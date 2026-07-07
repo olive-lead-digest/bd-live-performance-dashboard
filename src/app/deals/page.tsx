@@ -60,6 +60,10 @@ export default function DealsPage() {
     data?.proposals?.totals?.proposals != null ? Number(data.proposals.totals.proposals) : null;
 
   const maxFunnel = Math.max(1, ...funnel.map((f) => f.count));
+  const convPct = (a?: number | null, b?: number | null) =>
+    a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : null;
+  const propOfLeads = convPct(proposalsCount, leadsCount);
+  const dealsOfProp = convPct(totals.deals, proposalsCount ?? undefined);
   const propData = Object.entries(propertyType).map(([name, value]) => ({ name, value: Number(value) || 0 }));
   const brandNames = Object.keys(byBrand);
   const maxBrandSigned = Math.max(1, ...brandNames.map((b) => Number(byBrand[b]?.signed) || 0));
@@ -118,7 +122,7 @@ export default function DealsPage() {
               <span className="text-white tabular-nums normal-case">{leadsCount.toLocaleString('en-IN')}</span>
             )}
           </span>
-          <ArrowRight className="w-3 h-3 shrink-0" />
+          <ConvArrow pct={propOfLeads} />
           <span
             className="px-2 py-0.5 rounded border border-brand-pink-500/40 bg-brand-pink-500/10 text-brand-pink-300 flex items-center gap-1.5"
             title="Proposals awaiting or completing department approvals (Zoho Awaiting_BusinessApproval). Once approved, a deal auto-creates."
@@ -130,7 +134,7 @@ export default function DealsPage() {
               <span className="text-text-secondary/60 normal-case tracking-normal">&amp; approvals</span>
             )}
           </span>
-          <ArrowRight className="w-3 h-3 shrink-0" />
+          <ConvArrow pct={dealsOfProp} />
           <span className="text-brand-pink-400 flex items-center gap-1.5">
             Deals
             {totals.deals != null && (
@@ -139,10 +143,16 @@ export default function DealsPage() {
           </span>
         </div>
 
+        <p className="text-[10px] text-text-secondary/70 mb-4 italic">
+          Percentages show stage-to-stage conversion from the previous funnel stage.
+        </p>
         <div className="flex flex-col gap-3">
-          {funnel.map((f) => {
+          {funnel.map((f, idx) => {
             const pct = (f.count / maxFunnel) * 100;
             const color = typeColor(f.type);
+            const prev = idx > 0 ? funnel[idx - 1] : null;
+            const conv =
+              prev && prev.count > 0 ? (f.count / prev.count) * 100 : null;
             return (
               <div key={f.stage}>
                 <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
@@ -157,7 +167,17 @@ export default function DealsPage() {
                       </span>
                     )}
                   </span>
-                  <span className="text-white font-bold shrink-0">{f.count.toLocaleString('en-IN')}</span>
+                  <span className="flex items-baseline gap-2 shrink-0">
+                    {conv != null && (
+                      <span
+                        className="text-[9px] font-bold tabular-nums text-emerald-400/90"
+                        title={`Conversion from "${prev!.stage}"`}
+                      >
+                        {conv.toFixed(1)}%
+                      </span>
+                    )}
+                    <span className="text-white font-bold">{f.count.toLocaleString('en-IN')}</span>
+                  </span>
                 </div>
                 <div className="w-full h-3 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(2, pct)}%`, backgroundColor: color }} />
@@ -321,6 +341,19 @@ export default function DealsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ConvArrow({ pct }: { pct: string | null }) {
+  return (
+    <span className="flex items-center gap-1 shrink-0">
+      <ArrowRight className="w-3 h-3 shrink-0" />
+      {pct && (
+        <span className="text-[9px] font-bold tabular-nums text-emerald-400/90 normal-case tracking-normal">
+          {pct}
+        </span>
+      )}
+    </span>
   );
 }
 
