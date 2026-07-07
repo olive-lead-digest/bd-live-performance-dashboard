@@ -3,6 +3,7 @@
 import { Filter, X, Building2 } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
+import { DownloadReport } from './DownloadReport';
 
 const BRANDS = ['All', 'Olive', 'Spark', 'Open Hotels'];
 
@@ -10,7 +11,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
   const { filters, setFilter, clearFilters, setDateRange } = useDashboard();
 
   const activeChips: { key: string; label: string; id: string }[] = [];
-  
+
   if (filters.from || filters.to) {
     activeChips.push({ key: 'date', label: `Date: ${filters.from || '…'} → ${filters.to || '…'}`, id: 'date' });
   }
@@ -54,8 +55,8 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
             onClick={() => handleBrandSelect(b)}
             className={clsx(
               "px-2 sm:px-3 py-1 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all",
-              currentBrand === b 
-                ? "bg-brand-purple-500/20 text-brand-purple-400 shadow-[0_0_10px_rgba(80,40,117,0.3)]" 
+              currentBrand === b
+                ? "bg-brand-purple-500/20 text-brand-purple-400 shadow-[0_0_10px_rgba(80,40,117,0.3)]"
                 : "text-text-secondary hover:text-white hover:bg-white/5"
             )}
           >
@@ -96,6 +97,9 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
           </>
         )}
       </div>
+
+      <div className="w-[1px] h-6 bg-border-subtle shrink-0" />
+      <DownloadReport compact />
     </div>
   );
 }
