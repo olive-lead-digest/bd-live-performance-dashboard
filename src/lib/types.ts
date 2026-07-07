@@ -58,6 +58,27 @@ export interface DashData {
   // NEW feed keys — may be undefined until the pipeline reruns; always guard.
   leadsBySource?: Record<string, { l: number; c: number; a: number; d: number }>;
   dropReasons?: Record<string, number>;
+  // BD org map (regions -> head -> BDs, with zoom + email). Best-effort feed.
+  org?: OrgMap;
+}
+
+// ---- BD org directory (bd_org.json) ----
+export interface OrgBD {
+  zohoName?: string;
+  region?: string;
+  regionHead?: string;
+  isHead?: boolean;
+  coverage?: string;
+  zoom?: string;
+  email?: string;
+}
+
+export interface OrgMap {
+  generated?: string;
+  note?: string;
+  regionHeads?: Record<string, string>;
+  regions?: Record<string, { head: string; bds: string[] }>;
+  bds?: Record<string, OrgBD>;
 }
 
 export interface ApprovalDept {
