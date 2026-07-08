@@ -13,6 +13,7 @@ import { HeroAsk } from '@/components/HeroAsk';
 import { DealsOverview } from '@/components/DealsOverview';
 import { PropertyStatusCard } from '@/components/PropertyStatusCard';
 import { CallingQualityCard } from '@/components/CallingQualityCard';
+import { LeadsAsOfStamp } from '@/components/DataBadges';
 
 // Illustrative estimate only — leads carry no monetary amount (see utils.ts).
 // Used solely for the executive-summary language; real revenue comes from the Deals feed.
@@ -174,6 +175,7 @@ export default function Overview() {
             <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(218,26,132,0.3)]">Executive View</span>
           </h1>
           <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline health, signings, and rep performance.</p>
+          <LeadsAsOfStamp className="mt-1" />
         </div>
 
         <div className="flex items-center gap-4">
