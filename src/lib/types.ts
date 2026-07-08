@@ -169,6 +169,9 @@ export interface LeaderboardRec {
   conn: number;
   bps: BPS | null;
   band: string;
+  /** P1-8: present in leads/deals data but NOT in the org roster (bd_org.json)
+   *  — an ex-BD or test account. Excluded from band counts and QA percentages. */
+  inactive?: boolean;
 }
 
 declare global {

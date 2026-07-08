@@ -90,7 +90,45 @@ export const brandKey = (b?: string | null): string => {
   return x.startsWith('open') ? 'open' : x;
 };
 
-import { Lead, Rates, BD, LeaderboardRec } from './types';
+import { Lead, Rates, BD, LeaderboardRec, OrgMap } from './types';
+
+/*
+ * P1-8 — ONE roster source of truth + ONE QA-coverage computation.
+ *
+ * bd_org.json (published as data.org) is the roster of record: 27 BDs. Its keys
+ * use display spellings that differ from the CRM `owner` field / data.bds keys,
+ * so we join on each entry's `zohoName`. Anyone who appears in the leads/deals
+ * data but is NOT in this roster (e.g. the ex-BD "Venkatashiva K V", or test
+ * accounts) is tagged `inactive` and excluded from band counts & percentages —
+ * never silently deleted.
+ */
+export function rosterOwnerSet(org?: OrgMap | null): Set<string> {
+  const bds = org?.bds || {};
+  const s = new Set<string>();
+  for (const k of Object.keys(bds)) s.add(String(bds[k]?.zohoName || k).trim());
+  return s;
+}
+
+export interface QaCoverage {
+  total: number;
+  reviewed: number;
+  missing: number;
+  missingNames: string[];
+}
+
+/** Single QA-coverage figure over the roster, so Overview, Leaderboard and
+ *  Reporting all report the SAME "reps with / without an AI review" count. */
+export function qaCoverage(data?: { org?: OrgMap; bds?: Record<string, BD> } | null): QaCoverage {
+  const roster = [...rosterOwnerSet(data?.org)];
+  const bds = data?.bds || {};
+  const missingNames = roster.filter((n) => !(bds[n] && bds[n].q));
+  return {
+    total: roster.length,
+    reviewed: roster.length - missingNames.length,
+    missing: missingNames.length,
+    missingNames,
+  };
+}
 
 export function calculateRates(ls: Lead[]): Rates {
   const assigned = ls.filter(l => !!l.owner);
@@ -120,7 +158,7 @@ export function calculateRates(ls: Lead[]): Rates {
   };
 }
 
-export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {Q: number, Cv: number, Cmp: number, Lv: number, Cav: number}): LeaderboardRec[] {
+export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {Q: number, Cv: number, Cmp: number, Lv: number, Cav: number}, roster?: Set<string>): LeaderboardRec[] {
   const byo: Record<string, Lead[]> = {};
   fl.forEach(l => {
     if (l.owner) {
@@ -150,7 +188,10 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       bd,
       conn: (bd.zoom && bd.zoom.conn) || 0,
       bps: null,
-      band: ''
+      band: '',
+      // P1-8: not in the org roster (ex-BD / test account) → excluded from
+      // band counts & QA percentages by consumers, but kept (never deleted).
+      inactive: roster ? !roster.has(owner) : false
     };
   });
   
