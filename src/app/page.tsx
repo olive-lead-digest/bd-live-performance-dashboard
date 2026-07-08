@@ -2,7 +2,8 @@
 
 import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, buildLeaderboard, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
+import { calculateRates, buildLeaderboard, ESTIMATED_DEAL_VALUE, qaCoverage, rosterOwnerSet } from '@/lib/utils';
+import { compactNum, inr } from '@/lib/format';
 import { FunnelChart } from '@/components/FunnelChart';
 import { Target, BarChart2, Award, Zap, Info, AlertTriangle, ChevronRight, Activity, Users, ShieldAlert } from 'lucide-react';
 import { useMemo } from 'react';
@@ -31,7 +32,7 @@ export default function Overview() {
   // reviewed, fall back to sorting by active rate so the card always fills.
   const leaderboard = useMemo(() => {
     if (!data || !data.weights) return [];
-    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights);
+    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org)).filter(r => !r.inactive);
     const scored = lb
       .filter(r => r.reviewed && r.bps && typeof r.bps.score === 'number')
       .sort((a, b) => (b.bps!.score) - (a.bps!.score));
@@ -55,13 +56,19 @@ export default function Overview() {
     const AVG = AVG_DEAL_SIZE;
     const rates = calculateRates(filteredLeads);
 
-    // Month-over-month volume
-    const byMonth: Record<string, number> = {};
-    filteredLeads.forEach(l => { const mo = l.dt.slice(0, 7); byMonth[mo] = (byMonth[mo] || 0) + 1; });
-    const months = Object.keys(byMonth).sort();
-    const curr = months[months.length - 1];
-    const prev = months[months.length - 2];
-    const momPct = prev ? ((byMonth[curr] - byMonth[prev]) / byMonth[prev]) * 100 : 0;
+    // Month-over-month volume — PERIOD-ALIGNED (P1-5): month-to-date vs the SAME
+    // day-range of the previous month (never full-month vs partial-month). This
+    // mirrors the Reporting page exactly, so both surfaces report an identical
+    // direction and figure for the current month's lead volume.
+    const maxDate = filteredLeads.reduce((mx, l) => (l.dt > mx ? l.dt : mx), '2000-01-01');
+    const [my, mm, md] = maxDate.split('-').map(Number);
+    const curr = `${my}-${String(mm).padStart(2, '0')}`;
+    const prevD = new Date(my, mm - 2, md); // mm is 1-based → previous month, JS 0-based
+    const prev = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+    const dayOf = (l: { dt: string }) => parseInt(l.dt.split('-')[2]) || 0;
+    const mtdCount = filteredLeads.filter(l => l.dt.slice(0, 7) === curr && dayOf(l) <= md).length;
+    const prevMtdCount = filteredLeads.filter(l => l.dt.slice(0, 7) === prev && dayOf(l) <= md).length;
+    const momPct = prevMtdCount ? ((mtdCount - prevMtdCount) / prevMtdCount) * 100 : 0;
 
     // Current-month secured value + pacing (illustrative)
     const currLeads = filteredLeads.filter(l => l.dt.slice(0, 7) === curr);
@@ -90,18 +97,19 @@ export default function Overview() {
     const tierBot = tierSorted[tierSorted.length - 1];
     const t1 = tierStats.find(x => x.t === 'Tier 1');
 
-    // Rep bands
-    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights);
+    // Rep bands — over the ACTIVE roster only (P1-8: exclude ex-BDs/test accounts).
+    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org)).filter(r => !r.inactive);
     const coaching = lb.filter(r => r.band === 'Priority coaching');
     const topPerf = lb.filter(r => r.band === 'Top performer').length;
 
     // Operational health
     const unassignedPct = (1 - rates.n / filteredLeads.length) * 100;
-    const noQa = Object.keys(data.bds).filter(o => data.bds[o] && !data.bds[o].q).length;
+    // P1-8: single QA-coverage computation shared with Leaderboard & Reporting.
+    const noQa = qaCoverage(data).missing;
 
     // ---- Plain-language summary ----
     const summary: { tone: string; text: string }[] = [];
-    summary.push({ tone: momPct >= 0 ? 'up' : 'down', text: `Pipeline volume ${momPct >= 0 ? 'up' : 'down'} ${Math.abs(momPct).toFixed(1)}% month-over-month (${byMonth[curr].toLocaleString()} leads in ${curr}).` });
+    summary.push({ tone: momPct >= 0 ? 'up' : 'down', text: `Pipeline volume ${momPct >= 0 ? 'up' : 'down'} ${Math.abs(momPct).toFixed(1)}% month-to-date vs the same 1–${md} window last month (${mtdCount.toLocaleString('en-IN')} leads so far in ${curr} vs ${prevMtdCount.toLocaleString('en-IN')} by day ${md} of ${prev}).` });
     if (topRegion) summary.push({ tone: 'info', text: `${topRegion.r} is driving ${Math.round(topRegion.active / totalActive * 100)}% of all active deals — the strongest region this period.` });
     if (tierTop && tierBot) {
       const gap = tierTop.rate - tierBot.rate;
@@ -109,7 +117,7 @@ export default function Overview() {
         ? { tone: 'warn', text: `Conversion is essentially flat across account tiers (~${tierTop.rate.toFixed(0)}%) — top-value accounts aren't outperforming low-value ones.` }
         : { tone: 'warn', text: `${tierBot.t} converts at ${tierBot.rate.toFixed(0)}% vs ${tierTop.t} at ${tierTop.rate.toFixed(0)}% — a ${gap.toFixed(0)}pt gap to close.` });
     }
-    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~₹${(projected >= 1e7 ? (projected / 1e7).toFixed(1) + 'Cr' : projected >= 1e5 ? (projected / 1e5).toFixed(1) + 'L' : (projected / 1e3).toFixed(0) + 'K')} this month (illustrative — active leads × est. deal value; real signings shown above).` });
+    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~${inr(projected)} this month (illustrative — active leads × est. deal value; real signings shown above).` });
 
     // ---- Risk watchlist ----
     const risks: { sev: string; label: string; detail: string }[] = [];
@@ -132,10 +140,8 @@ export default function Overview() {
 
   const unkRegion = filteredLeads.filter(l => l.region === 'Unknown').length;
   const noCity = filteredLeads.filter(l => !l.city || l.city === 'Other').length;
-  const noAi = data ? Object.keys(data.bds).filter(o => {
-    const bd = data.bds[o];
-    return bd && !bd.q;
-  }).length : 0;
+  // P1-8: same single QA-coverage figure as the risk watchlist & Leaderboard.
+  const noAi = data ? qaCoverage(data).missing : 0;
 
   if (error) {
     return (
@@ -156,9 +162,8 @@ export default function Overview() {
     );
   }
 
-  const formatCompact = (num: number) => {
-    return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
-  };
+  // P1-2: route through the shared Indian compact formatter (never T/M/B).
+  const formatCompact = (n: number) => compactNum(n);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
@@ -355,7 +360,8 @@ function FinancialCard({ title, value, subtitle, icon: Icon, color, prefix = '',
         </div>
       </div>
       <div className="relative z-10">
-        <div className="flex items-baseline gap-0.5">
+        {/* P1-2: keep value + unit on one line (never wrap "44.0 / %"). */}
+        <div className="flex items-baseline gap-0.5 flex-nowrap whitespace-nowrap">
           {prefix && <span className="text-xl font-bold text-text-secondary -translate-y-1">{prefix}</span>}
           <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">{value}</span>
           {suffix && <span className="text-xl font-bold text-text-secondary -translate-y-1">{suffix}</span>}
