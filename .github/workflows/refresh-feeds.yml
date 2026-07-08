@@ -28,6 +28,25 @@ jobs:
       - name: Install pipeline dependencies
         run: pip install -r pipeline/requirements.txt
 
+      - name: Fetch freshest Zoom cache from data branch (if any)
+        uses: actions/checkout@v4
+        continue-on-error: true    # data branch or cache may not exist yet — degrade gracefully
+        with:
+          ref: data
+          path: zoomcache
+
+      - name: Seed pipeline/ with the freshest Zoom cache (optional)
+        run: |
+          if [ -d zoomcache/zoom_cache ]; then
+            cp zoomcache/zoom_cache/_z90c_A.json          pipeline/ 2>/dev/null || true
+            cp zoomcache/zoom_cache/_z90c_B.json          pipeline/ 2>/dev/null || true
+            cp zoomcache/zoom_cache/_z90c_C.json          pipeline/ 2>/dev/null || true
+            cp zoomcache/zoom_cache/_zoom_users_dept.json pipeline/ 2>/dev/null || true
+            echo "Seeded pipeline/ with the data-branch Zoom cache (refresh-zoom.yml)."
+          else
+            echo "No data-branch Zoom cache yet — using the committed frozen caches."
+          fi
+
       - name: Build feeds (leads from Zoho CRM; Zoom/coaching from committed caches)
         working-directory: pipeline
         env:
