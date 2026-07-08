@@ -10,284 +10,40 @@
     "West": "Arpit Shukla"
   },
   "regions": {
-    "North": {
-      "head": "Nitish Choudhary",
-      "bds": [
-        "Ankur Pateriya",
-        "Ashish Varma",
-        "Inderjeet Ahlawat",
-        "Mohd Zaib",
-        "Prasoon Singh",
-        "Shiva Srivastava",
-        "Abhishek Kumar",
-        "Nitish Choudhary"
-      ]
-    },
-    "South 1 (KA)": {
-      "head": "Shreedhar Ambalajari",
-      "bds": [
-        "Iqura Hussain",
-        "Vaishnava Jyothi Aragala",
-        "Ajith KS",
-        "Dev Samtani",
-        "Preetham D Almeida",
-        "Vikas S",
-        "Shashwat",
-        "Shreedhar Ambalajari"
-      ]
-    },
-    "South 3 (TN & KL)": {
-      "head": "Shreedhar Ambalajari",
-      "bds": [
-        "Aromal Babu",
-        "Haresh Kumar"
-      ]
-    },
-    "South 2 (AP & TG)": {
-      "head": "S.M SHAH",
-      "bds": [
-        "Krishna Kumar (Nakkani)",
-        "S.M SHAH"
-      ]
-    },
-    "East": {
-      "head": "S.M SHAH",
-      "bds": [
-        "Tabrez Anwar"
-      ]
-    },
-    "West": {
-      "head": "Arpit Shukla",
-      "bds": [
-        "Akhil B Chandran",
-        "Amrit Mishra",
-        "Gourang Patil",
-        "Sukhpreet Singh Lohia",
-        "Sawan Bhatt",
-        "Arpit Shukla"
-      ]
-    }
+    "North": {"head": "Nitish Choudhary", "bds": ["Ankur Pateriya", "Ashish Varma", "Inderjeet Ahlawat", "Mohd Zaib", "Prasoon Singh", "Shiva Srivastava", "Abhishek Kumar", "Nitish Choudhary"]},
+    "South 1 (KA)": {"head": "Shreedhar Ambalajari", "bds": ["Iqura Hussain", "Vaishnava Jyothi Aragala", "Ajith KS", "Dev Samtani", "Preetham D Almeida", "Vikas S", "Shashwat", "Shreedhar Ambalajari"]},
+    "South 3 (TN & KL)": {"head": "Shreedhar Ambalajari", "bds": ["Aromal Babu", "Haresh Kumar"]},
+    "South 2 (AP & TG)": {"head": "S.M SHAH", "bds": ["Krishna Kumar (Nakkani)", "S.M SHAH"]},
+    "East": {"head": "S.M SHAH", "bds": ["Tabrez Anwar"]},
+    "West": {"head": "Arpit Shukla", "bds": ["Akhil B Chandran", "Amrit Mishra", "Gourang Patil", "Sukhpreet Singh Lohia", "Sawan Bhatt", "Arpit Shukla"]}
   },
   "bds": {
-    "Nitish Choudhary": {
-      "zohoName": "Nitish Choudhary",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "isHead": true,
-      "coverage": "North & Central",
-      "zoom": "06827 422 100",
-      "email": "nitish.c@oliveliving.com"
-    },
-    "Ankur Pateriya": {
-      "zohoName": "Ankur Pateriya",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "",
-      "zoom": "",
-      "email": "ankur.p@oliveliving.com"
-    },
-    "Ashish Varma": {
-      "zohoName": "Ashish Varma",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "Rajasthan",
-      "zoom": "06827 422 193",
-      "email": "ashish.v@oliveliving.com"
-    },
-    "Inderjeet Ahlawat": {
-      "zohoName": "Inderjeet Ahlawat",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "Delhi NCR",
-      "zoom": "06827 422 196",
-      "email": "inderjeet.a@oliveliving.com"
-    },
-    "Mohd Zaib": {
-      "zohoName": "Mohd Zaib",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "UP",
-      "zoom": "06827 422 199",
-      "email": "mohd.z@oliveliving.com"
-    },
-    "Prasoon Singh": {
-      "zohoName": "Prasoon Singh",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "Delhi NCR",
-      "zoom": "06827 422 246",
-      "email": "prasoon.s@oliveliving.com"
-    },
-    "Shiva Srivastava": {
-      "zohoName": "Shiva Srivastava",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "UP",
-      "zoom": "06827 422 194",
-      "email": "shiva.s@oliveliving.com"
-    },
-    "Abhishek Kumar": {
-      "zohoName": "Abhishek Kumar",
-      "region": "North",
-      "regionHead": "Nitish Choudhary",
-      "coverage": "",
-      "zoom": "",
-      "email": "abhishek.k@oliveliving.com"
-    },
-    "Shreedhar Ambalajari": {
-      "zohoName": "Shreedhar Ambalajari",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "isHead": true,
-      "coverage": "Karnataka",
-      "zoom": "06827 422 092",
-      "email": "shreedhar.a@oliveliving.com"
-    },
-    "Iqura Hussain": {
-      "zohoName": "Iqura Hussain",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "06827 422 198",
-      "email": "iqura.h@oliveliving.com"
-    },
-    "Vaishnava Jyothi Aragala": {
-      "zohoName": "Vaishnava Jyothi A",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "06827 422 105",
-      "email": "vaishnava.j-ext@oliveliving.com"
-    },
-    "Ajith KS": {
-      "zohoName": "Ajith KS",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Kerala & Karnataka",
-      "zoom": "06827 422 094",
-      "email": "ajith.s@oliveliving.com"
-    },
-    "Dev Samtani": {
-      "zohoName": "Dev Samtani",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "",
-      "email": "dev.s@oliveliving.com"
-    },
-    "Preetham D Almeida": {
-      "zohoName": "Preetham D Almeida",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "06827 422 248",
-      "email": "preetham.a@oliveliving.com"
-    },
-    "Vikas S": {
-      "zohoName": "Vikas S",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "06827 422 095",
-      "email": "vikas.s@oliveliving.com"
-    },
-    "Shashwat": {
-      "zohoName": "Shashwat Satapathy",
-      "region": "South 1 (KA)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Karnataka",
-      "zoom": "06827 422 652",
-      "email": "shashwat.s@oliveliving.com"
-    },
-    "Aromal Babu": {
-      "zohoName": "Aromal Babu",
-      "region": "South 3 (TN & KL)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "TN & KL",
-      "zoom": "",
-      "email": ""
-    },
-    "Haresh Kumar": {
-      "zohoName": "Haresh Kumar",
-      "region": "South 3 (TN & KL)",
-      "regionHead": "Shreedhar Ambalajari",
-      "coverage": "Tamil Nadu",
-      "zoom": "06827 421 067",
-      "email": "haresh.n@oliveliving.com"
-    },
-    "Krishna Kumar (Nakkani)": {
-      "zohoName": "Krishna Kumar (Nakkani)",
-      "region": "South 2 (AP & TG)",
-      "regionHead": "S.M SHAH",
-      "coverage": "AP & TG",
-      "zoom": "06827 421 069",
-      "email": "nakkani.k@oliveliving.com"
-    },
-    "S.M SHAH": {
-      "zohoName": "Syed Mazher Shah",
-      "region": "South 2 (AP & TG)",
-      "regionHead": "S.M SHAH",
-      "isHead": true,
-      "coverage": "AP & TG",
-      "zoom": "06827 422 093",
-      "email": "syedmazher.s@oliveliving.com"
-    },
-    "Tabrez Anwar": {
-      "zohoName": "Tabrez Anwar",
-      "region": "East",
-      "regionHead": "S.M SHAH",
-      "coverage": "West Bengal & NE",
-      "zoom": "06827 422 096",
-      "email": "tabrez.a@oliveliving.com"
-    },
-    "Arpit Shukla": {
-      "zohoName": "Arpit Shukla",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "isHead": true,
-      "coverage": "Maharashtra & Gujarat",
-      "zoom": "06827 422 099",
-      "email": "arpit.s@oliveliving.com"
-    },
-    "Akhil B Chandran": {
-      "zohoName": "Akhil B Chandran",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "coverage": "",
-      "zoom": "",
-      "email": "akhil.c@oliveliving.com"
-    },
-    "Amrit Mishra": {
-      "zohoName": "Amrit Mishra",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "coverage": "Maharashtra, Gujarat & Goa",
-      "zoom": "06827 422 102",
-      "email": "amrit.m@oliveliving.com"
-    },
-    "Gourang Patil": {
-      "zohoName": "Gourang Patil",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "coverage": "Maharashtra",
-      "zoom": "06827 422 098",
-      "email": "gourang.p@oliveliving.com"
-    },
-    "Sukhpreet Singh Lohia": {
-      "zohoName": "Sukhpreet Singh Lohia",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "coverage": "Maharashtra & Gujarat",
-      "zoom": "06827 422 091",
-      "email": "sukhpreet.l@oliveliving.com"
-    },
-    "Sawan Bhatt": {
-      "zohoName": "Sawan Bhatt",
-      "region": "West",
-      "regionHead": "Arpit Shukla",
-      "coverage": "Gujarat",
-      "zoom": "06827 421 066",
-      "email": "sawan.b@oliveliving.com"
-    }
+    "Nitish Choudhary": {"zohoName": "Nitish Choudhary", "region": "North", "regionHead": "Nitish Choudhary", "isHead": true, "coverage": "North & Central", "zoom": "06827 422 100", "email": "nitish.c@oliveliving.com"},
+    "Ankur Pateriya": {"zohoName": "Ankur Pateriya", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "", "zoom": "", "email": "ankur.p@oliveliving.com"},
+    "Ashish Varma": {"zohoName": "Ashish Varma", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "Rajasthan", "zoom": "06827 422 193", "email": "ashish.v@oliveliving.com"},
+    "Inderjeet Ahlawat": {"zohoName": "Inderjeet Ahlawat", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "Delhi NCR", "zoom": "06827 422 196", "email": "inderjeet.a@oliveliving.com"},
+    "Mohd Zaib": {"zohoName": "Mohd Zaib", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "UP", "zoom": "06827 422 199", "email": "mohd.z@oliveliving.com"},
+    "Prasoon Singh": {"zohoName": "Prasoon Singh", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "Delhi NCR", "zoom": "06827 422 246", "email": "prasoon.s@oliveliving.com"},
+    "Shiva Srivastava": {"zohoName": "Shiva Srivastava", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "UP", "zoom": "06827 422 194", "email": "shiva.s@oliveliving.com"},
+    "Abhishek Kumar": {"zohoName": "Abhishek Kumar", "region": "North", "regionHead": "Nitish Choudhary", "coverage": "", "zoom": "", "email": "abhishek.k@oliveliving.com"},
+    "Shreedhar Ambalajari": {"zohoName": "Shreedhar Ambalajari", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "isHead": true, "coverage": "Karnataka", "zoom": "06827 422 092", "email": "shreedhar.a@oliveliving.com"},
+    "Iqura Hussain": {"zohoName": "Iqura Hussain", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "06827 422 198", "email": "iqura.h@oliveliving.com"},
+    "Vaishnava Jyothi Aragala": {"zohoName": "Vaishnava Jyothi A", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "06827 422 105", "email": "vaishnava.j-ext@oliveliving.com"},
+    "Ajith KS": {"zohoName": "Ajith KS", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Kerala & Karnataka", "zoom": "06827 422 094", "email": "ajith.s@oliveliving.com"},
+    "Dev Samtani": {"zohoName": "Dev Samtani", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "", "email": "dev.s@oliveliving.com"},
+    "Preetham D Almeida": {"zohoName": "Preetham D Almeida", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "06827 422 248", "email": "preetham.a@oliveliving.com"},
+    "Vikas S": {"zohoName": "Vikas S", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "06827 422 095", "email": "vikas.s@oliveliving.com"},
+    "Shashwat": {"zohoName": "Shashwat Satapathy", "region": "South 1 (KA)", "regionHead": "Shreedhar Ambalajari", "coverage": "Karnataka", "zoom": "06827 422 652", "email": "shashwat.s@oliveliving.com"},
+    "Aromal Babu": {"zohoName": "Aromal Babu", "region": "South 3 (TN & KL)", "regionHead": "Shreedhar Ambalajari", "coverage": "TN & KL", "zoom": "", "email": ""},
+    "Haresh Kumar": {"zohoName": "Haresh Kumar", "region": "South 3 (TN & KL)", "regionHead": "Shreedhar Ambalajari", "coverage": "Tamil Nadu", "zoom": "06827 421 067", "email": "haresh.n@oliveliving.com"},
+    "Krishna Kumar (Nakkani)": {"zohoName": "Krishna Kumar (Nakkani)", "region": "South 2 (AP & TG)", "regionHead": "S.M SHAH", "coverage": "AP & TG", "zoom": "06827 421 069", "email": "nakkani.k@oliveliving.com"},
+    "S.M SHAH": {"zohoName": "Syed Mazher Shah", "region": "South 2 (AP & TG)", "regionHead": "S.M SHAH", "isHead": true, "coverage": "AP & TG", "zoom": "06827 422 093", "email": "syedmazher.s@oliveliving.com"},
+    "Tabrez Anwar": {"zohoName": "Tabrez Anwar", "region": "East", "regionHead": "S.M SHAH", "coverage": "West Bengal & NE", "zoom": "06827 422 096", "email": "tabrez.a@oliveliving.com"},
+    "Arpit Shukla": {"zohoName": "Arpit Shukla", "region": "West", "regionHead": "Arpit Shukla", "isHead": true, "coverage": "Maharashtra & Gujarat", "zoom": "06827 422 099", "email": "arpit.s@oliveliving.com"},
+    "Akhil B Chandran": {"zohoName": "Akhil B Chandran", "region": "West", "regionHead": "Arpit Shukla", "coverage": "", "zoom": "", "email": "akhil.c@oliveliving.com"},
+    "Amrit Mishra": {"zohoName": "Amrit Mishra", "region": "West", "regionHead": "Arpit Shukla", "coverage": "Maharashtra, Gujarat & Goa", "zoom": "06827 422 102", "email": "amrit.m@oliveliving.com"},
+    "Gourang Patil": {"zohoName": "Gourang Patil", "region": "West", "regionHead": "Arpit Shukla", "coverage": "Maharashtra", "zoom": "06827 422 098", "email": "gourang.p@oliveliving.com"},
+    "Sukhpreet Singh Lohia": {"zohoName": "Sukhpreet Singh Lohia", "region": "West", "regionHead": "Arpit Shukla", "coverage": "Maharashtra & Gujarat", "zoom": "06827 422 091", "email": "sukhpreet.l@oliveliving.com"},
+    "Sawan Bhatt": {"zohoName": "Sawan Bhatt", "region": "West", "regionHead": "Arpit Shukla", "coverage": "Gujarat", "zoom": "06827 421 066", "email": "sawan.b@oliveliving.com"}
   }
 }
