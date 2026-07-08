@@ -464,6 +464,9 @@ def build_deals(records, generated=None, today=None):
     fees_all = {"contracted": 0.0, "collected": 0.0, "collectedActual": 0.0, "pending": 0.0}
     fees_fy = {"contracted": 0.0, "collected": 0.0, "collectedActual": 0.0, "pending": 0.0}
     sign_prob = {k: {"count": 0, "keys": 0} for k in PROB_LEVELS + ["Unspecified"]}
+    # P0-2 — per-deal records so the client can RE-FILTER the deal side (brand,
+    # region, state, owner, date). Aggregates above stay for back-compat/fallback.
+    deal_records = []
 
     for r in records:
         canon = classify_stage(r.get("Stage"))
@@ -523,6 +526,33 @@ def build_deals(records, generated=None, today=None):
             b = _prob_bucket(r.get("Signing_Probability"))
             sign_prob[b]["count"] += 1
             sign_prob[b]["keys"] += keys
+
+        # --- Per-deal record (P0-2) ------------------------------------------
+        stage_type = "won" if is_won else ("dropped" if is_drop else "open")
+        stage_label = STAGE_MA if is_won else (canon.split(":", 1)[1] if is_drop else canon)
+        ma_d = _pdate(r.get("MA_Date"))
+        exp_d = (_pdate(r.get("Expected_MA_Date"))
+                 or _pdate(r.get("Expected_Actual_LOI_Date"))
+                 or _pdate(r.get("Expected_LOI_Date")))
+        deal_records.append({
+            "id": r.get("id"),
+            "name": str(r.get("Deal_Name") or "").strip(),
+            "brand": brand,
+            "stage": stage_label,
+            "stageType": stage_type,
+            "maDate": ma_d.isoformat() if ma_d else None,
+            "expectedDate": exp_d.isoformat() if exp_d else None,
+            "keys": keys,
+            "feeContracted": round(_num(r.get("Ta_Fee_Contracted")), 2),
+            "feeCollected": round(_num(r.get("TA_fee_collected")), 2),
+            "feeCollectedActual": round(_num(r.get(COLLECTED_FIELD)), 2),
+            "feePending": round(_num(r.get("Pending_TA_fee")), 2),
+            "owner": owner,
+            "region": _region_name(r),
+            "state": str(r.get("State") or "").strip(),
+            "signingProbability": _prob_bucket(r.get("Signing_Probability")),
+            "propertyType": ptype,
+        })
 
     total = signed + active + dropped
     r1 = lambda x: round((x / total) * 100, 1) if total else 0.0
@@ -593,6 +623,8 @@ def build_deals(records, generated=None, today=None):
             [{"bd": bd, "signed": v["signed"], "feeContracted": round(v["feeContracted"], 2)}
              for bd, v in closers.items()],
             key=lambda x: (x["signed"], x["feeContracted"]), reverse=True),
+        # P0-2 — per-deal records for client-side re-filtering (a few hundred KB).
+        "records": deal_records,
     }
 
 
