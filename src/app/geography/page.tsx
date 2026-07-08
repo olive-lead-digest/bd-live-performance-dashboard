@@ -1,16 +1,21 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, groupCounts, buildLeaderboard, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
+import { calculateRates, groupCounts, buildLeaderboard, estValue, isActive } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { ComposableMap, Geographies, Geography as GeoPath, ZoomableGroup, Marker, Line as GeoLine } from 'react-simple-maps';
 import clsx from 'clsx';
 import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { LeadsAsOfStamp } from '@/components/DataBadges';
 
 const geoUrl = "/world.json";
-// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
-const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
+// Illustrative estimate only — leads carry no monetary amount. Estimated value is
+// derived from FIXED per-tier average-fee constants (see utils.ts) so figures are
+// deterministic across reloads (P0-3). `assignedActive` = assigned + in an active
+// status, so "secured/active pipeline" values are a pure function of the dataset.
+const assignedActive = (l: { owner?: string | null; status?: string | null }) =>
+  !!l.owner && isActive(l.status ?? null);
 
 const formatCurrency = (num: number) => {
   return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
@@ -86,15 +91,17 @@ export default function Geography() {
     return validRegions.map(r => {
       const leadsInRegion = searchFiltered.filter(l => l.region === r);
       const rates = calculateRates(leadsInRegion);
+      const activeLeads = leadsInRegion.filter(assignedActive);
       return {
         name: r,
         total: leadsInRegion.length,
-        pipelineValue: leadsInRegion.length * AVG_DEAL_SIZE,
-        securedRevenue: rates.active * AVG_DEAL_SIZE,
+        pipelineValue: estValue(leadsInRegion),
+        securedRevenue: estValue(activeLeads),
         activeRate: rates.activeR,
         active: rates.active
       };
-    }).sort((a,b) => b.pipelineValue - a.pipelineValue).slice(0, 4);
+      // Stable sort: value desc, then name asc so ties never reorder across reloads.
+    }).sort((a,b) => b.pipelineValue - a.pipelineValue || a.name.localeCompare(b.name)).slice(0, 4);
   }, [searchFiltered]);
 
   // City Data Calculation
@@ -105,17 +112,19 @@ export default function Geography() {
       .map(city => {
         const ls = searchFiltered.filter(l => l.city === city);
         const rates = calculateRates(ls);
+        const activeLeads = ls.filter(assignedActive);
         return {
           name: city,
           coords: CITY_DATA[city].coords,
           state: CITY_DATA[city].state,
           leads: counts[city],
-          pipelineValue: counts[city] * AVG_DEAL_SIZE,
-          securedRevenue: rates.active * AVG_DEAL_SIZE,
+          pipelineValue: estValue(ls),
+          securedRevenue: estValue(activeLeads),
           active: rates.activeR
         };
       })
-      .sort((a, b) => b.pipelineValue - a.pipelineValue);
+      // Stable sort: value desc, then name asc (deterministic top-N).
+      .sort((a, b) => b.pipelineValue - a.pipelineValue || a.name.localeCompare(b.name));
   }, [searchFiltered]);
 
   // City Dossier Calculation
@@ -138,6 +147,8 @@ export default function Geography() {
       total: cityLeads.length,
       active: rates.active,
       activeRate: rates.activeR,
+      pipelineValue: estValue(cityLeads),
+      securedValue: estValue(cityLeads.filter(assignedActive)),
       leaderboard: localLeaderboard
     };
   }, [selectedCity, searchFiltered, data]);
@@ -238,6 +249,7 @@ export default function Geography() {
       </header>
 
       <ExecSummary bullets={summaryBullets} />
+      <LeadsAsOfStamp className="mb-4" />
 
       {/* Macro-Regional Row */}
       {regionalData.length > 0 && (
@@ -474,12 +486,12 @@ export default function Geography() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-surface/50 p-4 rounded-lg border border-border-subtle">
                   <p className="text-[10px] text-text-secondary uppercase">Pipeline Value</p>
-                  <p className="text-xl font-bold text-white mt-1">₹{formatCurrency(dossierData.total * AVG_DEAL_SIZE)}</p>
+                  <p className="text-xl font-bold text-white mt-1">₹{formatCurrency(dossierData.pipelineValue)}</p>
                 </div>
                 <div className={clsx("p-4 rounded-lg border", getHealthColor(dossierData.activeRate).bg, getHealthColor(dossierData.activeRate).border)}>
                   <p className="text-[10px] text-text-secondary uppercase">Active Pipeline (est.)</p>
                   <p className={clsx("text-xl font-bold mt-1", getHealthColor(dossierData.activeRate).text)}>
-                    ₹{formatCurrency(dossierData.active * AVG_DEAL_SIZE)} <span className="text-sm font-normal">({dossierData.activeRate.toFixed(1)}%)</span>
+                    ₹{formatCurrency(dossierData.securedValue)} <span className="text-sm font-normal">({dossierData.activeRate.toFixed(1)}%)</span>
                   </p>
                 </div>
               </div>
