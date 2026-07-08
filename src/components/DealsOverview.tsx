@@ -37,6 +37,11 @@ export function DealsOverview() {
 
   const totals = deals.totals || {};
   const fees = deals.fees || {};
+  const feesFy = fees?.fy || {};
+  const feesAll = fees?.allTime || fees || {};
+  // Fiscal-year label, e.g. "Apr'26–", derived from the feed's fyStart.
+  const fyStartStr: string | undefined = feesFy?.fyStart;
+  const fyLabel = fyStartStr ? `Apr'${fyStartStr.slice(2, 4)}–` : 'This FY';
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel)
     ? deals.funnel
     : [];
@@ -117,29 +122,74 @@ export function DealsOverview() {
           <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
         </h2>
 
-        <div className="grid grid-cols-3 gap-3 flex-1">
-          <div className="flex flex-col justify-center p-3 rounded-xl bg-black/20 border border-border-subtle/50">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-1">Contracted</span>
-            <span className="text-xl sm:text-2xl font-black text-white tracking-tight">{inr(fees.contracted)}</span>
+        {/* Contracted & Collected shown on the SAME basis (contracted book), for two scopes. */}
+        <div className="flex flex-col gap-3 flex-1">
+          {/* Current fiscal year */}
+          <div className="p-3 rounded-xl bg-black/20 border border-brand-pink-500/30">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-brand-pink-400">
+                Current FY ({fyLabel})
+              </span>
+              {feesFy?.deals != null && (
+                <span className="text-[9px] uppercase tracking-wider text-text-secondary/70">
+                  {feesFy.deals} signed
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted</span>
+                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">{inr(feesFy?.contracted)}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
+                {feesFy?.collectedActual != null && (
+                  <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesFy.collectedActual)}</span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col justify-center p-3 rounded-xl bg-black/20 border border-border-subtle/50">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-1">Collected</span>
-            <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{inr(fees.collected)}</span>
-          </div>
-          <div className="flex flex-col justify-center p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-amber-400/80 mb-1">Pending</span>
-            <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">{inr(fees.pending)}</span>
+
+          {/* All-time / contracted book */}
+          <div className="p-3 rounded-xl bg-black/20 border border-border-subtle/50">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-2">
+              All-time · contracted book
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted</span>
+                <span className="text-lg sm:text-xl font-black text-white tracking-tight">{inr(feesAll?.contracted)}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
+                <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesAll?.collected)}</span>
+                {feesAll?.collectedActual != null && (
+                  <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesAll.collectedActual)}</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {totals.keysContracted != null && (
+        {totals?.keysContracted != null && (
           <div className="mt-4 text-[11px] text-text-secondary">
-            Keys contracted:{' '}
+            Keys (MA-signed):{' '}
             <span className="text-white font-bold">{totals.keysContracted.toLocaleString('en-IN')}</span>
+            {totals?.keysContractedFY != null && (
+              <>
+                {' '}· FY{' '}
+                <span className="text-white font-bold">{totals.keysContractedFY.toLocaleString('en-IN')}</span>
+              </>
+            )}
           </div>
         )}
-        <div className="mt-1 text-[10px] text-text-secondary/70 italic">
-          Real booked fees from Zoho Deals — as of {deals.generated} UTC
+        <div className="mt-2 text-[10px] text-text-secondary/70 italic leading-snug space-y-0.5">
+          {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
+          {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
+            <div>{fees.undatedMASigned} MA deals have no MA-date, so FY figures exclude them.</div>
+          )}
+          <div>Real booked fees from Zoho Deals — as of {deals.generated} UTC</div>
         </div>
       </div>
     </div>
