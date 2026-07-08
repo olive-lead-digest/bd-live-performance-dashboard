@@ -1,7 +1,7 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { buildLeaderboard } from '@/lib/utils';
+import { buildLeaderboard, qaCoverage, rosterOwnerSet } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { X, Star, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Filter as FilterIcon } from 'lucide-react';
@@ -18,8 +18,9 @@ export default function Leaderboard() {
 
   const leaderboard = useMemo(() => {
     if (!data) return [];
-    let list = buildLeaderboard(filteredLeads, data.bds, data.weights);
-    
+    // P1-8: tag anyone not in the org roster (ex-BD / test account) as inactive.
+    let list = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org));
+
     // Apply inline sorting
     list.sort((a, b) => {
       if (sortBy === 'score') return (b.bps?.score || 0) - (a.bps?.score || 0);
@@ -40,6 +41,7 @@ export default function Leaderboard() {
     };
     
     leaderboard.forEach(rep => {
+      if (rep.inactive) return; // P1-8: not in roster → excluded from band counts
       // Handle the suffix variations in the original data
       let baseBand = rep.band.replace(' review', '').replace(' coaching', '');
       if (baseBand === 'Priority') baseBand = 'Priority coaching';
@@ -53,6 +55,12 @@ export default function Leaderboard() {
     });
     return groups;
   }, [leaderboard]);
+
+  // P1-8 — reps present in the data but NOT in the org roster (bd_org.json):
+  // ex-BDs / test accounts. Shown separately, tagged, excluded from all counts.
+  const inactiveReps = useMemo(() => leaderboard.filter(r => r.inactive), [leaderboard]);
+  const activeReps = useMemo(() => leaderboard.filter(r => !r.inactive), [leaderboard]);
+  const qa = useMemo(() => qaCoverage(data), [data]);
 
   const analysisText = useMemo(() => {
     if (!leaderboard.length) return "No data available for current filters.";
@@ -72,20 +80,21 @@ export default function Leaderboard() {
     const b: SummaryBullet[] = [];
     const top = groupedData['Top performer'] || [];
     const coaching = groupedData['Priority coaching'] || [];
-    const totalCount = leaderboard.length;
-    const totalVol = leaderboard.reduce((s, r) => s + r.n, 0);
+    // P1-8: all team-size / percentage bases use the ACTIVE roster only.
+    const totalCount = activeReps.length;
+    const totalVol = activeReps.reduce((s, r) => s + r.n, 0);
     const topVol = top.reduce((s, r) => s + r.n, 0);
     const volPct = totalVol ? Math.round((topVol / totalVol) * 100) : 0;
-    const best = [...leaderboard].sort((a, c) => (c.bps?.score || 0) - (a.bps?.score || 0))[0];
+    const best = [...activeReps].sort((a, c) => (c.bps?.score || 0) - (a.bps?.score || 0))[0];
     if (best && best.bps) b.push({ tone: 'up', text: `${best.owner} leads the team with a ${best.bps.score.toFixed(0)} balanced score.` });
-    b.push({ tone: 'info', text: `${top.length} top performer${top.length !== 1 ? 's' : ''} (${Math.round(top.length / totalCount * 100)}% of team) drive ${volPct}% of all lead volume.` });
+    b.push({ tone: 'info', text: `${top.length} top performer${top.length !== 1 ? 's' : ''} (${totalCount ? Math.round(top.length / totalCount * 100) : 0}% of team) drive ${volPct}% of all lead volume.` });
     b.push(coaching.length
       ? { tone: 'warn', text: `${coaching.length} rep${coaching.length > 1 ? 's' : ''} in Priority Coaching need intervention on drop rates.` }
       : { tone: 'up', text: `No reps in Priority Coaching — team health is strong.` });
-    const reviewed = leaderboard.filter(r => r.reviewed).length;
-    b.push({ tone: 'info', text: `${reviewed} of ${totalCount} reps have an AI quality review on file.` });
+    // P1-8: ONE QA-coverage figure (roster-based), identical to Overview.
+    b.push({ tone: 'info', text: `${qa.reviewed} of ${qa.total} roster BDs have an AI quality review on file${qa.missing ? ` (${qa.missing} missing)` : ''}.` });
     return b;
-  }, [groupedData, leaderboard]);
+  }, [groupedData, leaderboard, activeReps, qa]);
 
   if (isLoading || !data) return null;
 
@@ -252,6 +261,27 @@ export default function Leaderboard() {
             </div>
           );
         })}
+        {inactiveReps.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3 border-b border-border-subtle pb-2">
+              <h3 className="text-lg font-bold text-text-secondary">Inactive / not in roster</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border text-text-secondary bg-surface/50 border-border-subtle">
+                {inactiveReps.length} excluded
+              </span>
+            </div>
+            <p className="text-xs text-text-secondary -mt-1">
+              Present in the leads/deals data but not in the BD org roster (ex-BDs such as &ldquo;Venkatashiva K V&rdquo;, or test accounts). Shown for transparency; excluded from all band counts, percentages and QA coverage.
+            </p>
+            <div className="grid grid-cols-1 gap-3">
+              {inactiveReps.map((r) => (
+                <div key={r.owner} className="glass-card p-4 md:px-6 md:py-4 flex items-center justify-between gap-4 border border-transparent opacity-70">
+                  <span className="text-sm font-bold text-white">{r.owner}</span>
+                  <span className="text-xs text-text-secondary">{r.n} leads · inactive</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {leaderboard.length === 0 && (
           <div className="text-center py-12 text-text-secondary">No reps match the current filters.</div>
         )}
