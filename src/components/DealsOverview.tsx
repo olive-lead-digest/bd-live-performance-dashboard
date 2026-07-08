@@ -2,6 +2,7 @@
 
 import { useDashboard } from '@/lib/DashboardContext';
 import { Handshake, IndianRupee } from 'lucide-react';
+import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 
 const inr = (n?: number | null) =>
   n == null
@@ -31,8 +32,9 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export function DealsOverview() {
-  const { data } = useDashboard();
-  const deals = data?.deals;
+  const { dealsRuntime } = useDashboard();
+  const deals = dealsRuntime.deals;
+  const exempt = useDealsExempt();
   if (!deals) return null;
 
   const totals = deals.totals || {};
@@ -55,10 +57,13 @@ export function DealsOverview() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 relative z-10">
       {/* Card A — Signings Funnel */}
-      <div className="glass-panel p-4 sm:p-6 flex flex-col">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
-          <Handshake className="w-4 h-4 text-brand-pink-400" /> Signings Funnel
-        </h2>
+      <div className={'glass-panel p-4 sm:p-6 flex flex-col transition-opacity ' + (exempt ? 'opacity-80' : '')}>
+        <div className="flex items-center justify-between gap-2 mb-5 flex-wrap">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+            <Handshake className="w-4 h-4 text-brand-pink-400" /> Signings Funnel
+          </h2>
+          <DealsExemptBadge />
+        </div>
 
         <div className="flex items-baseline gap-3 mb-5">
           <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
@@ -117,10 +122,13 @@ export function DealsOverview() {
       </div>
 
       {/* Card B — Deal Revenue (TA Fees) */}
-      <div className="glass-panel p-4 sm:p-6 flex flex-col">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
-          <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
-        </h2>
+      <div className={'glass-panel p-4 sm:p-6 flex flex-col transition-opacity ' + (exempt ? 'opacity-80' : '')}>
+        <div className="flex items-center justify-between gap-2 mb-5 flex-wrap">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+            <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
+          </h2>
+          <DealsExemptBadge />
+        </div>
 
         {/* Contracted & Collected shown on the SAME basis (contracted book), for two scopes. */}
         <div className="flex flex-col gap-3 flex-1">

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { CalendarClock, KeyRound } from 'lucide-react';
 import { inr, num, brandColor, shortDate } from '@/lib/format';
+import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 
 interface Upcoming {
   dealName?: string;
@@ -17,26 +18,36 @@ interface Upcoming {
 }
 
 export function UpcomingSigningsCard() {
-  const { data } = useDashboard();
+  const { dealsRuntime } = useDashboard();
+  const deals = dealsRuntime.deals;
+  const exempt = useDealsExempt();
 
   const rows = useMemo(() => {
-    const u = data?.deals?.upcoming as Upcoming[] | undefined;
+    const u = deals?.upcoming as Upcoming[] | undefined;
     if (!Array.isArray(u)) return [];
-    return [...u].sort((a, b) => (a.expectedDate || '').localeCompare(b.expectedDate || ''));
-  }, [data]);
+    // Deterministic order: expected date asc, then deal name asc (stable tiebreaker).
+    return [...u].sort(
+      (a, b) =>
+        (a.expectedDate || '').localeCompare(b.expectedDate || '') ||
+        (a.dealName || '').localeCompare(b.dealName || '')
+    );
+  }, [deals]);
 
   // Guard: render nothing if the key is absent.
-  if (!Array.isArray(data?.deals?.upcoming)) return null;
+  if (!Array.isArray(deals?.upcoming)) return null;
 
   return (
-    <div className="glass-panel p-4 sm:p-6 flex flex-col relative z-10">
+    <div className={'glass-panel p-4 sm:p-6 flex flex-col relative z-10 transition-opacity ' + (exempt ? 'opacity-80' : '')}>
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
           <CalendarClock className="w-4 h-4 text-brand-pink-400" /> Upcoming Signings
         </h2>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
-          Next ~20 days · {num(rows.length)}
-        </span>
+        <div className="flex items-center gap-2">
+          <DealsExemptBadge />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
+            Next ~20 days · {num(rows.length)}
+          </span>
+        </div>
       </div>
 
       {rows.length === 0 ? (

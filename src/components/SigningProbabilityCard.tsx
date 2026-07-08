@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Gauge } from 'lucide-react';
+import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 
 const num = (n: number) => Math.round(n).toLocaleString('en-IN');
 
@@ -20,10 +21,12 @@ const BANDS: { key: string; label: string; color: string; bg: string }[] = [
  * until the pipeline reruns). Each bucket may carry {count, keys}.
  */
 export function SigningProbabilityCard() {
-  const { data } = useDashboard();
+  const { dealsRuntime } = useDashboard();
+  const deals = dealsRuntime.deals;
+  const exempt = useDealsExempt();
 
   const rows = useMemo(() => {
-    const sp = data?.deals?.signingProbability;
+    const sp = deals?.signingProbability;
     if (!sp) return [];
     return BANDS.map((b) => {
       const entry = sp[b.key] || {};
@@ -33,9 +36,9 @@ export function SigningProbabilityCard() {
         keys: entry.keys != null ? Number(entry.keys) : null,
       };
     });
-  }, [data]);
+  }, [deals]);
 
-  if (!data?.deals?.signingProbability || rows.length === 0) return null;
+  if (!deals?.signingProbability || rows.length === 0) return null;
 
   const total = rows.reduce((s, r) => s + r.count, 0);
   if (total === 0) return null;
@@ -43,14 +46,17 @@ export function SigningProbabilityCard() {
   const anyKeys = rows.some((r) => r.keys != null && r.keys > 0);
 
   return (
-    <div className="glass-panel p-4 sm:p-6 flex flex-col relative z-10">
-      <div className="flex items-center justify-between mb-5">
+    <div className={'glass-panel p-4 sm:p-6 flex flex-col relative z-10 transition-opacity ' + (exempt ? 'opacity-80' : '')}>
+      <div className="flex items-center justify-between mb-5 gap-2 flex-wrap">
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
           <Gauge className="w-4 h-4 text-brand-pink-400" /> Signing Probability
         </h2>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
-          {num(total)} open deals
-        </span>
+        <div className="flex items-center gap-2">
+          <DealsExemptBadge />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
+            {num(total)} open deals
+          </span>
+        </div>
       </div>
 
       {/* Weighted single bar: green -> amber -> red -> grey */}

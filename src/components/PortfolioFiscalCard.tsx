@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Building2, Handshake, IndianRupee } from 'lucide-react';
 import { inr, num, brandColor } from '@/lib/format';
+import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 
 type Split = Record<string, number>;
 
@@ -59,8 +60,9 @@ function SplitBars({
 }
 
 export function PortfolioFiscalCard() {
-  const { data } = useDashboard();
-  const deals = data?.deals;
+  const { dealsRuntime } = useDashboard();
+  const deals = dealsRuntime.deals;
+  const exempt = useDealsExempt();
   const [period, setPeriod] = useState<'mtd' | 'ytd'>('ytd');
 
   const portfolio = deals?.portfolio as Record<string, number> | undefined;
@@ -80,10 +82,13 @@ export function PortfolioFiscalCard() {
     <div className="flex flex-col gap-4 sm:gap-6 relative z-10">
       {/* Portfolio KPI tiles */}
       {portfolio && (
-        <div className="glass-panel p-4 sm:p-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-5">
-            <Building2 className="w-4 h-4 text-brand-pink-400" /> Signed Portfolio
-          </h2>
+        <div className={'glass-panel p-4 sm:p-6 transition-opacity ' + (exempt ? 'opacity-80' : '')}>
+          <div className="flex items-center justify-between gap-2 mb-5 flex-wrap">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-brand-pink-400" /> Signed Portfolio
+            </h2>
+            <DealsExemptBadge />
+          </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {PORTFOLIO_TILES.map((t) => (
               <div
@@ -111,11 +116,12 @@ export function PortfolioFiscalCard() {
 
       {/* Fiscal signings & collections */}
       {active && (
-        <div className="glass-panel p-4 sm:p-6">
+        <div className={'glass-panel p-4 sm:p-6 transition-opacity ' + (exempt ? 'opacity-80' : '')}>
           <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
               <Handshake className="w-4 h-4 text-brand-pink-400" /> Signings &amp; Collections
             </h2>
+            <DealsExemptBadge />
             <div className="flex bg-black/40 p-1 rounded-lg border border-border-subtle/50">
               {(['mtd', 'ytd'] as const).map((p) => (
                 <button
@@ -146,7 +152,7 @@ export function PortfolioFiscalCard() {
             </div>
             <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections
+                <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections (received)
               </span>
               <span className="text-3xl font-black tabular-nums text-emerald-400">
                 {inr(active.collections?.amount ?? 0)}
@@ -180,7 +186,8 @@ export function PortfolioFiscalCard() {
 
           <p className="mt-5 text-[11px] leading-relaxed text-text-secondary">
             {period === 'ytd' ? 'Financial year begins 1 Apr. ' : ''}
-            <span className="text-amber-400/90 font-medium">Collections are approximate</span> — attributed to
+            <span className="text-amber-400/90 font-medium">Collections are approximate</span> — this is
+            <span className="text-text-secondary font-medium"> Received (Actual_Amount_Total)</span>, attributed to
             each deal&apos;s signing (MA) date, as the CRM carries no per-payment date.
             {asOf ? <span className="text-text-secondary/70"> As of {asOf}.</span> : null}
           </p>
