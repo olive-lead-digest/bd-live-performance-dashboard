@@ -50,6 +50,10 @@ export default function DealsPage() {
 
   const totals = deals.totals || {};
   const fees = deals.fees || {};
+  const feesFy = fees?.fy || {};
+  const feesAll = fees?.allTime || fees || {};
+  const fyStartStr: string | undefined = feesFy?.fyStart;
+  const fyLabel = fyStartStr ? `Apr'${fyStartStr.slice(2, 4)}–` : 'This FY';
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
@@ -104,7 +108,13 @@ export default function DealsPage() {
           icon={XCircle}
           color="#ef4444"
         />
-        <KpiCard title="Keys Contracted" value={(totals.keysContracted ?? 0).toLocaleString('en-IN')} icon={KeyRound} color="#34d399" />
+        <KpiCard
+          title="Keys (MA-signed)"
+          value={(totals.keysContracted ?? 0).toLocaleString('en-IN')}
+          sub={totals.keysContractedFY != null ? `${Number(totals.keysContractedFY).toLocaleString('en-IN')} this FY` : undefined}
+          icon={KeyRound}
+          color="#34d399"
+        />
       </div>
 
       {/* Full funnel — rendered in the feed's canonical order, no re-sort */}
@@ -200,12 +210,37 @@ export default function DealsPage() {
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-6">
           <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-          <RevStat label="Contracted" value={inr(fees.contracted)} />
-          <RevStat label="Collected" value={inr(fees.collected)} accent="#34d399" />
-          <RevStat label="Pending" value={inr(fees.pending)} accent="#ffb020" warn />
-          <RevStat label="Expected" value={inr(fees.expectedAmount)} />
-          <RevStat label="Actual" value={inr(fees.actualAmount)} />
+        {/* Contracted & Collected on the SAME basis (contracted book), split into
+            Current-FY and All-time scopes so they are never mixed. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+          <div className="p-4 rounded-xl bg-black/20 border border-brand-pink-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] uppercase tracking-widest font-bold text-brand-pink-400">Current FY ({fyLabel})</span>
+              {feesFy?.deals != null && (
+                <span className="text-[10px] uppercase tracking-wider text-text-secondary/70">{feesFy.deals} signed</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <RevStat label="Contracted" value={inr(feesFy?.contracted)} />
+              <RevStat label="Collected" value={inr(feesFy?.collected)} accent="#34d399" />
+              <RevStat label="Received" value={inr(feesFy?.collectedActual)} />
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
+            <div className="text-[11px] uppercase tracking-widest font-bold text-text-secondary mb-3">All-time · contracted book</div>
+            <div className="grid grid-cols-3 gap-3">
+              <RevStat label="Contracted" value={inr(feesAll?.contracted)} />
+              <RevStat label="Collected" value={inr(feesAll?.collected)} accent="#34d399" />
+              <RevStat label="Received" value={inr(feesAll?.collectedActual)} />
+            </div>
+          </div>
+        </div>
+        <div className="mb-6 text-[10px] text-text-secondary/70 italic leading-snug space-y-0.5">
+          {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
+          {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
+            <div>{fees.undatedMASigned} MA deals have no MA-date, so Current-FY figures exclude them.</div>
+          )}
+          <div>Contracted = Ta_Fee_Contracted; Collected = TA_fee_collected (cumulative keyed); Received = Actual_Amount_Total.</div>
         </div>
 
         <div className="overflow-x-auto">
