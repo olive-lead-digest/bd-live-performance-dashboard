@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
+import { compactNum } from '@/lib/format';
 
 const geoUrl = "/world.json";
 // Illustrative estimate only — leads carry no monetary amount. Estimated value is
@@ -17,9 +18,8 @@ const geoUrl = "/world.json";
 const assignedActive = (l: { owner?: string | null; status?: string | null }) =>
   !!l.owner && isActive(l.status ?? null);
 
-const formatCurrency = (num: number) => {
-  return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
-};
+// P1-2: shared Indian compact scale (K/L/Cr, never T/M/B). Callers prefix ₹.
+const formatCurrency = (num: number) => compactNum(num);
 
 const CITY_DATA: Record<string, { coords: [number, number], state: string }> = {
   "Bangalore": { coords: [77.5946, 12.9716], state: "KA" },
