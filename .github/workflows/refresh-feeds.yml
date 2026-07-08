@@ -1,1 +1,105 @@
-name: placeholder
+name: Refresh BD Dashboard Feeds
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # hourly, on the hour (UTC)
+  workflow_dispatch: {}    # allow manual "Run workflow"
+
+permissions:
+  contents: write          # GITHUB_TOKEN may push the rebuilt feeds to the data branch
+
+concurrency:
+  group: refresh-feeds
+  cancel-in-progress: false  # let an in-flight publish finish rather than racing it
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main (Next.js app + pipeline/)
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pipeline dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Build feeds (leads from Zoho CRM; Zoom/coaching from committed caches)
+        working-directory: pipeline
+        env:
+          SKIP_SHEET: 'true'            # Google Sheet is not the lead universe; skip it
+          ZOHO_CLIENT_ID: ${{ secrets.ZOHO_CLIENT_ID }}
+          ZOHO_CLIENT_SECRET: ${{ secrets.ZOHO_CLIENT_SECRET }}
+          ZOHO_REFRESH_TOKEN: ${{ secrets.ZOHO_REFRESH_TOKEN }}
+        run: python refresh_leads_live.py
+
+      - name: Validate feeds are present, parseable and non-trivial
+        working-directory: pipeline
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          # Per-file minimum sizes (proposals.json is legitimately small, ~1KB).
+          checks = {
+              "dashboard_data.json": 100_000,
+              "summary.json":          2_000,
+              "deals.json":            1_500,
+              "proposals.json":          300,
+          }
+          bad = []
+          for f, minsz in checks.items():
+              if not os.path.exists(f):
+                  bad.append(f"{f}: MISSING"); continue
+              sz = os.path.getsize(f)
+              try:
+                  data = json.load(open(f))
+              except Exception as e:
+                  bad.append(f"{f}: INVALID JSON ({e})"); continue
+              if sz < minsz:
+                  bad.append(f"{f}: too small ({sz} < {minsz} bytes)")
+              print(f"{f}: OK ({sz} bytes)")
+          # Guard against an empty CRM pull silently publishing 0 leads.
+          try:
+              n = len(json.load(open("dashboard_data.json")).get("leads", []))
+              print(f"dashboard_data.json leads = {n}")
+              if n < 1000:
+                  bad.append(f"dashboard_data.json: only {n} leads (<1000) — CRM pull likely failed")
+          except Exception as e:
+              bad.append(f"dashboard_data.json: leads check failed ({e})")
+          if bad:
+              print("FEED VALIDATION FAILED:")
+              for b in bad:
+                  print("  -", b)
+              sys.exit(1)
+          print("All feeds valid.")
+          PY
+
+      - name: Checkout data branch into ./feed
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: feed
+
+      - name: Copy rebuilt feeds into the data worktree
+        run: |
+          cp pipeline/dashboard_data.json feed/
+          cp pipeline/summary.json        feed/
+          cp pipeline/deals.json          feed/
+          cp pipeline/proposals.json      feed/
+          cp pipeline/bd_org.json         feed/
+
+      - name: Commit & push feeds (only if changed)
+        working-directory: feed
+        run: |
+          git config user.name  "olive-lead-digest[bot]"
+          git config user.email "olive-lead-digest@users.noreply.github.com"
+          git add dashboard_data.json summary.json deals.json proposals.json bd_org.json
+          if git diff --cached --quiet; then
+            echo "No feed changes — nothing to publish."
+          else
+            git commit -m "live data refresh [skip ci]"
+            git push origin HEAD:data
+          fi
