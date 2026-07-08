@@ -3,16 +3,12 @@
 import { useDashboard } from '@/lib/DashboardContext';
 import { Handshake, IndianRupee } from 'lucide-react';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
+import { inr } from '@/lib/format';
 
-const inr = (n?: number | null) =>
-  n == null
-    ? '—'
-    : new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        notation: 'compact',
-        maximumFractionDigits: 2,
-      }).format(n);
+// Receivable = Contracted − Collected (P1-1). Zoho's Pending_TA_fee field is
+// unpopulated org-wide, so we DERIVE the receivable so the arithmetic closes.
+const receivable = (contracted?: number | null, collected?: number | null) =>
+  Math.max(0, (Number(contracted) || 0) - (Number(collected) || 0));
 
 // Stages we want to spotlight in the compact funnel. This is a membership filter
 // only — the render order below always follows the feed's canonical funnel order,
@@ -53,6 +49,17 @@ export function DealsOverview() {
     .filter((f) => SPOTLIGHT_STAGES.has(f.stage))
     .map((f) => ({ stage: f.stage, count: f.count ?? 0, note: f.note }));
   const maxCount = Math.max(1, ...spotlight.map((s) => s.count));
+
+  // P1-10 — Spark's conversion event is the LOI, not the MA (the org's own
+  // scoring counts Spark at LOI; Spark MAs follow LOI). So Spark's HEADLINE
+  // rate is the LOI rate, with the MA rate shown as a secondary figure. The
+  // denominator is the Spark deal cohort (byBrand.Spark.deals).
+  const spark = (deals.byBrand || {}).Spark || {};
+  const sparkCohort = Number(spark.deals) || 0;
+  const sparkMA = Number(spark.signed) || 0;
+  const sparkLOI = Number((deals.portfolio || {}).sparkLOI) || 0;
+  const sparkLOIrate = sparkCohort ? (sparkLOI / sparkCohort) * 100 : 0;
+  const sparkMArate = sparkCohort ? (sparkMA / sparkCohort) * 100 : 0;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 relative z-10">
@@ -119,6 +126,17 @@ export function DealsOverview() {
             {totals.dropRatePct != null && ` (${totals.dropRatePct}%)`}
           </div>
         )}
+
+        {sparkCohort > 0 && (
+          <div className="mt-3 pt-3 border-t border-border-subtle/50 text-[11px] leading-snug">
+            <span className="text-brand-pink-400 font-bold">Spark conversion (LOI):</span>{' '}
+            <span className="text-white font-bold">{sparkLOIrate.toFixed(1)}%</span>{' '}
+            <span className="text-text-secondary">— {sparkLOI.toLocaleString('en-IN')} LOIs across {sparkCohort.toLocaleString('en-IN')} Spark deals.</span>
+            <span className="block text-text-secondary/70 mt-0.5">
+              MA rate: {sparkMArate.toFixed(1)}% ({sparkMA.toLocaleString('en-IN')}/{sparkCohort.toLocaleString('en-IN')}) — Spark MAs follow LOI, so LOI is Spark&apos;s signing event and the rate to watch (denominator = all Spark deals).
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Card B — Deal Revenue (TA Fees) */}
@@ -144,17 +162,22 @@ export function DealsOverview() {
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted</span>
-                <span className="text-xl sm:text-2xl font-black text-white tracking-tight">{inr(feesFy?.contracted)}</span>
+                <span className="text-lg sm:text-xl font-black text-white tracking-tight">{inr(feesFy?.contracted)}</span>
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
+                <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
                 {feesFy?.collectedActual != null && (
                   <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesFy.collectedActual)}</span>
                 )}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
+                <span className="text-lg sm:text-xl font-black text-amber-400 tracking-tight">{inr(receivable(feesFy?.contracted, feesFy?.collected))}</span>
+                <span className="block text-[9px] text-text-secondary/70 mt-0.5">derived</span>
               </div>
             </div>
           </div>
@@ -164,17 +187,22 @@ export function DealsOverview() {
             <div className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-2">
               All-time · contracted book
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted</span>
-                <span className="text-lg sm:text-xl font-black text-white tracking-tight">{inr(feesAll?.contracted)}</span>
+                <span className="text-base sm:text-lg font-black text-white tracking-tight">{inr(feesAll?.contracted)}</span>
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesAll?.collected)}</span>
+                <span className="text-base sm:text-lg font-black text-emerald-400 tracking-tight">{inr(feesAll?.collected)}</span>
                 {feesAll?.collectedActual != null && (
                   <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesAll.collectedActual)}</span>
                 )}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
+                <span className="text-base sm:text-lg font-black text-amber-400 tracking-tight">{inr(receivable(feesAll?.contracted, feesAll?.collected))}</span>
+                <span className="block text-[9px] text-text-secondary/70 mt-0.5">derived</span>
               </div>
             </div>
           </div>
@@ -197,6 +225,7 @@ export function DealsOverview() {
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date, so FY figures exclude them.</div>
           )}
+          <div>Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide, so we show a derived receivable instead).</div>
           <div>Real booked fees from Zoho Deals — as of {deals.generated} UTC</div>
         </div>
       </div>

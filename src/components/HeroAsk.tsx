@@ -8,15 +8,18 @@ import { useDashboard } from '@/lib/DashboardContext';
 const PHRASES = [
   'Ask anything about BD performance…',
   'Ask AI',
-  'Why is Spark dropping?',
+  'How is Spark tracking on LOIs?',
   'Who are the top BDs?',
   'Which region has the best active rate?',
   'Lowest performers in June, brand-wise?',
   'How is Olive trending month over month?',
 ];
 
+// P1-10: Spark's conversion event is the LOI (Spark MAs follow LOI), so the
+// old "Why is Spark dropping?" chip framed a crisis the org's own scoring says
+// is mismeasured. Replaced with a question the data actually supports.
 const CHIPS = [
-  'Why is Spark dropping?',
+  'How is Spark tracking on LOIs?',
   'Top BDs?',
   'Best active-rate region?',
   'Lowest performers in June by brand',

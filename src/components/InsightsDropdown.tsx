@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { InsightModal, InsightData } from './InsightModal';
 import { useDashboard } from '@/lib/DashboardContext';
 import { calculateRates, buildLeaderboard } from '@/lib/utils';
+import { inr } from '@/lib/format';
 
 type InsightCategory = {
   name: string;
@@ -15,10 +16,7 @@ type InsightCategory = {
 const STAGE_ORDER = ['New Leads', 'Lead Contacted', 'Under Discussion', 'Lead Dropped'];
 const num = (n: number) => Math.round(n).toLocaleString('en-IN');
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
-
-// Compact Indian-rupee formatter (₹1.2 Cr / ₹45.0 L). Input is raw ₹.
-const inrFmt = new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1, style: 'currency', currency: 'INR' });
-const inr = (v: number) => (Number.isFinite(v) ? inrFmt.format(v) : '₹0');
+// Currency uses the shared Indian compact formatter (₹40K / ₹1.4L / ₹4.72Cr).
 
 /*
  * CEO-grade executive insights. Every figure is computed live from the
@@ -60,13 +58,14 @@ function useComputedInsights(): InsightCategory[] {
       // Collections risk
       const contracted = Number(fees.contracted) || 0;
       const collected = Number(fees.collected) || 0;
-      const pending = Number(fees.pending) || (contracted - collected);
+      // P1-1: Zoho's Pending field is empty org-wide, so Receivable is DERIVED.
+      const receivableAmt = Math.max(0, contracted - collected);
       if (contracted > 0) {
-        const pendPct = pct(pending, contracted);
+        const pendPct = pct(receivableAmt, contracted);
         signings.push({
           id: 'collections-risk',
-          title: `${inr(contracted)} contracted — ${pendPct.toFixed(0)}% still uncollected`,
-          implication: `${inr(contracted)} of fees are contracted but only ${inr(collected)} (${pct(collected, contracted).toFixed(0)}%) is collected, leaving ${inr(pending)} (${pendPct.toFixed(0)}%) outstanding. ${
+          title: `${inr(contracted)} contracted — ${pendPct.toFixed(0)}% still receivable`,
+          implication: `${inr(contracted)} of fees are contracted but only ${inr(collected)} (${pct(collected, contracted).toFixed(0)}%) is collected, leaving ${inr(receivableAmt)} (${pendPct.toFixed(0)}%) receivable (derived = Contracted − Collected; Zoho's Pending field is unpopulated). ${
             pendPct >= 50 ? 'Collections lag more than half of booked value — a cash-conversion risk that warrants a finance-led recovery push.' : 'Keep collections pacing ahead of new signings to avoid a receivables build-up.'
           }`,
           evidenceType: 'data-table',
@@ -75,7 +74,7 @@ function useComputedInsights(): InsightCategory[] {
             rows: [
               [{ value: 'Contracted' }, { value: inr(contracted) }, { value: '100%' }],
               [{ value: 'Collected' }, { value: inr(collected) }, { value: `${pct(collected, contracted).toFixed(0)}%`, color: 'text-emerald-400 font-bold' }],
-              [{ value: 'Pending' }, { value: inr(pending) }, { value: `${pendPct.toFixed(0)}%`, color: pendPct >= 40 ? 'text-brand-pink-500 font-bold' : 'text-orange-400 font-bold' }],
+              [{ value: 'Receivable' }, { value: inr(receivableAmt) }, { value: `${pendPct.toFixed(0)}%`, color: pendPct >= 40 ? 'text-brand-pink-500 font-bold' : 'text-orange-400 font-bold' }],
             ],
           },
         });

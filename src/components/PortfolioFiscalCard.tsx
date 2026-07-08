@@ -140,25 +140,39 @@ export function PortfolioFiscalCard() {
             </div>
           </div>
 
-          {/* Totals */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                <Handshake className="w-3 h-3 text-brand-pink-400" /> Signings
-              </span>
-              <span className="text-3xl font-black tabular-nums text-white">
-                {num(active.signings?.count ?? 0)}
-              </span>
-            </div>
-            <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections (received)
-              </span>
-              <span className="text-3xl font-black tabular-nums text-emerald-400">
-                {inr(active.collections?.amount ?? 0)}
+          {/* Totals — with an explanatory empty state when the current month
+              has no signings yet (P1-3), instead of a bare "0 / ₹0". */}
+          {period === 'mtd' && (active.signings?.count ?? 0) === 0 ? (
+            <div className="rounded-xl p-5 border border-dashed border-border-subtle bg-black/20 mb-6 flex flex-col items-center text-center gap-1.5">
+              <Handshake className="w-6 h-6 text-brand-purple-400 mb-1" />
+              <span className="text-sm font-bold text-white">No signings yet this month</span>
+              <span className="text-[11px] text-text-secondary max-w-md">
+                No MA has been signed so far this calendar month. See the
+                <span className="text-brand-pink-400 font-semibold"> Upcoming Signings</span> table below for
+                high-probability deals expected in the next ~20 days, or switch to
+                <span className="text-brand-pink-400 font-semibold"> FY To-Date</span> for the fiscal-year total.
               </span>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                  <Handshake className="w-3 h-3 text-brand-pink-400" /> Signings
+                </span>
+                <span className="text-3xl font-black tabular-nums text-white">
+                  {num(active.signings?.count ?? 0)}
+                </span>
+              </div>
+              <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                  <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections (received)
+                </span>
+                <span className="text-3xl font-black tabular-nums text-emerald-400">
+                  {inr(active.collections?.amount ?? 0)}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Region-wise + brand-wise splits */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

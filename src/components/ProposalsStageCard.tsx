@@ -125,9 +125,12 @@ export function ProposalsStageCard() {
 
       {/* ARR & Occupancy averages (Sales/Revenue-set targets) */}
       <div>
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-3">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-1">
           Revenue targets (averages across proposals)
         </h3>
+        <p className="text-[10px] text-text-secondary/70 italic mb-3">
+          ARR = Average Room Rate (₹ per room-night) — not Annual Recurring Revenue.
+        </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Metric label="Year 1 ARR" value={arr.year1Arr} kind="arr" />
           <Metric label="Year 1 Occupancy" value={arr.year1Occ} kind="occ" />
@@ -168,7 +171,7 @@ function Metric({
   const avg = value?.avg ?? null;
   const n = value?.n ?? 0;
   const display =
-    avg == null ? '—' : kind === 'occ' ? `${avg.toFixed(1)}%` : num(avg);
+    avg == null ? '—' : kind === 'occ' ? `${avg.toFixed(1)}%` : `₹${num(avg)}`;
   return (
     <div className="rounded-xl p-4 border border-border-subtle/60 bg-surface/40 flex flex-col gap-1">
       <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary truncate">{label}</span>
