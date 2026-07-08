@@ -6,13 +6,13 @@ import { useState, useMemo } from 'react';
 import clsx from 'clsx';
 import { SplitSquareHorizontal, Trophy, Plus, Minus } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { compactNum } from '@/lib/format';
 
 // Illustrative estimate only — leads carry no monetary amount (see utils.ts).
 const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
 
-const formatCurrency = (num: number) => {
-  return Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 2 }).format(num);
-};
+// P1-2: shared Indian compact scale (K/L/Cr, never T/M/B). Callers prefix ₹.
+const formatCurrency = (num: number) => compactNum(num);
 
 type FilterSelection = { type: string, value: string };
 type CohortState = { primary: FilterSelection, secondary: FilterSelection };
