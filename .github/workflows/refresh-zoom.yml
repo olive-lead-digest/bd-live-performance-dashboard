@@ -1,0 +1,117 @@
+name: Refresh Zoom Call-Log Cache
+
+# Slower, once-daily companion to refresh-feeds.yml. Rebuilds the trailing
+# 90-day Zoom Phone call-log cache and publishes it to the orphan `data`
+# branch (under zoom_cache/) so the hourly feed job consumes fresh calling-
+# quality data instead of a frozen snapshot. Deliberately runs off-peak and
+# NOT on the hour, so it never collides with the hourly feeds job.
+
+on:
+  schedule:
+    - cron: '30 1 * * *'   # once daily at 01:30 UTC (off-peak; avoids the :00 hourly job)
+  workflow_dispatch: {}    # allow manual "Run workflow"
+
+permissions:
+  contents: write          # GITHUB_TOKEN pushes the rebuilt cache to the data branch
+
+concurrency:
+  group: refresh-zoom      # distinct from the hourly feeds job (group: refresh-feeds)
+  cancel-in-progress: false
+
+jobs:
+  refresh-zoom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60    # the 90-day pull is slow (pagination + rate limits)
+    steps:
+      - name: Checkout main (Next.js app + pipeline/)
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pipeline dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Rebuild Zoom 90-day call-log cache
+        working-directory: pipeline
+        env:
+          ZOOM_ACCOUNT_ID: ${{ secrets.ZOOM_ACCOUNT_ID }}
+          ZOOM_PHONE_CLIENT_ID: ${{ secrets.ZOOM_PHONE_CLIENT_ID }}
+          ZOOM_PHONE_CLIENT_SECRET: ${{ secrets.ZOOM_PHONE_CLIENT_SECRET }}
+          ZOOM_DEPARTMENT: ${{ vars.ZOOM_DEPARTMENT || 'Business Development' }}
+        run: python refresh_zoom_cache.py
+
+      - name: Validate cache files are present, parseable and non-trivial
+        working-directory: pipeline
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          shards = ["_z90c_A.json", "_z90c_B.json", "_z90c_C.json"]
+          bad = []
+          total_out = 0
+          for f in shards:
+              if not os.path.exists(f):
+                  bad.append(f"{f}: MISSING"); continue
+              try:
+                  d = json.load(open(f))
+              except Exception as e:
+                  bad.append(f"{f}: INVALID JSON ({e})"); continue
+              agg = d.get("agg", {})
+              if not isinstance(agg, dict) or not agg:
+                  bad.append(f"{f}: empty/invalid agg")
+                  continue
+              out = sum(int(v.get("out", 0)) for v in agg.values())
+              total_out += out
+              print(f"{f}: OK (users={len(agg)}, outbound={out}, window={d.get('window')})")
+          uf = "_zoom_users_dept.json"
+          if not os.path.exists(uf):
+              bad.append(f"{uf}: MISSING")
+          else:
+              try:
+                  users = json.load(open(uf))
+                  if not isinstance(users, dict) or len(users) < 5:
+                      bad.append(f"{uf}: too few users ({len(users) if isinstance(users, dict) else 'n/a'})")
+                  else:
+                      print(f"{uf}: OK ({len(users)} users)")
+              except Exception as e:
+                  bad.append(f"{uf}: INVALID JSON ({e})")
+          if total_out < 100:
+              bad.append(f"aggregate outbound too low ({total_out} < 100) — Zoom pull likely failed")
+          if bad:
+              print("ZOOM CACHE VALIDATION FAILED:")
+              for b in bad:
+                  print("  -", b)
+              sys.exit(1)
+          print(f"All Zoom cache files valid. total_outbound={total_out}")
+          PY
+
+      - name: Checkout data branch into ./feed
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: feed
+
+      - name: Copy Zoom cache into the data worktree (zoom_cache/)
+        run: |
+          mkdir -p feed/zoom_cache
+          cp pipeline/_z90c_A.json          feed/zoom_cache/
+          cp pipeline/_z90c_B.json          feed/zoom_cache/
+          cp pipeline/_z90c_C.json          feed/zoom_cache/
+          cp pipeline/_zoom_users_dept.json feed/zoom_cache/
+
+      - name: Commit & push Zoom cache (only if changed)
+        working-directory: feed
+        run: |
+          git config user.name  "olive-lead-digest[bot]"
+          git config user.email "olive-lead-digest@users.noreply.github.com"
+          git add zoom_cache/_z90c_A.json zoom_cache/_z90c_B.json zoom_cache/_z90c_C.json zoom_cache/_zoom_users_dept.json
+          if git diff --cached --quiet; then
+            echo "No Zoom cache changes — nothing to publish."
+          else
+            git commit -m "zoom cache refresh [skip ci]"
+            # Rebase onto any feeds committed by the hourly job in the meantime, then push.
+            git pull --rebase origin data || true
+            git push origin HEAD:data
+          fi
