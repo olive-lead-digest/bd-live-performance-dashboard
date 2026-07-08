@@ -8,7 +8,8 @@ import {
 } from 'recharts';
 import clsx from 'clsx';
 import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { calculateRates, buildLeaderboard, brandKey } from '@/lib/utils';
+import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
+import { inr } from '@/lib/format';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 
 export default function Reporting() {
@@ -109,11 +110,14 @@ export default function Reporting() {
       chartData, zoomStats: { outreach: 0, connects: 0, recordings: 0, connectRate: 0 }
     };
 
-    const leaderboardRecs = buildLeaderboard(searchFiltered, bds, weights);
+    // P1-8: roster-aware — reps not in bd_org.json are tagged inactive and
+    // excluded from band counts / percentages so Reporting matches Leaderboard.
+    const roster = rosterOwnerSet(data?.org);
+    const leaderboardRecs = buildLeaderboard(searchFiltered, bds, weights, roster);
 
     if (isPersonSearch) {
       // --- PERSON DASHBOARD ---
-      const globalLeaderboard = buildLeaderboard(filteredLeads, bds, weights);
+      const globalLeaderboard = buildLeaderboard(filteredLeads, bds, weights, roster);
       const personRec = globalLeaderboard.find(r => r.owner.toLowerCase() === query);
 
       let gSoft=0, gBrand=0, gPitch=0, gSales=0, gConv=0, gDisc=0, gObj=0, gClose=0;
@@ -167,6 +171,7 @@ export default function Reporting() {
       const scatterData: any[] = [];
 
       leaderboardRecs.forEach(rec => {
+        if (rec.inactive) return; // P1-8: not in roster → excluded from bands/percentages
         if (rec.bd?.zoom) {
           totalZoom.out += rec.bd.zoom.out; totalZoom.conn += rec.bd.zoom.conn; totalZoom.rec += rec.bd.zoom.rec;
         }
@@ -798,7 +803,7 @@ export default function Reporting() {
                               name="Pipeline"
                               tick={{ fill: '#9896a3', fontSize: 11 }}
                               stroke="#9896a3"
-                              tickFormatter={(v) => v >= 1e7 ? `₹${(v/1e7).toFixed(1)}Cr` : v >= 1e5 ? `₹${(v/1e5).toFixed(1)}L` : v >= 1e3 ? `₹${(v/1e3).toFixed(0)}K` : `₹${v}`}
+                              tickFormatter={(v) => inr(v)}
                             />
                             <YAxis
                               type="number"
@@ -806,7 +811,7 @@ export default function Reporting() {
                               name="Active Pipeline (est.)"
                               tick={{ fill: '#9896a3', fontSize: 11 }}
                               stroke="#9896a3"
-                              tickFormatter={(v) => v >= 1e7 ? `₹${(v/1e7).toFixed(1)}Cr` : v >= 1e5 ? `₹${(v/1e5).toFixed(1)}L` : v >= 1e3 ? `₹${(v/1e3).toFixed(0)}K` : `₹${v}`}
+                              tickFormatter={(v) => inr(v)}
                             />
                             <ZAxis type="number" dataKey="winRate" range={[50, 300]} name="Win Rate" />
                             <RechartsTooltip
