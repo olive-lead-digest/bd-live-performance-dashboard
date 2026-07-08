@@ -11,16 +11,11 @@ import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
 import { ProposalsStageCard } from '@/components/ProposalsStageCard';
 import { buildFunnelModel } from '@/lib/dealsRuntime';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
+import { inr } from '@/lib/format';
 
-const inr = (n?: number | null) =>
-  n == null
-    ? '—'
-    : new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        notation: 'compact',
-        maximumFractionDigits: 2,
-      }).format(n);
+// Receivable = Contracted − Collected (P1-1); Zoho's Pending_TA_fee is empty.
+const receivable = (c?: number | null, col?: number | null) =>
+  Math.max(0, (Number(c) || 0) - (Number(col) || 0));
 
 const BRAND_COLORS: Record<string, string> = {
   Olive: '#502875',
@@ -59,6 +54,26 @@ export default function DealsPage() {
   const fyLabel = fyStartStr ? `Apr'${fyStartStr.slice(2, 4)}–` : 'This FY';
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
+  // P1-1 — per-brand fee split. The feed's byBrand aggregate carries only
+  // deal/keys counts (fees showed "—"), so derive Contracted/Collected per
+  // brand from the per-deal won records; Receivable = Contracted − Collected.
+  // When a global filter is active, dealsRuntime already recomputes byBrand
+  // WITH fee fields, so prefer those; otherwise fall back to the records sum.
+  // Either way the brand rows sum to the fee totals shown above.
+  const dealRecords: any[] = Array.isArray(deals.records) ? deals.records : [];
+  const brandFeeFromRecords: Record<string, { contracted: number; collected: number }> = {};
+  for (const r of dealRecords) {
+    if (r?.stageType !== 'won') continue;
+    const b = String(r.brand || 'Unknown').trim() || 'Unknown';
+    if (!brandFeeFromRecords[b]) brandFeeFromRecords[b] = { contracted: 0, collected: 0 };
+    brandFeeFromRecords[b].contracted += Number(r.feeContracted) || 0;
+    brandFeeFromRecords[b].collected += Number(r.feeCollected) || 0;
+  }
+  const brandFee = (b: string, row: any) => {
+    const contracted = row?.feeContracted != null ? Number(row.feeContracted) : (brandFeeFromRecords[b]?.contracted || 0);
+    const collected = row?.feeCollected != null ? Number(row.feeCollected) : (brandFeeFromRecords[b]?.collected || 0);
+    return { contracted, collected, receivable: receivable(contracted, collected) };
+  };
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
   const propertyType: Record<string, number> = deals.propertyType || {};
 
@@ -251,18 +266,20 @@ export default function DealsPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary/70">{feesFy.deals} signed</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <RevStat label="Contracted" value={inr(feesFy?.contracted)} />
               <RevStat label="Collected" value={inr(feesFy?.collected)} accent="#34d399" />
               <RevStat label="Received" value={inr(feesFy?.collectedActual)} />
+              <RevStat label="Receivable" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn />
             </div>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
             <div className="text-[11px] uppercase tracking-widest font-bold text-text-secondary mb-3">All-time · contracted book</div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <RevStat label="Contracted" value={inr(feesAll?.contracted)} />
               <RevStat label="Collected" value={inr(feesAll?.collected)} accent="#34d399" />
               <RevStat label="Received" value={inr(feesAll?.collectedActual)} />
+              <RevStat label="Receivable" value={inr(receivable(feesAll?.contracted, feesAll?.collected))} accent="#ffb020" warn />
             </div>
           </div>
         </div>
@@ -283,12 +300,13 @@ export default function DealsPage() {
                 <th className="text-right py-2 px-4 font-bold">Signed</th>
                 <th className="text-right py-2 px-4 font-bold">Contracted</th>
                 <th className="text-right py-2 px-4 font-bold">Collected</th>
-                <th className="text-right py-2 pl-4 font-bold">Pending</th>
+                <th className="text-right py-2 pl-4 font-bold">Receivable</th>
               </tr>
             </thead>
             <tbody>
               {brandNames.map((b) => {
                 const row = byBrand[b] || {};
+                const bf = brandFee(b, row);
                 return (
                   <tr key={b} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
                     <td className="py-2.5 pr-4">
@@ -299,15 +317,37 @@ export default function DealsPage() {
                     </td>
                     <td className="text-right py-2.5 px-4 text-text-secondary">{(row.deals ?? 0).toLocaleString('en-IN')}</td>
                     <td className="text-right py-2.5 px-4 text-white font-bold">{(row.signed ?? 0).toLocaleString('en-IN')}</td>
-                    <td className="text-right py-2.5 px-4 text-white">{inr(row.feeContracted)}</td>
-                    <td className="text-right py-2.5 px-4 text-emerald-400">{inr(row.feeCollected)}</td>
-                    <td className="text-right py-2.5 pl-4 text-amber-400">{inr(row.feePending)}</td>
+                    <td className="text-right py-2.5 px-4 text-white">{inr(bf.contracted)}</td>
+                    <td className="text-right py-2.5 px-4 text-emerald-400">{inr(bf.collected)}</td>
+                    <td className="text-right py-2.5 pl-4 text-amber-400">{inr(bf.receivable)}</td>
                   </tr>
                 );
               })}
+              {brandNames.length > 0 && (() => {
+                const tot = brandNames.reduce((a, b) => {
+                  const bf = brandFee(b, byBrand[b] || {});
+                  a.deals += Number(byBrand[b]?.deals) || 0;
+                  a.signed += Number(byBrand[b]?.signed) || 0;
+                  a.contracted += bf.contracted; a.collected += bf.collected; a.receivable += bf.receivable;
+                  return a;
+                }, { deals: 0, signed: 0, contracted: 0, collected: 0, receivable: 0 });
+                return (
+                  <tr className="border-t-2 border-border-subtle font-bold">
+                    <td className="py-2.5 pr-4 text-white uppercase text-[11px] tracking-widest">Total</td>
+                    <td className="text-right py-2.5 px-4 text-text-secondary">{tot.deals.toLocaleString('en-IN')}</td>
+                    <td className="text-right py-2.5 px-4 text-white">{tot.signed.toLocaleString('en-IN')}</td>
+                    <td className="text-right py-2.5 px-4 text-white">{inr(tot.contracted)}</td>
+                    <td className="text-right py-2.5 px-4 text-emerald-400">{inr(tot.collected)}</td>
+                    <td className="text-right py-2.5 pl-4 text-amber-400">{inr(tot.receivable)}</td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-[10px] text-text-secondary/70 italic leading-snug">
+          Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide). Brand rows sum to the totals above.
+        </p>
       </div>
 
       {/* Closer scorecard + property/brand splits */}
