@@ -54,6 +54,32 @@ export const isDropped = (s: string | null) => !!s && DROP_STATUSES.has(s);
 export const ESTIMATED_DEAL_VALUE = 12500;
 
 /*
+ * P0-3 — deterministic estimated value.
+ * The Geography est.-value figures were unstable across reloads. There is no
+ * Math.random in the maths; the movement came from (a) the leads dataset
+ * changing mid-audit and (b) count-based estimates with no fixed per-record
+ * basis. To make every estimate a pure, reproducible function of the (now
+ * stable) dataset, estimated value is derived from FIXED per-tier average-fee
+ * constants defined here in ONE place — never a live/seeded computation.
+ * Unknown/blank tiers fall back to ESTIMATED_DEAL_VALUE.
+ */
+export const TIER_AVG_FEE: Record<string, number> = {
+  'Tier 1': 20000,
+  'Tier 2': 12500,
+  'Tier 3': 7500,
+};
+
+export const leadEstValue = (l: { tier?: string | null }): number =>
+  TIER_AVG_FEE[(l.tier || '').trim()] ?? ESTIMATED_DEAL_VALUE;
+
+/** Sum of fixed per-tier estimated value over a set of leads (deterministic). */
+export const estValue = (leads: { tier?: string | null }[]): number => {
+  let s = 0;
+  for (const l of leads) s += leadEstValue(l);
+  return s;
+};
+
+/*
  * Normalize a brand value to a stable short key. The real data uses the full
  * string "Open Hotels" (not "Open"), which previously broke brand matching and
  * left the Open line/series empty. Maps: "Open Hotels" -> "open", "Olive" ->
@@ -102,7 +128,7 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       byo[l.owner].push(l);
     }
   });
-
+  
   const recs: LeaderboardRec[] = Object.keys(byo).map(owner => {
     const ls = byo[owner];
     const rt = calculateRates(ls);
@@ -127,18 +153,18 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       band: ''
     };
   });
-
+  
   const Lv = pctile(recs.map(r => r.n));
   const Cav = pctile(recs.map(r => r.conn));
-
+  
   recs.forEach((r, i) => {
     if (r.reviewed && r.q) {
       const Q = r.q.overall * 10;
       const Cmp = r.q.brand_alignment * 10;
       const Cv = clamp(50 + r.active * 2.2 + (r.contact - 40) * 0.25 - Math.max(0, r.drop - 10) * 1.1);
-
+      
       const sc = weights.Q * Q + weights.Cv * Cv + weights.Cmp * Cmp + weights.Lv * Lv[i] + weights.Cav * Cav[i];
-
+      
       r.bps = { Q, Cv, Cmp, Lv: Lv[i], Cav: Cav[i], score: sc };
       r.band = sc >= 72 ? 'Top performer' : sc >= 63 ? 'Strong' : sc >= 54 ? 'Developing' : 'Priority coaching';
     } else {
@@ -146,7 +172,7 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       r.band = 'Pending review';
     }
   });
-
+  
   return recs;
 }
 

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { DashData, Lead } from './types';
+import { computeDealsRuntime, DealsRuntime } from './dealsRuntime';
 
 export interface Filters {
   from: string;
@@ -21,6 +22,12 @@ interface DashboardContextType {
   data: DashData | null;
   filters: Filters;
   filteredLeads: Lead[];
+  /** Deals object recomputed from per-deal records under the active filters
+   *  (P0-2). Use `dealsRuntime.deals` in place of `data.deals` in deal modules. */
+  dealsRuntime: DealsRuntime;
+  /** Timestamp the lead dataset was generated (feed `generated`), snapshotted
+   *  once per page load — powers the "Leads data as of …" stamps (P0-3). */
+  leadsAsOf: string | null;
   setFilter: (key: keyof Filters, value: string, clear?: boolean) => void;
   setDateRange: (from: string, to: string) => void;
   clearFilters: () => void;
@@ -118,11 +125,24 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     });
   }, [data, filters]);
 
+  // P0-2 — recompute the deal side from per-deal `records` under the active
+  // filters. Degrades to the feed's own aggregates when records are absent or
+  // no deal-honourable filter is active (so unfiltered numbers never drift).
+  const dealsRuntime = useMemo(
+    () => computeDealsRuntime(data?.deals, filters),
+    [data, filters]
+  );
+
+  // P0-3 — snapshot the leads "data as of" timestamp once per load.
+  const leadsAsOf = data?.generated ?? null;
+
   return (
     <DashboardContext.Provider value={{
       data,
       filters,
       filteredLeads,
+      dealsRuntime,
+      leadsAsOf,
       setFilter,
       setDateRange,
       clearFilters,
