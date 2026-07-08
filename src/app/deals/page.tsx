@@ -9,6 +9,8 @@ import {
 } from 'recharts';
 import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
 import { ProposalsStageCard } from '@/components/ProposalsStageCard';
+import { buildFunnelModel } from '@/lib/dealsRuntime';
+import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 
 const inr = (n?: number | null) =>
   n == null
@@ -35,8 +37,9 @@ function typeColor(type: string) {
 }
 
 export default function DealsPage() {
-  const { data } = useDashboard();
-  const deals = data?.deals;
+  const { data, filteredLeads, dealsRuntime } = useDashboard();
+  const deals = dealsRuntime.deals;
+  const exempt = useDealsExempt();
 
   if (!deals) {
     return (
@@ -59,11 +62,13 @@ export default function DealsPage() {
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
   const propertyType: Record<string, number> = deals.propertyType || {};
 
-  const leadsCount = Array.isArray(data?.leads) ? data!.leads.length : null;
+  // Leads count reflects the active global filters (mirrors the lead modules).
+  const leadsCount = Array.isArray(filteredLeads) ? filteredLeads.length : null;
   const proposalsCount =
     data?.proposals?.totals?.proposals != null ? Number(data.proposals.totals.proposals) : null;
 
-  const maxFunnel = Math.max(1, ...funnel.map((f) => f.count));
+  // P0-4 — branch-aware funnel model (no % may exceed 100; drops are exits).
+  const funnelModel = buildFunnelModel(funnel);
   const convPct = (a?: number | null, b?: number | null) =>
     a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : null;
   const propOfLeads = convPct(proposalsCount, leadsCount);
@@ -88,6 +93,21 @@ export default function DealsPage() {
         <p className="text-text-secondary text-sm mt-1 font-medium">
           Real hotel-signing pipeline &amp; fees from Zoho CRM
         </p>
+        {(dealsRuntime.recomputed || exempt) && (
+          <div className="mt-2 flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              {dealsRuntime.recomputed && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-brand-pink-500/40 bg-brand-pink-500/10 text-brand-pink-300 text-[9px] font-bold uppercase tracking-widest">
+                  Filtered · {deals._recordsFiltered?.toLocaleString('en-IN')} deals
+                </span>
+              )}
+              <DealsExemptBadge />
+            </div>
+            {dealsRuntime.dateCaption && (
+              <p className="text-[10px] text-text-secondary/70 italic">{dealsRuntime.dateCaption}</p>
+            )}
+          </div>
+        )}
       </header>
 
       {/* KPI row */}
@@ -153,18 +173,18 @@ export default function DealsPage() {
           </span>
         </div>
 
-        <p className="text-[10px] text-text-secondary/70 mb-4 italic">
-          Percentages show stage-to-stage conversion from the previous funnel stage.
+        <p className="text-[10px] text-text-secondary/70 mb-4 italic leading-snug">
+          Main path: Business Approval Received → Under Negotiation → MA Signed, each % against its
+          true parent cohort. MA Signed % is computed against the {funnelModel.maCohortLabel}. LOI
+          Signed is a Spark-only side branch (excluded from the main-path chain). Drop rows are exits,
+          not forward conversions.
         </p>
         <div className="flex flex-col gap-3">
-          {funnel.map((f, idx) => {
-            const pct = (f.count / maxFunnel) * 100;
-            const color = typeColor(f.type);
-            const prev = idx > 0 ? funnel[idx - 1] : null;
-            const conv =
-              prev && prev.count > 0 ? (f.count / prev.count) * 100 : null;
+          {funnelModel.rows.map((f) => {
+            const color = f.kind === 'drop' ? '#6b7280' : typeColor(f.type);
+            const isDrop = f.kind === 'drop';
             return (
-              <div key={f.stage}>
+              <div key={f.stage} className={isDrop ? 'pl-3 border-l-2 border-red-500/40' : ''}>
                 <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
                   <span className="text-text-secondary font-medium truncate pr-2 flex items-baseline gap-1.5 min-w-0">
                     <span className="truncate">{f.stage}</span>
@@ -176,21 +196,32 @@ export default function DealsPage() {
                         ({f.note})
                       </span>
                     )}
-                  </span>
-                  <span className="flex items-baseline gap-2 shrink-0">
-                    {conv != null && (
-                      <span
-                        className="text-[9px] font-bold tabular-nums text-emerald-400/90"
-                        title={`Conversion from "${prev!.stage}"`}
-                      >
-                        {conv.toFixed(1)}%
+                    {f.kind === 'side' && (
+                      <span className="text-[9px] uppercase tracking-wider text-brand-purple-400/80 whitespace-nowrap shrink-0">
+                        side branch
                       </span>
                     )}
-                    <span className="text-white font-bold">{f.count.toLocaleString('en-IN')}</span>
+                  </span>
+                  <span className="flex items-baseline gap-2 shrink-0">
+                    {isDrop && f.exitPct != null ? (
+                      <span className="text-[9px] font-bold tabular-nums text-red-400/90" title="Share of all dropped deals">
+                        {f.exitPct.toFixed(1)}% of exits
+                      </span>
+                    ) : f.convPct != null ? (
+                      <span
+                        className="text-[9px] font-bold tabular-nums text-emerald-400/90"
+                        title={`Conversion vs ${f.parentLabel} cohort`}
+                      >
+                        {f.convPct.toFixed(1)}%
+                      </span>
+                    ) : null}
+                    <span className={'font-bold ' + (isDrop ? 'text-red-300' : 'text-white')}>
+                      {f.count.toLocaleString('en-IN')}
+                    </span>
                   </span>
                 </div>
                 <div className="w-full h-3 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
-                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(2, pct)}%`, backgroundColor: color }} />
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(2, f.barPct)}%`, backgroundColor: color }} />
                 </div>
               </div>
             );
