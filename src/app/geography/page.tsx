@@ -9,6 +9,7 @@ import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity 
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
 import { compactNum } from '@/lib/format';
+import { CsvButton } from '@/components/CsvButton';
 
 const geoUrl = "/world.json";
 // Illustrative estimate only — leads carry no monetary amount. Estimated value is
@@ -42,7 +43,7 @@ const CITY_DATA: Record<string, { coords: [number, number], state: string }> = {
 };
 
 export default function Geography() {
-  const { filteredLeads, data, isLoading } = useDashboard();
+  const { filteredLeads, data, isLoading, filters } = useDashboard();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -525,7 +526,22 @@ export default function Geography() {
           ) : (
             <div className="flex flex-col h-full animate-in fade-in duration-300">
                <div className="flex items-center justify-between mb-6">
-                 <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Top Data Nodes</h2>
+                 <div className="flex items-center gap-2">
+                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Top Data Nodes</h2>
+                   <CsvButton
+                     base="geography-cities"
+                     filters={filters}
+                     columns={[
+                       { key: 'name', label: 'City' },
+                       { key: 'state', label: 'State' },
+                       { key: 'leads', label: 'Leads' },
+                       { key: 'pipelineValue', label: 'Pipeline Value (est)' },
+                       { key: 'securedRevenue', label: 'Active Pipeline (est)' },
+                       { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
+                     ]}
+                     rows={cityData}
+                   />
+                 </div>
                  {unmapped > 0 && (
                    <span className="text-[10px] text-text-secondary flex items-center gap-1 bg-surface px-2 py-1 rounded-full border border-border-subtle">
                      <MapPin className="w-3 h-3 text-brand-pink-500" />
