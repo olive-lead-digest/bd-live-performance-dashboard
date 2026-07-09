@@ -42,15 +42,16 @@ export default function Leaderboard() {
     
     leaderboard.forEach(rep => {
       if (rep.inactive) return; // P1-8: not in roster → excluded from band counts
-      // Handle the suffix variations in the original data
+      // P1-8: only reps with a COMPUTED band (reviewed → bps) belong in one of
+      // the 4 performance bands. 'Pending review' reps have no score and must
+      // NOT be force-fit into Developing — doing so inflated Leaderboard's
+      // Developing count vs Reporting (which counts only scored reps), so the
+      // two pages disagreed. Skip them → band counts identical across pages.
+      if (!rep.bps) return;
       let baseBand = rep.band.replace(' review', '').replace(' coaching', '');
       if (baseBand === 'Priority') baseBand = 'Priority coaching';
       if (groups[baseBand]) {
         groups[baseBand].push(rep);
-      } else {
-        // Fallback if band is weird
-        if (!groups['Developing']) groups['Developing'] = [];
-        groups['Developing'].push(rep);
       }
     });
     return groups;
