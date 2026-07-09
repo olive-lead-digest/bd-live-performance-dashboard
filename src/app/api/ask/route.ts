@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 
 /*
  * Ask-AI proxy. The browser posts { question, context } here; this server-side
@@ -68,6 +69,18 @@ export async function POST(req: NextRequest) {
   const context = typeof body.context === 'string' ? body.context.slice(0, 2000) : '';
   if (!question) {
     return NextResponse.json({ error: 'Please enter a question.' }, { status: 400 });
+  }
+
+  // P1-9 (1) — Relevance guard. Off-topic / gibberish never reaches the LLM
+  // (which would otherwise fabricate a confident answer) and never burns Gemini
+  // free-tier quota. Returns a structured fallback the client renders with
+  // suggestion chips. Enforced server-side so it can't be bypassed.
+  if (!isRelevantQuery(question)) {
+    return NextResponse.json({
+      fallback: true,
+      suggestions: ASK_SUGGESTIONS,
+      message: "I couldn't map that to BD data — try one of these:",
+    });
   }
 
   const controller = new AbortController();
