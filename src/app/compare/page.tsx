@@ -324,6 +324,9 @@ export default function Compare() {
 
   const labelOf = (st: CohortState, id: string) => (st.primary.value && st.primary.value !== 'All') ? st.primary.value : `Cohort ${id}`;
   const lblA = labelOf(sideA, 'A'), lblB = labelOf(sideB, 'B'), lblC = labelOf(sideC, 'C');
+  // P2-6 — label the (defaulted) cohorts by the entity they actually resolve to,
+  // so a viewer sees "Cohort A · Spark" rather than an unexplained "Cohort A".
+  const titleFor = (lbl: string, id: string) => (lbl && lbl !== `Cohort ${id}`) ? `Cohort ${id} · ${lbl}` : `Cohort ${id}`;
   const overallSummary = calculateOverallWinner();
   const winLbl = overallSummary.winnerId === 'A' ? lblA : overallSummary.winnerId === 'B' ? lblB : overallSummary.winnerId === 'C' ? lblC : null;
   const rank = (pick: (s: ReturnType<typeof calcEntityStats>) => number) => {
@@ -337,7 +340,7 @@ export default function Compare() {
   const summaryBullets: SummaryBullet[] = [
     winLbl
       ? { tone: 'up', text: `${winLbl} leads overall, winning ${overallSummary.topScore} of 9 metrics.` }
-      : { tone: 'info', text: `The cohorts are statistically tied across the 9 metrics.` },
+      : { tone: 'info', text: `No clear winner — ${lblA} wins ${overallSummary.scores.A} of 9 metrics and ${lblB} wins ${overallSummary.scores.B}${showThird ? `, ${lblC} ${overallSummary.scores.C}` : ''} (the remainder are exact ties).` },
     { tone: 'info', text: `Highest est. active value: ${revRank[0].l} at ₹${formatCurrency(revRank[0].v)}.` },
     { tone: 'info', text: `Best contact rate: ${wrRank[0].l} (${wrRank[0].v.toFixed(1)}%).` },
     ...(ciRank[0].v > 0 ? [{ tone: 'warn' as const, text: `${ciRank[0].l} carries the highest competitor exposure (${ciRank[0].v.toFixed(1)}%).` }] : []),
@@ -405,8 +408,11 @@ export default function Compare() {
                 </div>
               ) : (
                  <div className="text-right">
-                  <span className="text-[10px] text-text-secondary uppercase tracking-widest font-bold block mb-0.5">Overall Winner</span>
-                  <div className="text-lg font-black text-white tracking-tight">Statistical Tie</div>
+                  <span className="text-[10px] text-text-secondary uppercase tracking-widest font-bold block mb-0.5">Metric split</span>
+                  <div className="text-lg font-black text-white tracking-tight">No clear winner</div>
+                  <div className="text-[11px] text-text-secondary tracking-normal font-normal mt-0.5">
+                    {lblA} {overall.scores.A} · {lblB} {overall.scores.B}{showThird ? ` · ${lblC} ${overall.scores.C}` : ''} of 9
+                  </div>
                 </div>
               )}
            </div>
@@ -418,16 +424,16 @@ export default function Compare() {
         <div className="glass-card h-full w-full overflow-x-auto lg:overflow-hidden no-scrollbar flex border border-border-subtle/50">
           
           <div className={clsx("h-full transition-all duration-500 min-w-[82%] sm:min-w-[340px] lg:min-w-0", showThird ? "lg:w-1/3" : "lg:w-1/2")}>
-             {renderCohortColumn("Cohort A", "text-brand-pink-400", 'A', sideA, setSideA, statsA)}
+             {renderCohortColumn(titleFor(lblA, 'A'), "text-brand-pink-400", 'A', sideA, setSideA, statsA)}
           </div>
           
           <div className={clsx("h-full transition-all duration-500 min-w-[82%] sm:min-w-[340px] lg:min-w-0", showThird ? "lg:w-1/3" : "lg:w-1/2")}>
-             {renderCohortColumn("Cohort B", "text-brand-purple-400", 'B', sideB, setSideB, statsB)}
+             {renderCohortColumn(titleFor(lblB, 'B'), "text-brand-purple-400", 'B', sideB, setSideB, statsB)}
           </div>
           
           {showThird && (
             <div className="h-full min-w-[82%] sm:min-w-[340px] lg:min-w-0 lg:w-1/3 transition-all duration-500 border-l border-border-subtle/50">
-               {renderCohortColumn("Cohort C", "text-blue-400", 'C', sideC, setSideC, statsC)}
+               {renderCohortColumn(titleFor(lblC, 'C'), "text-blue-400", 'C', sideC, setSideC, statsC)}
             </div>
           )}
 
