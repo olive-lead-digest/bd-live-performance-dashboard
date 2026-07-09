@@ -2,8 +2,9 @@
 
 import { useDashboard } from '@/lib/DashboardContext';
 import {
-  Handshake, IndianRupee, Building2, XCircle, KeyRound, TrendingUp, Users, Layers, ArrowRight,
+  Handshake, IndianRupee, Building2, XCircle, KeyRound, TrendingUp, Users, Layers, ArrowRight, Filter,
 } from 'lucide-react';
+import clsx from 'clsx';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip,
 } from 'recharts';
@@ -11,7 +12,11 @@ import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
 import { ProposalsStageCard } from '@/components/ProposalsStageCard';
 import { buildFunnelModel } from '@/lib/dealsRuntime';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
-import { inr } from '@/lib/format';
+import { inr, shortDate } from '@/lib/format';
+import { useUrlTab } from '@/lib/useUrlTab';
+import { TabBar } from '@/components/TabBar';
+import { useDrill, DrillColumn } from '@/components/DrillDrawer';
+import Pipeline from '@/app/pipeline/page';
 
 // Receivable = Contracted − Collected (P1-1); Zoho's Pending_TA_fee is empty.
 const receivable = (c?: number | null, col?: number | null) =>
@@ -25,16 +30,25 @@ const BRAND_COLORS: Record<string, string> = {
 
 const PROP_COLORS = ['#502875', '#da1a84', '#a470d6', '#34d399'];
 
+const CANON = ['Business Approval Received', 'Under Negotiation', 'LOI Signed', 'MA Signed'];
+
 function typeColor(type: string) {
   if (type === 'signed') return '#da1a84';
   if (type === 'dropped') return '#6b7280';
   return '#502875';
 }
 
+const DEALS_TABS = [
+  { id: 'deals', label: 'Deals', icon: Handshake },
+  { id: 'pipeline', label: 'Pipeline', icon: Filter },
+];
+
 export default function DealsPage() {
   const { data, filteredLeads, dealsRuntime } = useDashboard();
   const deals = dealsRuntime.deals;
   const exempt = useDealsExempt();
+  const { openDrill } = useDrill();
+  const [view, setView] = useUrlTab('view', ['deals', 'pipeline'], 'deals');
 
   if (!deals) {
     return (
@@ -54,12 +68,6 @@ export default function DealsPage() {
   const fyLabel = fyStartStr ? `Apr'${fyStartStr.slice(2, 4)}–` : 'This FY';
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
-  // P1-1 — per-brand fee split. The feed's byBrand aggregate carries only
-  // deal/keys counts (fees showed "—"), so derive Contracted/Collected per
-  // brand from the per-deal won records; Receivable = Contracted − Collected.
-  // When a global filter is active, dealsRuntime already recomputes byBrand
-  // WITH fee fields, so prefer those; otherwise fall back to the records sum.
-  // Either way the brand rows sum to the fee totals shown above.
   const dealRecords: any[] = Array.isArray(deals.records) ? deals.records : [];
   const brandFeeFromRecords: Record<string, { contracted: number; collected: number }> = {};
   for (const r of dealRecords) {
@@ -77,12 +85,10 @@ export default function DealsPage() {
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
   const propertyType: Record<string, number> = deals.propertyType || {};
 
-  // Leads count reflects the active global filters (mirrors the lead modules).
   const leadsCount = Array.isArray(filteredLeads) ? filteredLeads.length : null;
   const proposalsCount =
     data?.proposals?.totals?.proposals != null ? Number(data.proposals.totals.proposals) : null;
 
-  // P0-4 — branch-aware funnel model (no % may exceed 100; drops are exits).
   const funnelModel = buildFunnelModel(funnel);
   const convPct = (a?: number | null, b?: number | null) =>
     a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : null;
@@ -92,6 +98,35 @@ export default function DealsPage() {
   const brandNames = Object.keys(byBrand);
   const maxBrandSigned = Math.max(1, ...brandNames.map((b) => Number(byBrand[b]?.signed) || 0));
 
+  // ── P2-4 drill-down — rows from the SAME filtered records the funnel/KPIs use.
+  const drillRecords: any[] = Array.isArray(deals._filteredRecords)
+    ? deals._filteredRecords
+    : dealRecords;
+  const brandOf = (r: any) => String(r.brand || 'Unknown').trim() || 'Unknown';
+  const isOpenRec = (r: any) => r.stageType !== 'won' && r.stageType !== 'dropped';
+  const DEAL_COLUMNS: DrillColumn[] = [
+    { key: 'name', label: 'Deal / Property', format: (r) => r.name || '(unnamed)' },
+    { key: 'owner', label: 'BD', format: (r) => r.owner || 'Unassigned' },
+    { key: 'stage', label: 'Stage', format: (r) => r.stage || (r.stageType === 'won' ? 'MA Signed' : r.stageType === 'dropped' ? 'Dropped' : 'Open') },
+    { key: 'value', label: 'Fee (₹)', align: 'right', format: (r) => inr(r.feeContracted) },
+    { key: 'date', label: 'Date', align: 'right', format: (r) => shortDate(r.stageType === 'won' ? r.maDate : r.expectedDate) },
+  ];
+  const slug = (s: string) => 'deals-' + s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const drill = (title: string, rows: any[]) =>
+    openDrill({
+      title,
+      subtitle: `${rows.length.toLocaleString('en-IN')} deal${rows.length !== 1 ? 's' : ''}`,
+      columns: DEAL_COLUMNS,
+      rows,
+      csvFilename: slug(title),
+    });
+  const wonRecs = drillRecords.filter((r) => r.stageType === 'won');
+  const recsForFunnel = (f: any) => {
+    if (f.type === 'won' || f.stage === 'MA Signed') return wonRecs;
+    if (f.kind === 'drop' || f.type === 'dropped') return drillRecords.filter((r) => r.stageType === 'dropped' && (r.stage || 'Dropped') === f.stage);
+    return drillRecords.filter((r) => isOpenRec(r) && (CANON.includes(r.stage) ? r.stage : 'Business Approval Received') === f.stage);
+  };
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
       {/* Ambient glows */}
@@ -100,13 +135,13 @@ export default function DealsPage() {
 
       <header className="mb-2 relative z-10">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
-          Deals &amp; Signings
+          Deals &amp; Pipeline
           <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest">
             Zoho CRM
           </span>
         </h1>
         <p className="text-text-secondary text-sm mt-1 font-medium">
-          Real hotel-signing pipeline &amp; fees from Zoho CRM
+          Real hotel-signing pipeline &amp; fees from Zoho CRM, plus the lead-stage pipeline view
         </p>
         {(dealsRuntime.recomputed || exempt) && (
           <div className="mt-2 flex flex-col gap-1">
@@ -125,23 +160,35 @@ export default function DealsPage() {
         )}
       </header>
 
+      <div className="relative z-10">
+        <TabBar tabs={DEALS_TABS} active={view} onChange={setView} />
+      </div>
+
+      {view === 'pipeline' ? (
+        <div className="relative z-10">
+          <Pipeline />
+        </div>
+      ) : (
+      <>
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 relative z-10">
-        <KpiCard title="Total Deals" value={(totals.deals ?? 0).toLocaleString('en-IN')} icon={Layers} color="#a470d6" />
+        <KpiCard title="Total Deals" value={(totals.deals ?? 0).toLocaleString('en-IN')} icon={Layers} color="#a470d6" onClick={() => drill('Total Deals', drillRecords)} />
         <KpiCard
           title="MA Signed"
           value={(totals.signed ?? 0).toLocaleString('en-IN')}
           sub={totals.signRatePct != null ? `${totals.signRatePct}% sign rate` : undefined}
           icon={Handshake}
           color="#da1a84"
+          onClick={() => drill('MA Signed deals', wonRecs)}
         />
-        <KpiCard title="In-Progress" value={(totals.active ?? 0).toLocaleString('en-IN')} sub="active" icon={TrendingUp} color="#502875" />
+        <KpiCard title="In-Progress" value={(totals.active ?? 0).toLocaleString('en-IN')} sub="active" icon={TrendingUp} color="#502875" onClick={() => drill('In-Progress deals', drillRecords.filter(isOpenRec))} />
         <KpiCard
           title="Dropped"
           value={(totals.dropped ?? 0).toLocaleString('en-IN')}
           sub={totals.dropRatePct != null ? `${totals.dropRatePct}% drop rate` : undefined}
           icon={XCircle}
           color="#ef4444"
+          onClick={() => drill('Dropped deals', drillRecords.filter((r) => r.stageType === 'dropped'))}
         />
         <KpiCard
           title="Keys (MA-signed)"
@@ -149,6 +196,7 @@ export default function DealsPage() {
           sub={totals.keysContractedFY != null ? `${Number(totals.keysContractedFY).toLocaleString('en-IN')} this FY` : undefined}
           icon={KeyRound}
           color="#34d399"
+          onClick={() => drill('Keys — signed deals', wonRecs)}
         />
       </div>
 
@@ -158,8 +206,6 @@ export default function DealsPage() {
           <Handshake className="w-4 h-4 text-brand-pink-400" /> Signing Funnel
         </h2>
 
-        {/* End-to-end funnel connector: Leads → Proposals (dept approvals) → Deals,
-            with real counts from the leads feed, the proposals feed and the deals feed. */}
         <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-secondary/70 flex-wrap">
           <span className="flex items-center gap-1.5">
             Leads
@@ -192,14 +238,24 @@ export default function DealsPage() {
           Main path: Business Approval Received → Under Negotiation → MA Signed, each % against its
           true parent cohort. MA Signed % is computed against the {funnelModel.maCohortLabel}. LOI
           Signed is a Spark-only side branch (excluded from the main-path chain). Drop rows are exits,
-          not forward conversions.
+          not forward conversions. Tap any stage to list the underlying deals.
         </p>
         <div className="flex flex-col gap-3">
           {funnelModel.rows.map((f) => {
             const color = f.kind === 'drop' ? '#6b7280' : typeColor(f.type);
             const isDrop = f.kind === 'drop';
             return (
-              <div key={f.stage} className={isDrop ? 'pl-3 border-l-2 border-red-500/40' : ''}>
+              <div
+                key={f.stage}
+                role="button"
+                tabIndex={0}
+                onClick={() => drill(f.stage, recsForFunnel(f))}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drill(f.stage, recsForFunnel(f)); } }}
+                className={clsx(
+                  'cursor-pointer rounded-lg -mx-2 px-2 py-1 hover:bg-surface/30 transition-colors',
+                  isDrop && 'border-l-2 border-red-500/40'
+                )}
+              >
                 <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
                   <span className="text-text-secondary font-medium truncate pr-2 flex items-baseline gap-1.5 min-w-0">
                     <span className="truncate">{f.stage}</span>
@@ -244,11 +300,8 @@ export default function DealsPage() {
         </div>
       </div>
 
-      {/* Proposals / department approvals — the pre-deal stage. Renders only
-          when the proposals feed is present. */}
       <ProposalsStageCard />
 
-      {/* Signing probability — renders only when the feed carries it */}
       <SigningProbabilityCard />
 
       {/* Revenue */}
@@ -256,8 +309,6 @@ export default function DealsPage() {
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-6">
           <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
         </h2>
-        {/* Contracted & Collected on the SAME basis (contracted book), split into
-            Current-FY and All-time scopes so they are never mixed. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
           <div className="p-4 rounded-xl bg-black/20 border border-brand-pink-500/30">
             <div className="flex items-center justify-between mb-3">
@@ -308,7 +359,12 @@ export default function DealsPage() {
                 const row = byBrand[b] || {};
                 const bf = brandFee(b, row);
                 return (
-                  <tr key={b} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                  <tr
+                    key={b}
+                    onClick={() => drill(`${b} — deals`, drillRecords.filter((r) => brandOf(r) === b))}
+                    className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors cursor-pointer"
+                    title={`List all ${b} deals`}
+                  >
                     <td className="py-2.5 pr-4">
                       <span className="inline-flex items-center gap-2 font-bold text-white">
                         <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: BRAND_COLORS[b] || '#4a4957' }} />
@@ -346,19 +402,18 @@ export default function DealsPage() {
           </table>
         </div>
         <p className="mt-2 text-[10px] text-text-secondary/70 italic leading-snug">
-          Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide). Brand rows sum to the totals above.
+          Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide). Brand rows sum to the totals above. Tap a brand row to list its deals.
         </p>
       </div>
 
       {/* Closer scorecard + property/brand splits */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 relative z-10">
-        {/* Closer scorecard */}
         <div className="glass-panel p-4 sm:p-6 xl:col-span-2 flex flex-col">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-brand-pink-400" /> BD Closer Scorecard
           </h2>
           <p className="text-[10px] text-text-secondary/70 mb-4 italic">
-            Blank / &quot;Unassigned&quot; owners are legacy or house accounts.
+            Blank / &quot;Unassigned&quot; owners are legacy or house accounts. Tap a BD to list their signed deals.
           </p>
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm min-w-[420px]">
@@ -372,7 +427,12 @@ export default function DealsPage() {
               </thead>
               <tbody>
                 {closers.slice(0, 15).map((c, i) => (
-                  <tr key={`${c.bd}-${i}`} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                  <tr
+                    key={`${c.bd}-${i}`}
+                    onClick={() => drill(`${c.bd || 'Unassigned'} — signed deals`, wonRecs.filter((r) => (r.owner || '') === c.bd))}
+                    className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors cursor-pointer"
+                    title={`List ${c.bd || 'Unassigned'}'s signed deals`}
+                  >
                     <td className="py-2.5 pr-4 text-text-secondary">{i + 1}</td>
                     <td className="py-2.5 px-4 text-white font-bold">{c.bd || 'Unassigned'}</td>
                     <td className="text-right py-2.5 px-4 text-white">{(c.signed ?? 0).toLocaleString('en-IN')}</td>
@@ -384,7 +444,6 @@ export default function DealsPage() {
           </div>
         </div>
 
-        {/* Property type + brand */}
         <div className="flex flex-col gap-4 sm:gap-6">
           <div className="glass-panel p-4 sm:p-6 flex flex-col">
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-4">
@@ -431,7 +490,12 @@ export default function DealsPage() {
                 const signed = Number(byBrand[b]?.signed) || 0;
                 const pct = (signed / maxBrandSigned) * 100;
                 return (
-                  <div key={b}>
+                  <button
+                    key={b}
+                    onClick={() => drill(`${b} — signed deals`, wonRecs.filter((r) => brandOf(r) === b))}
+                    className="text-left cursor-pointer rounded-lg -mx-1 px-1 py-1 hover:bg-surface/30 transition-colors"
+                    title={`List ${b} signed deals`}
+                  >
                     <div className="flex items-center justify-between text-[11px] mb-1">
                       <span className="text-text-secondary font-medium">{b}</span>
                       <span className="text-white font-bold">{signed.toLocaleString('en-IN')}</span>
@@ -439,13 +503,15 @@ export default function DealsPage() {
                     <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
                       <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(3, pct)}%`, backgroundColor: BRAND_COLORS[b] || '#4a4957' }} />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -463,9 +529,19 @@ function ConvArrow({ pct }: { pct: string | null }) {
   );
 }
 
-function KpiCard({ title, value, sub, icon: Icon, color }: any) {
+function KpiCard({ title, value, sub, icon: Icon, color, onClick }: any) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-black/40 border border-border-subtle p-5 backdrop-blur-xl">
+    <div
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e: any) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className={clsx(
+        'relative overflow-hidden rounded-2xl bg-black/40 border border-border-subtle p-5 backdrop-blur-xl transition-colors',
+        clickable && 'cursor-pointer hover:border-white/20 hover:bg-black/50'
+      )}
+    >
       <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] -mr-10 -mt-10 opacity-20 pointer-events-none" style={{ backgroundColor: color }} />
       <div className="flex justify-between items-start mb-4 relative z-10">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary leading-tight">{title}</h3>
