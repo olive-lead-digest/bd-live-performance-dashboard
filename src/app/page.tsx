@@ -366,7 +366,7 @@ function FinancialCard({ title, value, subtitle, icon: Icon, color, prefix = '',
           <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">{value}</span>
           {suffix && <span className="text-xl font-bold text-text-secondary -translate-y-1">{suffix}</span>}
         </div>
-        <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-text-secondary/80 border-t border-border-subtle/50 pt-2 flex items-center justify-between">
+        <div className="mt-2 text-[10px] font-bold uppercase tracking-wider text-text-secondary border-t border-border-subtle/50 pt-2 flex items-center justify-between">
           <span>{subtitle}</span>
           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0 duration-300" />
         </div>

@@ -29,8 +29,11 @@
   --color-panel: #16151a;
   --color-surface: #1e1d24;
   --color-border-subtle: #2a2930;
-  --color-muted-text: #4a4957;
-  --color-text-secondary: #9896a3;
+  /* P2-5 — WCAG AA: secondary text lightened from #9896a3 (failed at reduced
+     opacity) to #a8a6b4 so solid secondary text clears 7.6:1 on --color-panel
+     and even the /80 tint clears 4.5:1. Muted caption token lightened in step. */
+  --color-muted-text: #6f6d7c;
+  --color-text-secondary: #a8a6b4;
   --color-text-primary: #e8e6ef;
 
   /* Font */
