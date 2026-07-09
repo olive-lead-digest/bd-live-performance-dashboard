@@ -5,11 +5,12 @@ import { calculateRates, groupCounts, buildLeaderboard, estValue, isActive } fro
 import { useMemo, useState } from 'react';
 import { ComposableMap, Geographies, Geography as GeoPath, ZoomableGroup, Marker, Line as GeoLine } from 'react-simple-maps';
 import clsx from 'clsx';
-import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity } from 'lucide-react';
+import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity, AlertTriangle, ArrowRight } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
 import { compactNum } from '@/lib/format';
 import { CsvButton } from '@/components/CsvButton';
+import { useDrill } from '@/components/DrillDrawer';
 
 const geoUrl = "/world.json";
 // Illustrative estimate only — leads carry no monetary amount. Estimated value is
@@ -44,6 +45,7 @@ const CITY_DATA: Record<string, { coords: [number, number], state: string }> = {
 
 export default function Geography() {
   const { filteredLeads, data, isLoading, filters } = useDashboard();
+  const { openDrill } = useDrill();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -87,7 +89,10 @@ export default function Geography() {
   // Regional Data Calculation
   const regionalData = useMemo(() => {
     const rCounts = groupCounts(searchFiltered, 'region');
-    const validRegions = Object.keys(rCounts).filter(r => r && r !== '(none)' && r !== 'Other');
+    // Exclude the untagged bucket from the region RANKING — "Unknown" is a missing
+    // tag, not a region, so it must never appear as the top region (P2-6). Its
+    // pipeline is surfaced separately as a data-hygiene figure below.
+    const validRegions = Object.keys(rCounts).filter(r => r && r !== '(none)' && r !== 'Other' && r !== 'Unknown');
     
     return validRegions.map(r => {
       const leadsInRegion = searchFiltered.filter(l => l.region === r);
@@ -160,7 +165,12 @@ export default function Geography() {
     const topCity = cityData[0];
     if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with ₹${formatCurrency(topCity.securedRevenue)} est. active pipeline (${topCity.active.toFixed(1)}% active).` });
     const topRegion = regionalData[0];
-    if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all regions by pipeline at ₹${formatCurrency(topRegion.pipelineValue)}.` });
+    if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all tagged regions by pipeline at ₹${formatCurrency(topRegion.pipelineValue)}.` });
+    // P2-6 — surface untagged-region pipeline as a data-hygiene figure, never as
+    // a "region" that "leads". Phrasing: "₹X of pipeline has no region tag".
+    const untaggedRegionLeads = searchFiltered.filter(l => !l.region || l.region === 'Unknown' || l.region === '(none)' || l.region === 'Other');
+    const untaggedRegionValue = estValue(untaggedRegionLeads);
+    if (untaggedRegionValue > 0) b.push({ tone: 'warn', text: `₹${formatCurrency(untaggedRegionValue)} of pipeline has no region tag (${untaggedRegionLeads.length.toLocaleString()} leads) — a routing / data-hygiene gap.` });
     const healthy = cityData.filter(c => c.active >= 15).length;
     const weak = cityData.filter(c => c.active < 10).length;
     b.push(weak > healthy
@@ -172,7 +182,46 @@ export default function Geography() {
   }, [cityData, regionalData, searchFiltered]);
 
   const maxLeads = Math.max(...cityData.map(c => c.leads), 1);
-  const unmapped = searchFiltered.filter(l => !l.city || l.city === 'Other' || !CITY_DATA[l.city]).length;
+
+  // P2-7 — unmapped = leads with no known-city mapping. This is Geography's real
+  // headline (a large share of leads carry no usable city), so it is promoted to
+  // a first-class card with a drill-down + CSV that feeds the Zoho hygiene queue.
+  const unmappedLeads = useMemo(
+    () => searchFiltered.filter(l => !l.city || l.city === 'Other' || !CITY_DATA[l.city]),
+    [searchFiltered]
+  );
+  const unmapped = unmappedLeads.length;
+  const unmappedPct = searchFiltered.length ? (unmapped / searchFiltered.length) * 100 : 0;
+
+  // State-level roll-up from the mapped cities (city data is sparse, so a state
+  // table is the honest aggregation; a true choropleth is a follow-up — see report).
+  const stateData = useMemo(() => {
+    const agg: Record<string, { state: string; leads: number; pipelineValue: number; securedRevenue: number }> = {};
+    cityData.forEach(c => {
+      const s = c.state || '—';
+      if (!agg[s]) agg[s] = { state: s, leads: 0, pipelineValue: 0, securedRevenue: 0 };
+      agg[s].leads += c.leads;
+      agg[s].pipelineValue += c.pipelineValue;
+      agg[s].securedRevenue += c.securedRevenue;
+    });
+    return Object.values(agg).sort((a, b) => b.pipelineValue - a.pipelineValue || a.state.localeCompare(b.state));
+  }, [cityData]);
+
+  const openUnmapped = () =>
+    openDrill({
+      title: 'Unmapped leads',
+      subtitle: `${unmapped.toLocaleString()} lead${unmapped === 1 ? '' : 's'} (${unmappedPct.toFixed(1)}%) with no mapped city`,
+      columns: [
+        { key: 'name', label: 'BD', format: (r: any) => r.owner || 'Unassigned' },
+        { key: 'region', label: 'Region', format: (r: any) => r.region || 'Unknown' },
+        { key: 'brand', label: 'Brand', format: (r: any) => r.brand || '—' },
+        { key: 'city', label: 'City (raw)', format: (r: any) => r.city || '(blank)' },
+        { key: 'status', label: 'Status', format: (r: any) => r.status || '(unassigned)' },
+        { key: 'dt', label: 'Date', align: 'right', format: (r: any) => r.dt || '' },
+      ],
+      rows: unmappedLeads,
+      csvFilename: 'geography-unmapped-leads',
+    });
 
   const getHealthColor = (activeRate: number) => {
     if (activeRate >= 15) return { fill: '#10b981', glow: 'rgba(16,185,129,0.9)', text: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10' };
@@ -252,6 +301,31 @@ export default function Geography() {
       <ExecSummary bullets={summaryBullets} />
       <LeadsAsOfStamp className="mb-4" />
 
+      {/* P2-7 — Unmapped leads: Geography's real headline, promoted to a
+          first-class card with a drill-down + CSV (Zoho hygiene queue). */}
+      {unmapped > 0 && (
+        <button
+          onClick={openUnmapped}
+          className="w-full text-left glass-panel p-4 sm:p-5 mb-6 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.04] transition-colors flex items-center gap-4 group relative z-10"
+        >
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Data hygiene · Unmapped leads</div>
+            <div className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-0.5">
+              {unmapped.toLocaleString()} <span className="text-base font-bold text-amber-400">({unmappedPct.toFixed(1)}%)</span>
+            </div>
+            <p className="text-xs text-text-secondary mt-1">
+              No known city mapping. Tap to view the full list and export a CSV for the Zoho hygiene queue.
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider shrink-0 group-hover:bg-amber-500/25 transition-colors">
+            View list <ArrowRight className="w-3.5 h-3.5" />
+          </span>
+        </button>
+      )}
+
       {/* Macro-Regional Row */}
       {regionalData.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -297,9 +371,9 @@ export default function Geography() {
           <div className="flex items-center justify-between z-10 relative mb-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Conversion Health Map</h2>
             <div className="flex items-center gap-2">
-              <button onClick={handleZoomIn} className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomIn className="w-4 h-4" /></button>
-              <button onClick={handleZoomOut} className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomOut className="w-4 h-4" /></button>
-              <button onClick={handleReset} className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><RotateCcw className="w-4 h-4" /></button>
+              <button onClick={handleZoomIn} aria-label="Zoom in" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomIn className="w-4 h-4" /></button>
+              <button onClick={handleZoomOut} aria-label="Zoom out" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomOut className="w-4 h-4" /></button>
+              <button onClick={handleReset} aria-label="Reset map view" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><RotateCcw className="w-4 h-4" /></button>
             </div>
           </div>
 
@@ -595,6 +669,54 @@ export default function Geography() {
           )}
         </div>
       </div>
+
+      {/* P2-7 — state-level roll-up. City data is sparse, so a state table is the
+          honest aggregation; a true state choropleth is noted as a follow-up. */}
+      {stateData.length > 0 && (
+        <div className="glass-panel p-4 sm:p-6 mt-4 sm:mt-6 relative z-10">
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-brand-pink-400" /> By State (mapped cities)
+            </h2>
+            <CsvButton
+              base="geography-by-state"
+              filters={filters}
+              columns={[
+                { key: 'state', label: 'State' },
+                { key: 'leads', label: 'Leads' },
+                { key: 'pipelineValue', label: 'Pipeline Value (est)' },
+                { key: 'securedRevenue', label: 'Active Pipeline (est)' },
+              ]}
+              rows={stateData}
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
+                  <th className="text-left py-2 pr-4 font-bold">State</th>
+                  <th className="text-right py-2 px-4 font-bold">Leads</th>
+                  <th className="text-right py-2 px-4 font-bold">Pipeline (est)</th>
+                  <th className="text-right py-2 pl-4 font-bold">Active (est)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stateData.map(s => (
+                  <tr key={s.state} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                    <td className="py-2.5 pr-4 text-white font-bold">{s.state}</td>
+                    <td className="text-right py-2.5 px-4 text-text-secondary tabular-nums">{s.leads.toLocaleString()}</td>
+                    <td className="text-right py-2.5 px-4 text-white tabular-nums">₹{formatCurrency(s.pipelineValue)}</td>
+                    <td className="text-right py-2.5 pl-4 text-emerald-400 tabular-nums">₹{formatCurrency(s.securedRevenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-[10px] text-text-secondary italic leading-snug">
+            Aggregated from mapped-city leads only. A geographic state choropleth is a planned follow-up (needs a state-level GeoJSON layer).
+          </p>
+        </div>
+      )}
     </div>
   );
 }
