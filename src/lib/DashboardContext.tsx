@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { DashData, Lead } from './types';
 import { computeDealsRuntime, DealsRuntime } from './dealsRuntime';
 
@@ -16,6 +17,64 @@ export interface Filters {
   tier: Set<string>;
   prop: Set<string>;
   owner: Set<string>;
+}
+
+// ---- P1-6: shareable, refresh-safe filter state via URL query params ----
+// Serialise the active global filter state to the URL so a pasted link
+// reproduces the exact view. Multi-select dimensions become comma-joined
+// values (e.g. ?brand=Spark&from=2026-07-01&to=2026-07-08&region=South,West).
+// We use window.history.replaceState directly (no useSearchParams) so the
+// App-Router build never needs a Suspense boundary, and updates never add a
+// history entry or trigger a scroll jump.
+const SET_KEYS = ['region', 'state', 'city', 'cluster', 'brand', 'status', 'tier', 'prop', 'owner'] as const;
+
+function filtersToQuery(f: Filters): string {
+  const p = new URLSearchParams();
+  if (f.from) p.set('from', f.from);
+  if (f.to) p.set('to', f.to);
+  for (const k of SET_KEYS) {
+    const s = f[k] as Set<string>;
+    if (s && s.size) p.set(k, Array.from(s).join(','));
+  }
+  return p.toString();
+}
+
+function queryToFilters(search: string): Filters {
+  const next: Filters = {
+    from: '', to: '',
+    region: new Set(), state: new Set(), city: new Set(), cluster: new Set(),
+    brand: new Set(), status: new Set(), tier: new Set(), prop: new Set(), owner: new Set(),
+  };
+  try {
+    const p = new URLSearchParams(search || '');
+    const from = p.get('from');
+    const to = p.get('to');
+    // Only accept well-formed ISO dates; silently ignore malformed values.
+    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) next.from = from;
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) next.to = to;
+    for (const k of SET_KEYS) {
+      const v = p.get(k);
+      if (v) next[k] = new Set(v.split(',').map(s => s.trim()).filter(Boolean)) as any;
+    }
+  } catch {
+    /* malformed query string → defaults, never crash */
+  }
+  return next;
+}
+
+function queryHasFilters(f: Filters): boolean {
+  return !!(f.from || f.to || SET_KEYS.some(k => (f[k] as Set<string>).size));
+}
+
+function writeUrl(f: Filters) {
+  if (typeof window === 'undefined') return;
+  const qs = filtersToQuery(f);
+  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+  try {
+    window.history.replaceState(window.history.state, '', url);
+  } catch {
+    /* ignore — never let URL sync break the app */
+  }
 }
 
 interface DashboardContextType {
@@ -57,6 +116,31 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // P1-6 — hydrate filters FROM the URL once on mount (pasted link / reload).
+  // Done in an effect (not a lazy initializer) to avoid an SSR hydration
+  // mismatch. A ref tracks the latest filters for the nav re-sync below.
+  const hydratedRef = useRef(false);
+  const filtersRef = useRef<Filters>(filters);
+  filtersRef.current = filters;
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const parsed = queryToFilters(window.location.search);
+    if (queryHasFilters(parsed)) setFilters(parsed);
+    hydratedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-append the active filter params after an in-app route change so the URL
+  // stays shareable when navigating between pages. Skips the initial mount so
+  // it never clobbers the params before hydration reads them.
+  const firstNavRef = useRef(true);
+  useEffect(() => {
+    if (firstNavRef.current) { firstNavRef.current = false; return; }
+    if (hydratedRef.current) writeUrl(filtersRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   // Fetch the real dataset from the server-side API route (which reads the
   // OliveScripts pipeline output). No credentials or raw data in the client bundle.
   useEffect(() => {
@@ -84,7 +168,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setFilters(prev => {
       const next = { ...prev };
       if (key === 'from' || key === 'to') return next;
-      
+
       const set = new Set(prev[key] as Set<string>);
       if (clear) {
         set.clear();
@@ -94,16 +178,22 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         set.add(value);
       }
       next[key] = set as any;
+      writeUrl(next); // P1-6: keep URL in sync (no history entry, no scroll)
       return next;
     });
   };
 
   const setDateRange = (from: string, to: string) => {
-    setFilters(prev => ({ ...prev, from, to }));
+    setFilters(prev => {
+      const next = { ...prev, from, to };
+      writeUrl(next);
+      return next;
+    });
   };
 
   const clearFilters = () => {
     setFilters(defaultFilters);
+    writeUrl(defaultFilters); // P1-6: Clear-all empties the query params
   };
 
   const filteredLeads = useMemo(() => {
