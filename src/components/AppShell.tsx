@@ -39,10 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           through 10 nav stops before reaching content). */}
       <a
         href="#content"
-        style={{ transform: 'translateY(-150%)' }}
-        onFocus={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-        onBlur={(e) => { e.currentTarget.style.transform = 'translateY(-150%)'; }}
-        className="fixed top-3 left-3 z-[200] px-4 py-2 rounded-lg bg-brand-pink-500 text-white text-sm font-bold shadow-[0_0_20px_rgba(218,26,132,0.6)] transition-transform duration-200"
+        className="skip-to-content px-4 py-2 rounded-lg bg-brand-pink-500 text-white text-sm font-bold shadow-[0_0_20px_rgba(218,26,132,0.6)]"
       >
         Skip to content
       </a>
