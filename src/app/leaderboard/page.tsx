@@ -8,11 +8,12 @@ import { X, Star, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Filter as F
 import clsx from 'clsx';
 import type { LeaderboardRec } from '@/lib/types';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { CsvButton } from '@/components/CsvButton';
 
 type SortOption = 'score' | 'volume' | 'active';
 
 export default function Leaderboard() {
-  const { data, filteredLeads, isLoading } = useDashboard();
+  const { data, filteredLeads, isLoading, filters } = useDashboard();
   const [selectedRep, setSelectedRep] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('score');
 
@@ -123,6 +124,22 @@ export default function Leaderboard() {
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Performance Leaderboard</h1>
           <p className="text-text-secondary text-sm mt-1">Balanced scoring across quality, conversion, and volume.</p>
         </div>
+        <div className="flex items-center gap-3 shrink-0">
+        <CsvButton
+          base="leaderboard"
+          filters={filters}
+          columns={[
+            { key: 'owner', label: 'BD Rep' },
+            { key: 'band', label: 'Band', format: (r: any) => r.band || '' },
+            { key: 'score', label: 'Score', format: (r: any) => (r.bps ? r.bps.score.toFixed(1) : '') },
+            { key: 'n', label: 'Leads' },
+            { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
+            { key: 'drop', label: 'Drop %', format: (r: any) => (r.drop != null ? r.drop.toFixed(1) : '') },
+            { key: 'contact', label: 'Contact %', format: (r: any) => (r.contact != null ? r.contact.toFixed(1) : '') },
+            { key: 'qa', label: 'QA Rating', format: (r: any) => (r.reviewed && r.q ? r.q.overall.toFixed(1) : '') },
+          ]}
+          rows={leaderboard}
+        />
         <div className="flex items-center gap-2 bg-surface p-1.5 rounded-lg border border-border-subtle shrink-0">
           <FilterIcon className="w-4 h-4 text-text-secondary ml-2" />
           <span className="text-xs font-bold text-text-secondary uppercase mr-1">Sort:</span>
@@ -138,6 +155,7 @@ export default function Leaderboard() {
               {opt}
             </button>
           ))}
+        </div>
         </div>
       </header>
 
