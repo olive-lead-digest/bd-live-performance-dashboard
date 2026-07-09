@@ -44,7 +44,7 @@ export function LeadsAsOfStamp({ className = '' }: { className?: string }) {
   const { leadsAsOf } = useDashboard();
   if (!leadsAsOf) return null;
   return (
-    <div className={'text-[10px] text-text-secondary/70 italic ' + className}>
+    <div className={'text-[10px] text-text-secondary italic ' + className}>
       Leads data as of {leadsAsOf} UTC
     </div>
   );

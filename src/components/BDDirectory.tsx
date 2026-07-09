@@ -112,7 +112,7 @@ export function BDDirectory() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, region, email…"
-            className="w-full h-10 pl-9 pr-3 rounded-lg bg-black/40 border border-border-subtle text-sm text-white placeholder:text-text-secondary/70 focus:outline-none focus:border-brand-pink-500/60 transition-colors"
+            className="w-full h-10 pl-9 pr-3 rounded-lg bg-black/40 border border-border-subtle text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-brand-pink-500/60 transition-colors"
           />
         </div>
         <div className="flex flex-wrap gap-1.5 items-center">
@@ -140,7 +140,7 @@ export function BDDirectory() {
           {matches.length === 0 ? (
             <span>No BDs match “{query.trim()}”.</span>
           ) : region === 'All' ? (
-            <span className="text-text-secondary/80">
+            <span className="text-text-secondary">
               Searching across all regions — {matches.length} match{matches.length === 1 ? '' : 'es'}.
             </span>
           ) : outsideActiveTab > 0 ? (
@@ -149,7 +149,7 @@ export function BDDirectory() {
               {` (${outsideActiveTab} outside ${region}).`}
             </span>
           ) : (
-            <span className="text-text-secondary/80">
+            <span className="text-text-secondary">
               {matches.length} match{matches.length === 1 ? '' : 'es'} — all within {region}.
             </span>
           )}
@@ -176,9 +176,15 @@ export function BDDirectory() {
                 <td className="py-2.5 px-3 text-white font-bold">
                   {r.name}
                   {r.isHead && (
-                    <span className="ml-2 px-1.5 py-0.5 rounded bg-brand-purple-500/20 border border-brand-purple-400/40 text-brand-purple-300 text-[9px] uppercase tracking-widest">
-                      Head
-                    </span>
+                    <>
+                      {/* P2-6 — separate name and badge for copy-paste + screen
+                          readers so accessible text reads "Name · Head", not
+                          "NameHead". */}
+                      <span className="sr-only"> · </span>
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-brand-purple-500/20 border border-brand-purple-400/40 text-brand-purple-300 text-[9px] uppercase tracking-widest">
+                        Head
+                      </span>
+                    </>
                   )}
                 </td>
                 <td className="py-2.5 px-3">

@@ -132,7 +132,7 @@ export function DealsOverview() {
             <span className="text-brand-pink-400 font-bold">Spark conversion (LOI):</span>{' '}
             <span className="text-white font-bold">{sparkLOIrate.toFixed(1)}%</span>{' '}
             <span className="text-text-secondary">— {sparkLOI.toLocaleString('en-IN')} LOIs across {sparkCohort.toLocaleString('en-IN')} Spark deals.</span>
-            <span className="block text-text-secondary/70 mt-0.5">
+            <span className="block text-text-secondary mt-0.5">
               MA rate: {sparkMArate.toFixed(1)}% ({sparkMA.toLocaleString('en-IN')}/{sparkCohort.toLocaleString('en-IN')}) — Spark MAs follow LOI, so LOI is Spark&apos;s signing event and the rate to watch (denominator = all Spark deals).
             </span>
           </div>
@@ -157,7 +157,7 @@ export function DealsOverview() {
                 Current FY ({fyLabel})
               </span>
               {feesFy?.deals != null && (
-                <span className="text-[9px] uppercase tracking-wider text-text-secondary/70">
+                <span className="text-[9px] uppercase tracking-wider text-text-secondary">
                   {feesFy.deals} signed
                 </span>
               )}
@@ -171,13 +171,13 @@ export function DealsOverview() {
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
                 {feesFy?.collectedActual != null && (
-                  <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesFy.collectedActual)}</span>
+                  <span className="block text-[9px] text-text-secondary mt-0.5">received {inr(feesFy.collectedActual)}</span>
                 )}
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
                 <span className="text-lg sm:text-xl font-black text-amber-400 tracking-tight">{inr(receivable(feesFy?.contracted, feesFy?.collected))}</span>
-                <span className="block text-[9px] text-text-secondary/70 mt-0.5">derived</span>
+                <span className="block text-[9px] text-text-secondary mt-0.5">derived</span>
               </div>
             </div>
           </div>
@@ -196,13 +196,13 @@ export function DealsOverview() {
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
                 <span className="text-base sm:text-lg font-black text-emerald-400 tracking-tight">{inr(feesAll?.collected)}</span>
                 {feesAll?.collectedActual != null && (
-                  <span className="block text-[9px] text-text-secondary/70 mt-0.5">received {inr(feesAll.collectedActual)}</span>
+                  <span className="block text-[9px] text-text-secondary mt-0.5">received {inr(feesAll.collectedActual)}</span>
                 )}
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
                 <span className="text-base sm:text-lg font-black text-amber-400 tracking-tight">{inr(receivable(feesAll?.contracted, feesAll?.collected))}</span>
-                <span className="block text-[9px] text-text-secondary/70 mt-0.5">derived</span>
+                <span className="block text-[9px] text-text-secondary mt-0.5">derived</span>
               </div>
             </div>
           </div>
@@ -220,7 +220,7 @@ export function DealsOverview() {
             )}
           </div>
         )}
-        <div className="mt-2 text-[10px] text-text-secondary/70 italic leading-snug space-y-0.5">
+        <div className="mt-2 text-[10px] text-text-secondary italic leading-snug space-y-0.5">
           {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date, so FY figures exclude them.</div>

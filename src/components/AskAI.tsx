@@ -64,10 +64,10 @@ export function AskAI({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
               <Eraser className="w-4 h-4" />
             </button>
           )}
-          <button onClick={() => ask(query)} disabled={loading || !query.trim()} title="Ask" className="p-1.5 rounded-md bg-brand-pink-500/20 text-brand-pink-400 hover:bg-brand-pink-500/30 disabled:opacity-40 transition-colors shrink-0">
+          <button onClick={() => ask(query)} disabled={loading || !query.trim()} title="Ask" aria-label="Ask" className="p-1.5 rounded-md bg-brand-pink-500/20 text-brand-pink-400 hover:bg-brand-pink-500/30 disabled:opacity-40 transition-colors shrink-0">
             <ArrowRight className="w-4 h-4" />
           </button>
-          <button onClick={onClose} title="Close" className="p-1 rounded-md hover:bg-surface text-text-secondary hover:text-white shrink-0">
+          <button onClick={onClose} title="Close" aria-label="Close" className="p-1 rounded-md hover:bg-surface text-text-secondary hover:text-white shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>

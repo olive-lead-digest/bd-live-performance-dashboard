@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Users, Filter, ChevronRight,
+  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Users, ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -97,15 +97,9 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto mb-4 px-2 flex flex-col gap-2">
-        <button
-          onClick={onOpenFilters}
-          className="flex items-center w-full h-11 rounded-xl relative group/item hover:bg-surface/50 transition-colors md:hidden border border-transparent"
-        >
-          <div className="w-12 h-full flex items-center justify-center shrink-0">
-            <Filter className="w-5 h-5 text-text-secondary group-hover/item:text-brand-purple-300" />
-          </div>
-          <span className={clsx(labelCls, 'text-text-secondary group-hover/item:text-white')}>Filters</span>
-        </button>
+        {/* P2-6 — the mobile "Filters" entry point lives in the ContextBar
+            toolbar; the sidebar no longer renders a second one, so only ONE
+            Filters button is present at mobile widths. */}
 
         {/* Collapse / expand control — only meaningful on the >=1280px rail. */}
         <button

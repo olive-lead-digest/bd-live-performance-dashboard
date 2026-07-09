@@ -128,7 +128,7 @@ export function ProposalsStageCard() {
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-1">
           Revenue targets (averages across proposals)
         </h3>
-        <p className="text-[10px] text-text-secondary/70 italic mb-3">
+        <p className="text-[10px] text-text-secondary italic mb-3">
           ARR = Average Room Rate (₹ per room-night) — not Annual Recurring Revenue.
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

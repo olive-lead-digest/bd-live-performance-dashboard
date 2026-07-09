@@ -88,6 +88,7 @@ export function DrillProvider({ children }: { children: ReactNode }) {
                 </button>
                 <button
                   onClick={close}
+                  aria-label="Close drill-down"
                   className="p-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors"
                 >
                   <X className="w-5 h-5" />

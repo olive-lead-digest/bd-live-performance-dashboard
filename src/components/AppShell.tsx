@@ -34,6 +34,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <DrillProvider>
+      {/* P2-6 — skip-to-content link: visually hidden until keyboard focus, then
+          jumps past the nav to the main landmark (keyboard users no longer tab
+          through 10 nav stops before reaching content). */}
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-pink-500 focus:text-white focus:text-sm focus:font-bold focus:shadow-[0_0_20px_rgba(218,26,132,0.6)]"
+      >
+        Skip to content
+      </a>
       <div className="min-h-screen bg-background text-foreground flex">
         <Sidebar
           onOpenFilters={() => setIsFiltersOpen(true)}
@@ -49,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
 
-          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8">
+          <main id="content" className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8">
             <div className="max-w-[1600px] mx-auto w-full">{children}</div>
           </main>
         </div>

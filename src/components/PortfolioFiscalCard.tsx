@@ -229,7 +229,7 @@ export function PortfolioFiscalCard() {
             <span className="text-amber-400/90 font-medium">Collections are approximate</span> — this is
             <span className="text-text-secondary font-medium"> Received (Actual_Amount_Total)</span>, attributed to
             each deal&apos;s signing (MA) date, as the CRM carries no per-payment date.
-            {asOf ? <span className="text-text-secondary/70"> As of {asOf}.</span> : null}
+            {asOf ? <span className="text-text-secondary"> As of {asOf}.</span> : null}
           </p>
         </div>
       )}

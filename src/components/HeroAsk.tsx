@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Sparkles, ArrowRight, Loader2, Eraser } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, Eraser, Copy, Check, CornerDownRight } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 
@@ -19,11 +19,16 @@ const PHRASES = [
 // P1-10: Spark's conversion event is the LOI (Spark MAs follow LOI), so the
 // old "Why is Spark dropping?" chip framed a crisis the org's own scoring says
 // is mismeasured. Replaced with a question the data actually supports.
-const CHIPS = [
+// P3 — a larger pool the visible chips rotate through (Overview-relevant, since
+// HeroAsk lives on the Overview page).
+const CHIP_POOL = [
   'How is Spark tracking on LOIs?',
-  'Top BDs?',
+  'Top BDs this quarter?',
   'Best active-rate region?',
   'Lowest performers in June by brand',
+  'How is Olive trending month over month?',
+  'Which region has the most unassigned pipeline?',
+  'Where are we losing deals in the funnel?',
 ];
 
 const TYPE_SPEED = 55;
@@ -114,6 +119,10 @@ export function HeroAsk() {
   const [focused, setFocused] = useState(false);
   // P1-9 (1) — graceful fallback for off-topic / unrecognisable input.
   const [fallback, setFallback] = useState<{ message: string; suggestions: string[] } | null>(null);
+  // P3 — copy-answer feedback, follow-up input, and rotating suggestion chips.
+  const [copied, setCopied] = useState(false);
+  const [followUp, setFollowUp] = useState('');
+  const [chipOffset, setChipOffset] = useState(0);
 
   const [typed, setTyped] = useState('');
   const phraseIdx = useRef(0);
@@ -159,7 +168,27 @@ export function HeroAsk() {
     };
   }, [animate]);
 
-  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); setFallback(null); };
+  // P3 — rotate the 3 visible chips through the pool while idle (pauses once an
+  // answer is on screen so it never shifts under the reader).
+  useEffect(() => {
+    if (loading || answer) return;
+    const id = setInterval(() => setChipOffset((o) => (o + 3) % CHIP_POOL.length), 6000);
+    return () => clearInterval(id);
+  }, [loading, answer]);
+  const visibleChips = [0, 1, 2].map((i) => CHIP_POOL[(chipOffset + i) % CHIP_POOL.length]);
+
+  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); setFallback(null); setFollowUp(''); setCopied(false); };
+
+  const copyAnswer = async () => {
+    if (!answer) return;
+    try {
+      await navigator.clipboard.writeText(answer);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — no-op */
+    }
+  };
 
   const ask = async (q: string) => {
     const question = q.trim();
@@ -249,7 +278,7 @@ export function HeroAsk() {
       </form>
 
       <div className="flex flex-wrap gap-2 mt-3 relative z-10">
-        {CHIPS.map(c => (
+        {visibleChips.map((c) => (
           <button
             key={c}
             type="button"
@@ -293,6 +322,18 @@ export function HeroAsk() {
 
               {answer && (
                 <>
+                  {/* P3 — copy the raw answer to the clipboard. */}
+                  <div className="flex justify-end -mt-1 mb-1">
+                    <button
+                      type="button"
+                      onClick={copyAnswer}
+                      aria-label="Copy answer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary hover:text-white hover:bg-surface transition-colors"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
                   <div className="max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
                     {renderAnswer(answer)}
                   </div>
@@ -304,6 +345,29 @@ export function HeroAsk() {
                     Scope: entire dataset (not affected by dashboard filters)
                     {data?.generated ? ` · data as of ${data.generated} UTC` : ''}
                   </p>
+                  {/* P3 — ask a follow-up inline without scrolling back up. */}
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); const q = followUp.trim(); if (q) { setQuery(q); ask(q); setFollowUp(''); } }}
+                    className="mt-3 flex items-center gap-2 rounded-lg bg-black/30 border border-border-subtle focus-within:border-brand-pink-500/50 transition-colors px-3 py-1.5"
+                  >
+                    <CornerDownRight className="w-4 h-4 text-text-secondary shrink-0" />
+                    <input
+                      value={followUp}
+                      onChange={(e) => setFollowUp(e.target.value)}
+                      type="text"
+                      aria-label="Ask a follow-up question"
+                      placeholder="Ask a follow-up…"
+                      className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder:text-text-secondary py-1.5 min-w-0"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading || !followUp.trim()}
+                      aria-label="Send follow-up"
+                      className="p-1.5 rounded-md bg-brand-pink-500/20 text-brand-pink-400 hover:bg-brand-pink-500/30 disabled:opacity-40 transition-colors shrink-0"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </form>
                 </>
               )}
             </div>
