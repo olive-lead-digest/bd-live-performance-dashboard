@@ -18,6 +18,7 @@ import { TabBar } from '@/components/TabBar';
 import { useDrill, DrillColumn } from '@/components/DrillDrawer';
 import Pipeline from '@/app/pipeline/page';
 import { CsvButton } from '@/components/CsvButton';
+import { EmptyState } from '@/components/EmptyState';
 
 // Receivable = Contracted − Collected (P1-1); Zoho's Pending_TA_fee is empty.
 const receivable = (c?: number | null, col?: number | null) =>
@@ -155,7 +156,7 @@ export default function DealsPage() {
               <DealsExemptBadge />
             </div>
             {dealsRuntime.dateCaption && (
-              <p className="text-[10px] text-text-secondary/70 italic">{dealsRuntime.dateCaption}</p>
+              <p className="text-[10px] text-text-secondary italic">{dealsRuntime.dateCaption}</p>
             )}
           </div>
         )}
@@ -228,7 +229,7 @@ export default function DealsPage() {
           <Handshake className="w-4 h-4 text-brand-pink-400" /> Signing Funnel
         </h2>
 
-        <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-secondary/70 flex-wrap">
+        <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-secondary flex-wrap">
           <span className="flex items-center gap-1.5">
             Leads
             {leadsCount != null && (
@@ -244,7 +245,7 @@ export default function DealsPage() {
             {proposalsCount != null ? (
               <span className="text-white tabular-nums normal-case">{proposalsCount.toLocaleString('en-IN')}</span>
             ) : (
-              <span className="text-text-secondary/60 normal-case tracking-normal">&amp; approvals</span>
+              <span className="text-text-secondary normal-case tracking-normal">&amp; approvals</span>
             )}
           </span>
           <ConvArrow pct={dealsOfProp} />
@@ -256,7 +257,7 @@ export default function DealsPage() {
           </span>
         </div>
 
-        <p className="text-[10px] text-text-secondary/70 mb-4 italic leading-snug">
+        <p className="text-[10px] text-text-secondary mb-4 italic leading-snug">
           Main path: Business Approval Received → Under Negotiation → MA Signed, each % against its
           true parent cohort. MA Signed % is computed against the {funnelModel.maCohortLabel}. LOI
           Signed is a Spark-only side branch (excluded from the main-path chain). Drop rows are exits,
@@ -354,7 +355,7 @@ export default function DealsPage() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] uppercase tracking-widest font-bold text-brand-pink-400">Current FY ({fyLabel})</span>
               {feesFy?.deals != null && (
-                <span className="text-[10px] uppercase tracking-wider text-text-secondary/70">{feesFy.deals} signed</span>
+                <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy.deals} signed</span>
               )}
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -374,7 +375,7 @@ export default function DealsPage() {
             </div>
           </div>
         </div>
-        <div className="mb-6 text-[10px] text-text-secondary/70 italic leading-snug space-y-0.5">
+        <div className="mb-6 text-[10px] text-text-secondary italic leading-snug space-y-0.5">
           {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date, so Current-FY figures exclude them.</div>
@@ -438,10 +439,17 @@ export default function DealsPage() {
                   </tr>
                 );
               })()}
+              {brandNames.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-4">
+                    <EmptyState title="No deal revenue to show" message="No deals match the current filters. Try clearing or widening them." icon={IndianRupee} />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[10px] text-text-secondary/70 italic leading-snug">
+        <p className="mt-2 text-[10px] text-text-secondary italic leading-snug">
           Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide). Brand rows sum to the totals above. Tap a brand row to list its deals.
         </p>
       </div>
@@ -452,7 +460,7 @@ export default function DealsPage() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-brand-pink-400" /> BD Closer Scorecard
           </h2>
-          <p className="text-[10px] text-text-secondary/70 mb-4 italic">
+          <p className="text-[10px] text-text-secondary mb-4 italic">
             Blank / &quot;Unassigned&quot; owners are legacy or house accounts. Tap a BD to list their signed deals.
           </p>
           <div className="overflow-x-auto flex-1">
@@ -479,6 +487,13 @@ export default function DealsPage() {
                     <td className="text-right py-2.5 pl-4 text-brand-pink-400 font-bold">{inr(c.feeContracted)}</td>
                   </tr>
                 ))}
+                {closers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-4">
+                      <EmptyState title="No closers to show" message="No signed deals match the current filters. Try clearing or widening them." icon={Users} />
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -591,7 +606,7 @@ function KpiCard({ title, value, sub, icon: Icon, color, onClick }: any) {
       </div>
       <div className="relative z-10">
         <span className="text-2xl sm:text-3xl font-black tracking-tight text-white">{value}</span>
-        {sub && <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-text-secondary/80">{sub}</div>}
+        {sub && <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-text-secondary">{sub}</div>}
       </div>
     </div>
   );
