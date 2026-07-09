@@ -15,6 +15,18 @@ const inrPlain = (n?: number | null) =>
   n == null ? '' : `₹${Math.round(n).toLocaleString('en-IN')}`;
 const numPlain = (n?: number | null) => (n == null ? '' : Math.round(n).toLocaleString('en-IN'));
 
+// P2-3(2) — human-readable active-filter summary for the PDF snapshot header.
+function describeFilters(f: any): string {
+  if (!f) return 'None (all data)';
+  const parts: string[] = [];
+  if (f.from || f.to) parts.push(`Date ${f.from || '…'} to ${f.to || '…'}`);
+  (['brand', 'region', 'state', 'city', 'cluster', 'tier', 'status', 'prop', 'owner'] as const).forEach((k) => {
+    const s = f[k] as Set<string> | undefined;
+    if (s && s.size) parts.push(`${k}: ${Array.from(s).join(', ')}`);
+  });
+  return parts.length ? parts.join('  ·  ') : 'None (all data)';
+}
+
 // Build every export table from the live dashboard data.
 function buildSheets(data: any): { sheets: Sheet[]; asOf: string } {
   const deals = data?.deals || {};
@@ -139,7 +151,7 @@ function buildSheets(data: any): { sheets: Sheet[]; asOf: string } {
 }
 
 export function DownloadReport({ compact = false }: { compact?: boolean }) {
-  const { data } = useDashboard();
+  const { data, filters } = useDashboard();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'excel' | 'pdf' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -199,8 +211,15 @@ export function DownloadReport({ compact = false }: { compact?: boolean }) {
       doc.setFontSize(9);
       doc.text(`Generated ${new Date().toLocaleString('en-IN')} · Data as of ${asOf}`, doc.internal.pageSize.getWidth() - 40, 40, { align: 'right' });
 
+      // P2-3(2) — the snapshot must state the active filters + data-as-of stamp.
+      doc.setTextColor(90, 90, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text(`Active filters: ${describeFilters(filters)}`, 40, 86);
+      doc.text(`Data as of: ${asOf}`, 40, 98);
+
       const pageH = doc.internal.pageSize.getHeight();
-      let y = 92;
+      let y = 114;
       sheets.forEach((s) => {
         if (y > pageH - 100) {
           doc.addPage();

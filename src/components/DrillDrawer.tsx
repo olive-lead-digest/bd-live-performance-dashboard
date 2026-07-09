@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import clsx from 'clsx';
 import { X, Download } from 'lucide-react';
+import { toCsv as sharedToCsv } from '@/lib/csv';
 
 // P2-4 — one reusable right-side drill-down drawer (styled like the Geography
 // city dossier). Any aggregate can open it with (title, columns, rows, csv name)
@@ -40,11 +41,9 @@ function cell(col: DrillColumn, row: any): string {
   return v == null ? '' : String(v);
 }
 
+// P2-3(1) — delegate to the single shared CSV implementation in lib/csv.ts.
 function toCsv(p: DrillPayload): string {
-  const esc = (s: string) => (/[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
-  const head = p.columns.map((c) => esc(c.label)).join(',');
-  const body = p.rows.map((r) => p.columns.map((c) => esc(cell(c, r))).join(',')).join('\n');
-  return head + '\n' + body;
+  return sharedToCsv(p.columns, p.rows);
 }
 
 export function DrillProvider({ children }: { children: ReactNode }) {

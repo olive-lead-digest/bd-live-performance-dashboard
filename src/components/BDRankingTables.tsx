@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Trophy, Map } from 'lucide-react';
 import { num } from '@/lib/format';
+import { CsvButton } from '@/components/CsvButton';
 
 interface BDRank {
   bd?: string;
@@ -46,7 +47,7 @@ function PctBar({ p }: { p?: number }) {
 }
 
 export function BDRankingTables() {
-  const { data } = useDashboard();
+  const { data, filters } = useDashboard();
   const ranking = data?.deals?.ranking;
 
   const bds = useMemo<BDRank[]>(() => {
@@ -72,9 +73,25 @@ export function BDRankingTables() {
       {/* BD-wise ranking */}
       {bds.length > 0 && (
         <div className="glass-panel p-4 sm:p-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-2">
-            <Trophy className="w-4 h-4 text-brand-pink-400" /> BD Ranking (points-based)
-          </h2>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-brand-pink-400" /> BD Ranking (points-based)
+            </h2>
+            <CsvButton
+              base="bd-ranking"
+              filters={filters}
+              columns={[
+                { key: 'rank', label: 'Rank' },
+                { key: 'region', label: 'Region' },
+                { key: 'regionHead', label: 'Region Head' },
+                { key: 'bd', label: 'BD' },
+                { key: 'ytdTarget', label: 'YTD Target' },
+                { key: 'ytdAchievement', label: 'YTD Achieved' },
+                { key: 'achievementPct', label: 'Achievement %' },
+              ]}
+              rows={bds}
+            />
+          </div>
           <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">{rule}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[680px]">
@@ -114,9 +131,25 @@ export function BDRankingTables() {
       {/* Region-wise ranking */}
       {regions.length > 0 && (
         <div className="glass-panel p-4 sm:p-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-4">
-            <Map className="w-4 h-4 text-brand-purple-400" /> Region Ranking
-          </h2>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+              <Map className="w-4 h-4 text-brand-purple-400" /> Region Ranking
+            </h2>
+            <CsvButton
+              base="region-ranking"
+              filters={filters}
+              columns={[
+                { key: 'rank', label: 'Rank' },
+                { key: 'region', label: 'Region' },
+                { key: 'regionHead', label: 'Region Head' },
+                { key: 'bds', label: 'BDs' },
+                { key: 'ytdTarget', label: 'YTD Target' },
+                { key: 'ytdAchievement', label: 'YTD Achieved' },
+                { key: 'achievementPct', label: 'Achievement %' },
+              ]}
+              rows={regions}
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead>

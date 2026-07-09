@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Users, Search, Phone, Mail } from 'lucide-react';
 import type { OrgBD } from '@/lib/types';
+import { CsvButton } from '@/components/CsvButton';
 
 interface DirRow {
   name: string;
@@ -84,9 +85,23 @@ export function BDDirectory() {
         <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
           <Users className="w-4 h-4 text-brand-pink-400" /> BD Directory
         </h2>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
-          {counterLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
+            {counterLabel}
+          </span>
+          <CsvButton
+            base={`directory${region !== 'All' ? '-' + region.toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}`}
+            filters={null}
+            columns={[
+              { key: 'region', label: 'Region' },
+              { key: 'regionHead', label: 'Region Head' },
+              { key: 'name', label: 'BD Name' },
+              { key: 'zoom', label: 'Zoom' },
+              { key: 'email', label: 'Email' },
+            ]}
+            rows={filtered}
+          />
+        </div>
       </div>
 
       {/* Controls */}
