@@ -11,9 +11,10 @@ import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlayS
 import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
 import { inr } from '@/lib/format';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { CsvButton } from '@/components/CsvButton';
 
 export default function Reporting() {
-  const { filteredLeads, data, isLoading } = useDashboard();
+  const { filteredLeads, data, isLoading, filters } = useDashboard();
   const [searchQuery, setSearchQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
@@ -358,6 +359,25 @@ export default function Reporting() {
               MTD: {currName || "Curr"} 1-{currDay}
             </span>
           </div>
+          {chartData && chartData.length > 0 && (
+            <CsvButton
+              base={searchQuery ? `analytics-${searchQuery}` : 'analytics-daily-volume'}
+              filters={filters}
+              columns={isBrandSearch
+                ? [
+                    { key: 'day', label: 'Day' },
+                    { key: 'spark', label: 'Spark' },
+                    { key: 'olive', label: 'Olive' },
+                    { key: 'open', label: 'Open Hotels' },
+                  ]
+                : [
+                    { key: 'day', label: 'Day' },
+                    { key: 'curr', label: currName },
+                    { key: 'prev', label: prevName },
+                  ]}
+              rows={chartData}
+            />
+          )}
         </div>
       </header>
 
