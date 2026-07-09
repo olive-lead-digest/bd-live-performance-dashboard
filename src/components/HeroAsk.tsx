@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Sparkles, ArrowRight, Loader2, Eraser } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
+import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 
 const PHRASES = [
   'Ask anything about BD performance…',
@@ -111,6 +112,8 @@ export function HeroAsk() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
+  // P1-9 (1) — graceful fallback for off-topic / unrecognisable input.
+  const [fallback, setFallback] = useState<{ message: string; suggestions: string[] } | null>(null);
 
   const [typed, setTyped] = useState('');
   const phraseIdx = useRef(0);
@@ -156,12 +159,22 @@ export function HeroAsk() {
     };
   }, [animate]);
 
-  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); };
+  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); setFallback(null); };
 
   const ask = async (q: string) => {
     const question = q.trim();
     if (!question || loading) return;
-    setLoading(true); setError(null); setAnswer(null);
+
+    // P1-9 (1) — client-side relevance guard: catch obvious gibberish before a
+    // network round-trip. The server enforces the same check, so this can't be
+    // bypassed — it just makes the fallback instant for clear non-questions.
+    if (!isRelevantQuery(question)) {
+      setLoading(false); setError(null); setAnswer(null);
+      setFallback({ message: "I couldn't map that to BD data — try one of these:", suggestions: ASK_SUGGESTIONS });
+      return;
+    }
+
+    setLoading(true); setError(null); setAnswer(null); setFallback(null);
     try {
       const res = await fetch('/api/ask', {
         method: 'POST',
@@ -171,6 +184,12 @@ export function HeroAsk() {
       const body = await res.json();
       if (!res.ok) {
         setError(body?.error || `Request failed (${res.status}).`);
+      } else if (body?.fallback) {
+        // Server-side relevance guard tripped.
+        setFallback({
+          message: typeof body?.message === 'string' ? body.message : "I couldn't map that to BD data — try one of these:",
+          suggestions: Array.isArray(body?.suggestions) && body.suggestions.length ? body.suggestions : ASK_SUGGESTIONS,
+        });
       } else {
         setAnswer(typeof body?.answer === 'string' ? body.answer : 'No answer returned.');
       }
@@ -242,7 +261,7 @@ export function HeroAsk() {
         ))}
       </div>
 
-      {(loading || answer || error) && (
+      {(loading || answer || error || fallback) && (
         <div className="mt-4 p-4 sm:p-5 rounded-xl border-t border-border-subtle bg-background/50 relative z-10">
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-brand-pink-500/20 border border-brand-pink-500/50 flex items-center justify-center shrink-0">
@@ -251,13 +270,39 @@ export function HeroAsk() {
             <div className="flex-1 min-w-0">
               {loading && <p className="text-sm text-text-secondary">Thinking…</p>}
               {error && <p className="text-sm text-red-400">{error}</p>}
+
+              {/* P1-9 (1) — graceful fallback: no fabricated analysis, just a
+                  clear message and the suggestion chips. */}
+              {fallback && (
+                <>
+                  <p className="text-sm text-text-primary leading-relaxed">{fallback.message}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {fallback.suggestions.map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => { setQuery(s); ask(s); }}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium bg-brand-purple-900/40 border border-border-subtle text-text-secondary hover:text-white hover:border-brand-pink-500/40 transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
               {answer && (
                 <>
                   <div className="max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
                     {renderAnswer(answer)}
                   </div>
-                  <p className="mt-4 pt-3 border-t border-border-subtle/60 text-[11px] text-text-secondary">
-                    {data?.generated ? `Based on data last updated ${data.generated} UTC` : 'Based on the latest available data'}
+                  {/* P1-9 (2) — scope line on every answer: names the data
+                      scope, states filter-awareness, and stamps data-as-of.
+                      Ask AI reads the entire dataset and does NOT honour the
+                      dashboard's active filters, so we say so plainly. */}
+                  <p className="mt-4 pt-3 border-t border-border-subtle/60 text-[11px] text-text-secondary leading-relaxed">
+                    Scope: entire dataset (not affected by dashboard filters)
+                    {data?.generated ? ` · data as of ${data.generated} UTC` : ''}
                   </p>
                 </>
               )}

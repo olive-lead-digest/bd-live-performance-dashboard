@@ -39,20 +39,42 @@ export function BDDirectory() {
     return ['All', ...Array.from(set).sort()];
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (region !== 'All' && r.region !== region) return false;
-      if (!q) return true;
-      return (
-        r.name.toLowerCase().includes(q) ||
-        r.region.toLowerCase().includes(q) ||
-        r.regionHead.toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q) ||
-        r.zoom.toLowerCase().includes(q)
-      );
-    });
-  }, [rows, query, region]);
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+
+  const matchRow = (r: DirRow) =>
+    r.name.toLowerCase().includes(q) ||
+    r.region.toLowerCase().includes(q) ||
+    r.regionHead.toLowerCase().includes(q) ||
+    r.email.toLowerCase().includes(q) ||
+    r.zoom.toLowerCase().includes(q);
+
+  // P1-7: rows for the active region tab (no query) — powers the idle counter.
+  const tabRows = useMemo(
+    () => (region === 'All' ? rows : rows.filter((r) => r.region === region)),
+    [rows, region]
+  );
+
+  // P1-7: when searching, match ACROSS ALL regions (ignore the active tab) so a
+  // name that lives in another region is never dead-ended behind "0 of 27".
+  const matches = useMemo(
+    () => (searching ? rows.filter(matchRow) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, q, searching]
+  );
+
+  const filtered = searching ? matches : tabRows;
+
+  // How many matches fall outside the currently-selected tab (affordance copy).
+  const outsideActiveTab = useMemo(
+    () => (searching && region !== 'All' ? matches.filter((r) => r.region !== region).length : 0),
+    [searching, region, matches]
+  );
+
+  // Counter: idle → "n of {active tab size}"; searching → "n match(es)".
+  const counterLabel = searching
+    ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
+    : `${tabRows.length} of ${tabRows.length}`;
 
   if (!data?.org?.bds || rows.length === 0) return null;
 
@@ -63,7 +85,7 @@ export function BDDirectory() {
           <Users className="w-4 h-4 text-brand-pink-400" /> BD Directory
         </h2>
         <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">
-          {filtered.length} of {rows.length}
+          {counterLabel}
         </span>
       </div>
 
@@ -95,6 +117,29 @@ export function BDDirectory() {
           ))}
         </div>
       </div>
+
+      {/* P1-7: cross-region search affordance — surfaces matches that live
+          outside the active tab so a name is never invisible behind it. */}
+      {searching && (
+        <div className="mb-4 -mt-1 text-xs text-text-secondary">
+          {matches.length === 0 ? (
+            <span>No BDs match “{query.trim()}”.</span>
+          ) : region === 'All' ? (
+            <span className="text-text-secondary/80">
+              Searching across all regions — {matches.length} match{matches.length === 1 ? '' : 'es'}.
+            </span>
+          ) : outsideActiveTab > 0 ? (
+            <span className="text-brand-pink-400">
+              Showing all {matches.length} match{matches.length === 1 ? '' : 'es'} across every region
+              {` (${outsideActiveTab} outside ${region}).`}
+            </span>
+          ) : (
+            <span className="text-text-secondary/80">
+              {matches.length} match{matches.length === 1 ? '' : 'es'} — all within {region}.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
