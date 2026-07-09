@@ -340,6 +340,7 @@ export function computeDealsRuntime(deals: any, filters: Filters): DealsRuntime 
     upcoming: filterUpcoming(deals.upcoming, filters),
     _recomputed: true,
     _recordsFiltered: filtered.length,
+    _filteredRecords: filtered,
   };
   return { deals: merged, recomputed: true, exemptDims, filterActive, dateCaption };
 }

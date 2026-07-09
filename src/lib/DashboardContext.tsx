@@ -68,9 +68,20 @@ function queryHasFilters(f: Filters): boolean {
 
 function writeUrl(f: Filters) {
   if (typeof window === 'undefined') return;
-  const qs = filtersToQuery(f);
-  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
   try {
+    // Preserve any non-filter params already in the URL (e.g. ?tab= / ?view=
+    // in-page tab state) while re-syncing the filter-managed keys, so P2-2
+    // deep-linkable tabs and the shareable filter state compose cleanly.
+    const p = new URLSearchParams(window.location.search);
+    for (const k of ['from', 'to', ...SET_KEYS]) p.delete(k);
+    if (f.from) p.set('from', f.from);
+    if (f.to) p.set('to', f.to);
+    for (const k of SET_KEYS) {
+      const s = f[k] as Set<string>;
+      if (s && s.size) p.set(k, Array.from(s).join(','));
+    }
+    const qs = p.toString();
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     window.history.replaceState(window.history.state, '', url);
   } catch {
     /* ignore — never let URL sync break the app */
