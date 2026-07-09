@@ -100,3 +100,19 @@
     @apply bg-brand-purple-600;
   }
 }
+
+/* P2-6 — skip-to-content link. Unlayered rule (beats Tailwind's layered
+   utilities in the cascade) so the :focus reveal is deterministic and does not
+   depend on Tailwind focus-variant ordering. Hidden above the viewport until it
+   receives keyboard focus, then slides into view over the main landmark. */
+.skip-to-content {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 200;
+  transform: translateY(-150%);
+  transition: transform 0.2s ease;
+}
+.skip-to-content:focus {
+  transform: translateY(0);
+}
