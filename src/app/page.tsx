@@ -2,10 +2,10 @@
 
 import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, buildLeaderboard, ESTIMATED_DEAL_VALUE, qaCoverage, rosterOwnerSet } from '@/lib/utils';
-import { compactNum, inr } from '@/lib/format';
+import { calculateRates, buildLeaderboard, qaCoverage, rosterOwnerSet, signingsByOwner } from '@/lib/utils';
+import { compactNum } from '@/lib/format';
 import { FunnelChart } from '@/components/FunnelChart';
-import { Target, BarChart2, Award, Zap, Info, AlertTriangle, ChevronRight, Activity, Users, ShieldAlert } from 'lucide-react';
+import { BarChart2, Award, Zap, Info, AlertTriangle, ChevronRight, Activity, Users, ShieldAlert, Handshake } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { InsightsDropdown } from '@/components/InsightsDropdown';
@@ -16,12 +16,8 @@ import { PropertyStatusCard } from '@/components/PropertyStatusCard';
 import { CallingQualityCard } from '@/components/CallingQualityCard';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
 
-// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
-// Used solely for the executive-summary language; real revenue comes from the Deals feed.
-const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
-
 export default function Overview() {
-  const { data, filteredLeads, isLoading, error } = useDashboard();
+  const { data, filteredLeads, dealsRuntime, isLoading, error } = useDashboard();
 
   const metrics = useMemo(() => {
     return calculateRates(filteredLeads);
@@ -32,34 +28,33 @@ export default function Overview() {
   // reviewed, fall back to sorting by active rate so the card always fills.
   const leaderboard = useMemo(() => {
     if (!data || !data.weights) return [];
-    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org)).filter(r => !r.inactive);
+    // Signings (MA + LOI) per BD fold into the balanced score (primary KPI).
+    const sig = signingsByOwner(dealsRuntime.deals);
+    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org), sig).filter(r => !r.inactive);
     const scored = lb
       .filter(r => r.reviewed && r.bps && typeof r.bps.score === 'number')
       .sort((a, b) => (b.bps!.score) - (a.bps!.score));
     if (scored.length >= 4) return scored.slice(0, 4);
-    // Defensive fallback: fill remaining slots by active rate.
+    // Defensive fallback: fill remaining slots by signings then active rate.
     const rest = lb
       .filter(r => !scored.includes(r))
-      .sort((a, b) => (b.active || 0) - (a.active || 0));
+      .sort((a, b) => (b.signings || 0) - (a.signings || 0) || (b.active || 0) - (a.active || 0));
     return [...scored, ...rest].slice(0, 4);
-  }, [filteredLeads, data]);
+  }, [filteredLeads, data, dealsRuntime]);
 
   // Real lead metrics (no monetary estimates).
   const totalLeads = filteredLeads.length;
-  const activeDealsCount = metrics.active;
-  // "Active rate" = active leads / total leads (NOT a true win rate — won deals live in the CRM Deals module).
-  const activeRate = totalLeads > 0 ? (activeDealsCount / totalLeads) * 100 : 0;
+  // Signings = MA-signed + Spark LOI from the deals feed (the primary KPI).
+  const signedCount = Number(dealsRuntime.deals?.totals?.signed ?? 0)
+    + Number(dealsRuntime.deals?.portfolio?.sparkLOI ?? 0);
 
-  // === Executive intelligence (illustrative targets where the dataset has none) ===
+  // === Executive intelligence (real lead + signings metrics only) ===
   const exec = useMemo(() => {
     if (!data || !filteredLeads.length) return null;
-    const AVG = AVG_DEAL_SIZE;
     const rates = calculateRates(filteredLeads);
 
     // Month-over-month volume — PERIOD-ALIGNED (P1-5): month-to-date vs the SAME
-    // day-range of the previous month (never full-month vs partial-month). This
-    // mirrors the Reporting page exactly, so both surfaces report an identical
-    // direction and figure for the current month's lead volume.
+    // day-range of the previous month (never full-month vs partial-month).
     const maxDate = filteredLeads.reduce((mx, l) => (l.dt > mx ? l.dt : mx), '2000-01-01');
     const [my, mm, md] = maxDate.split('-').map(Number);
     const curr = `${my}-${String(mm).padStart(2, '0')}`;
@@ -70,15 +65,6 @@ export default function Overview() {
     const prevMtdCount = filteredLeads.filter(l => l.dt.slice(0, 7) === prev && dayOf(l) <= md).length;
     const momPct = prevMtdCount ? ((mtdCount - prevMtdCount) / prevMtdCount) * 100 : 0;
 
-    // Current-month secured value + pacing (illustrative)
-    const currLeads = filteredLeads.filter(l => l.dt.slice(0, 7) === curr);
-    const achieved = calculateRates(currLeads).active * AVG;
-    const [cy, cm] = curr.split('-').map(Number);
-    const daysInMonth = new Date(cy, cm, 0).getDate();
-    const maxDay = currLeads.reduce((mx, l) => Math.max(mx, parseInt(l.dt.split('-')[2]) || 0), 0) || daysInMonth;
-    const elapsed = Math.min(1, maxDay / daysInMonth);
-    const projected = elapsed > 0 ? achieved / elapsed : achieved;
-
     // Region leadership / fall-out
     const byRegion: Record<string, any[]> = {};
     filteredLeads.forEach(l => { const r = l.region || 'Unknown'; (byRegion[r] = byRegion[r] || []).push(l); });
@@ -88,17 +74,9 @@ export default function Overview() {
     const topRegion = [...regionStats].sort((a, b) => b.active - a.active)[0];
     const worstDropRegion = [...regionStats].sort((a, b) => b.drop - a.drop)[0];
 
-    // Tier conversion
-    const byTier: Record<string, any[]> = {};
-    filteredLeads.forEach(l => { const t = l.tier || 'Unknown'; (byTier[t] = byTier[t] || []).push(l); });
-    const tierStats = ['Tier 1', 'Tier 2', 'Tier 3'].filter(t => byTier[t]).map(t => ({ t, rate: calculateRates(byTier[t]).activeR }));
-    const tierSorted = [...tierStats].sort((a, b) => b.rate - a.rate);
-    const tierTop = tierSorted[0];
-    const tierBot = tierSorted[tierSorted.length - 1];
-    const t1 = tierStats.find(x => x.t === 'Tier 1');
-
-    // Rep bands — over the ACTIVE roster only (P1-8: exclude ex-BDs/test accounts).
-    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org)).filter(r => !r.inactive);
+    // Rep bands — over the ACTIVE roster only (P1-8), signings folded into score.
+    const sig = signingsByOwner(dealsRuntime.deals);
+    const lb = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org), sig).filter(r => !r.inactive);
     const coaching = lb.filter(r => r.band === 'Priority coaching');
     const topPerf = lb.filter(r => r.band === 'Top performer').length;
 
@@ -107,27 +85,20 @@ export default function Overview() {
     // P1-8: single QA-coverage computation shared with Leaderboard & Reporting.
     const noQa = qaCoverage(data).missing;
 
+    // Signings headline (deals feed) — the primary KPI.
+    const dealsT = dealsRuntime.deals?.totals || {};
+    const signedTotal = Number(dealsT.signed ?? 0) + Number(dealsRuntime.deals?.portfolio?.sparkLOI ?? 0);
+
     // ---- Plain-language summary ----
     const summary: { tone: string; text: string }[] = [];
     summary.push({ tone: momPct >= 0 ? 'up' : 'down', text: `Pipeline volume ${momPct >= 0 ? 'up' : 'down'} ${Math.abs(momPct).toFixed(1)}% month-to-date vs the same 1–${md} window last month (${mtdCount.toLocaleString('en-IN')} leads so far in ${curr} vs ${prevMtdCount.toLocaleString('en-IN')} by day ${md} of ${prev}).` });
+    if (signedTotal > 0) summary.push({ tone: 'up', text: `${signedTotal.toLocaleString('en-IN')} signings booked to date (MA-signed + Spark LOI) — the primary KPI.` });
     if (topRegion) summary.push({ tone: 'info', text: `${topRegion.r} is driving ${Math.round(topRegion.active / totalActive * 100)}% of all active deals — the strongest region this period.` });
-    if (tierTop && tierBot) {
-      const gap = tierTop.rate - tierBot.rate;
-      summary.push(gap < 2
-        ? { tone: 'warn', text: `Conversion is essentially flat across account tiers (~${tierTop.rate.toFixed(0)}%) — top-value accounts aren't outperforming low-value ones.` }
-        : { tone: 'warn', text: `${tierBot.t} converts at ${tierBot.rate.toFixed(0)}% vs ${tierTop.t} at ${tierTop.rate.toFixed(0)}% — a ${gap.toFixed(0)}pt gap to close.` });
-    }
-    summary.push({ tone: 'info', text: `Estimated active-pipeline value ~${inr(projected)} this month (illustrative — active leads × est. deal value; real signings shown above).` });
 
     // ---- Risk watchlist ----
     const risks: { sev: string; label: string; detail: string }[] = [];
     if (unassignedPct >= 15) risks.push({ sev: 'high', label: 'Unassigned pipeline', detail: `${unassignedPct.toFixed(0)}% of leads have no owner — revenue at risk of going cold.` });
     if (coaching.length) risks.push({ sev: 'high', label: 'Reps below bar', detail: `${coaching.length} rep${coaching.length > 1 ? 's' : ''} in the Priority-Coaching band${coaching.length <= 3 ? ': ' + coaching.map(c => c.owner).join(', ') : ''}.` });
-    if (t1) {
-      const others = tierStats.filter(x => x.t !== 'Tier 1');
-      const avgOther = others.length ? others.reduce((a, x) => a + x.rate, 0) / others.length : 0;
-      if (t1.rate <= avgOther) risks.push({ sev: 'med', label: 'Premium accounts underperforming', detail: `Tier 1 conversion (${t1.rate.toFixed(0)}%) is at or below lower tiers — high-value pipeline not prioritised.` });
-    }
     if (worstDropRegion) risks.push({ sev: 'med', label: `${worstDropRegion.r} fall-out`, detail: `Highest drop rate of any region at ${worstDropRegion.drop.toFixed(1)}% of assigned leads.` });
     if (noQa > 0) risks.push({ sev: 'low', label: 'QA coverage gap', detail: `${noQa} rep${noQa > 1 ? 's' : ''} have no quality-review score on file.` });
 
@@ -136,7 +107,7 @@ export default function Overview() {
       target: { topPerf },
       risks: risks.slice(0, 5),
     };
-  }, [filteredLeads, data]);
+  }, [filteredLeads, data, dealsRuntime]);
 
   const unkRegion = filteredLeads.filter(l => l.region === 'Unknown').length;
   const noCity = filteredLeads.filter(l => !l.city || l.city === 'Other').length;
@@ -211,22 +182,21 @@ export default function Overview() {
           suffix="%"
         />
         <FinancialCard
-          title="Active Rate"
-          value={activeRate.toFixed(1)}
-          subtitle={`${activeDealsCount.toLocaleString()} in live discussion`}
-          icon={Target}
-          color="#da1a84"
-          prefix=""
-          suffix="%"
-        />
-        <FinancialCard
-          title="Drop Rate"
+          title="Lead Drop Rate"
           value={metrics.drop.toFixed(1)}
           subtitle={`${metrics.dropped.toLocaleString()} Dropped`}
           icon={Zap}
           color="#ffb020"
           prefix=""
           suffix="%"
+        />
+        <FinancialCard
+          title="Signings"
+          value={formatCompact(signedCount)}
+          subtitle="MA + Spark LOI"
+          icon={Handshake}
+          color="#da1a84"
+          prefix=""
         />
       </div>
 
@@ -263,11 +233,11 @@ export default function Overview() {
         <div className="glass-panel p-4 sm:p-6 xl:col-span-2 min-h-[380px] flex flex-col relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
           <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-6 flex items-center justify-between">
-            <span>Pipeline Conversion Matrix</span>
+            <span>Conversion Funnel</span>
             <BarChart2 className="w-4 h-4 text-text-secondary" />
           </h2>
           <div className="flex-1">
-            <FunnelChart leads={filteredLeads} />
+            <FunnelChart leads={filteredLeads} deals={dealsRuntime.deals} />
           </div>
         </div>
 
@@ -280,7 +250,7 @@ export default function Overview() {
           <div className="flex-1 flex flex-col gap-4">
             {leaderboard.map((bd, i) => {
               const score = bd.bps?.score || 0;
-              const activePct = bd.active || 0;
+              const signings = bd.signings || 0;
               return (
               <div key={bd.owner} className="flex items-center gap-4 p-3 rounded-xl bg-black/20 border border-border-subtle/50 hover:bg-surface/40 hover:border-border-subtle transition-colors group">
                 <div className={clsx(
@@ -298,7 +268,7 @@ export default function Overview() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-black text-brand-pink-400">{score.toFixed(0)}</div>
-                  <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{activePct.toFixed(1)}% Active</div>
+                  <div className="text-[10px] text-emerald-400 font-bold mt-0.5">{signings} signing{signings === 1 ? '' : 's'}</div>
                 </div>
               </div>
             )})}
