@@ -99,11 +99,13 @@ def deals_block(deals):
                 "signings": (ytd.get("signings") or {}),
                 "collectionsApprox": {"amount": (ytd.get("collections") or {}).get("amount"),
                                       "byBrand": (ytd.get("collections") or {}).get("byBrand")}},
+        "landStatus": deals.get("landStatus"),   # analyst D1 property-status mix (Land_Status)
         "ranking": {"meta": rank.get("meta"),
                     "bds": [{"bd": b.get("bd"), "region": b.get("region"), "rank": b.get("rank"),
                              "ytdAchievement": b.get("ytdAchievement"),
                              "achievementPct": b.get("achievementPct")}
                             for b in (rank.get("bds") or [])],
+                    "regionHeads": rank.get("regionHeads"),  # analyst R2 heads listed separately
                     "regions": rank.get("regions")},
         "upcoming": [{"dealName": u.get("dealName"), "brand": u.get("brand"), "bd": u.get("bd"),
                       "region": u.get("region"), "type": u.get("type"),
@@ -120,10 +122,13 @@ def proposals_block(proposals):
         return None
     return {
         "totals": proposals.get("totals"),
+        # analyst P1: dept stats counted ONLY over proposals whose Brand+Model requires
+        # that department (each dept block carries {required,approved,rejected,pending}).
         "byDeptApproval": proposals.get("byDeptApproval"),
         "byBrand": proposals.get("byBrand"),
         "byModel": proposals.get("byModel"),
-        "notes": "Proposals = Awaiting_BusinessApproval module (Leads -> Proposals -> Deals -> Signings). approvalRatePct = approved/(approved+rejected).",
+        "arrOccupancyByBrand": proposals.get("arrOccupancyByBrand"),  # analyst P2
+        "notes": "Proposals = Awaiting_BusinessApproval module (Leads -> Proposals -> Deals -> Signings). approvalRatePct = approved/(approved+rejected). Dept approvals counted only over proposals that require the dept (P1).",
     }
 
 
@@ -133,10 +138,14 @@ def build_summary(d, deals=None, proposals=None):
     assigned_all = [l for l in leads if l.get("owner")]
     ov = rates(leads)
 
+    # Per-BD leaderboard excludes system/admin owners (analyst L1: excluded from
+    # per-BD stats only — they STAY in totals/overall rates above via rates(leads)).
+    EXCLUDE_BD = {"Super Admin", "Sourav Basu"}
     byo = collections.defaultdict(list)
     for l in leads:
-        if l.get("owner"):
-            byo[l["owner"]].append(l)
+        o = l.get("owner")
+        if o and o not in EXCLUDE_BD:
+            byo[o].append(l)
     owners = list(byo.keys())
     ns = [len(byo[o]) for o in owners]
     conns = [((bds.get(o) or {}).get("zoom") or {}).get("conn", 0) or 0 for o in owners]
@@ -203,8 +212,10 @@ def build_summary(d, deals=None, proposals=None):
         "overall": {"contacted": ov["contacted"], "active": ov["active"], "dropped": ov["dropped"],
                     "contactRatePct": ov["contactRatePct"], "activeRatePct": ov["activeRatePct"], "dropRatePct": ov["dropRatePct"]},
         "byBrand": group_block(leads, "brand", ["Olive", "Spark", "Open Hotels"]),
-        "byRegion": group_block(leads, "region", ["North", "South", "West", "East", "Central", "Northeast", "Unknown"]),
-        "byTier": group_block(leads, "tier", ["Tier 1", "Tier 2", "Tier 3", "Unknown"]),
+        # analyst R1 org regions (South split into 1/2/3); analyst L2 removed byTier.
+        "byRegion": group_block(leads, "region",
+                                ["North", "South 1 (KA)", "South 2 (AP & TG)",
+                                 "South 3 (TN & KL)", "East", "West", "Other", "Unknown"]),
         "byStatus": byStatus,
         "leadsBySource": leadsBySource,
         "dropReasons": dropReasons,

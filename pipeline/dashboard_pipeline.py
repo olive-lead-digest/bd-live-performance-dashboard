@@ -1,8 +1,11 @@
 """Shared dashboard data pipeline. Lead UNIVERSE = Zoho CRM Leads module (ALL sources),
-deduped by normalized phone; BD (Owner)/status/source come straight off each Leads record;
-call activity from Zoom (90d); quality from bd_quality_scores.json. The Partner-With-Us
-Google Sheet is no longer the lead universe (it was Meta-only)."""
-import json, re, pandas as pd
+NO phone dedup — every Zoho Lead is a lead (analyst L1); BD (Owner)/status/source come
+straight off each Leads record; call activity from Zoom (90d); quality from
+bd_quality_scores.json. The Partner-With-Us Google Sheet is no longer the lead universe
+(it was Meta-only). Regions use the org taxonomy (North / South 1 (KA) / South 2 (AP & TG)
+/ South 3 (TN & KL) / East / West), mapped BD-owner -> bd_org.json region first, State
+fallback (analyst R1). Tier removed entirely (analyst L2 — no Tier exists in Zoho)."""
+import os, json, re, pandas as pd
 REGION={
  'Delhi':'North','Haryana':'North','Punjab':'North','Uttar Pradesh':'North','Uttarakhand':'North',
  'Himachal Pradesh':'North','Rajasthan':'North','Jammu And Kashmir':'North','Jammu and Kashmir':'North','Chandigarh':'North',
@@ -36,6 +39,51 @@ def cluster_for(city, region):
 
 WEIGHTS={'Q':0.25,'Cv':0.25,'Cmp':0.15,'Lv':0.15,'Cav':0.20}
 EXCLUDE={'Sourav Basu','Super Admin'}
+
+# --- Org region taxonomy (analyst R1) ----------------------------------------
+# Regions must be the org's 6 buckets, NOT a single "South". Map each lead to its
+# region via the BD owner -> bd_org.json region (most reliable); fall back to a
+# State -> org-region map when the owner is unknown/unmapped.
+ORG_REGIONS=["North","South 1 (KA)","South 2 (AP & TG)","South 3 (TN & KL)","East","West"]
+STATE_REGION={
+ 'karnataka':'South 1 (KA)',
+ 'andhra pradesh':'South 2 (AP & TG)','telangana':'South 2 (AP & TG)',
+ 'tamil nadu':'South 3 (TN & KL)','kerala':'South 3 (TN & KL)','puducherry':'South 3 (TN & KL)','pondicherry':'South 3 (TN & KL)',
+ 'maharashtra':'West','gujarat':'West','goa':'West',
+ 'delhi':'North','delhi (nct)':'North','new delhi':'North','delhi ncr':'North','haryana':'North','punjab':'North',
+ 'uttar pradesh':'North','up':'North','uttarakhand':'North','uttrakhand':'North','himachal pradesh':'North',
+ 'rajasthan':'North','jammu and kashmir':'North','jammu & kashmir':'North','chandigarh':'North',
+ 'madhya pradesh':'North','chhattisgarh':'North',
+ 'west bengal':'East','bihar':'East','jharkhand':'East','odisha':'East','assam':'East',
+ 'arunachal pradesh':'East','manipur':'East','meghalaya':'East','mizoram':'East',
+ 'nagaland':'East','tripura':'East','sikkim':'East'}
+_ORG_REGION_MAP=None
+def _load_org_regions():
+    """owner-name (canonical + zohoName, lowercased) -> org region, from bd_org.json."""
+    global _ORG_REGION_MAP
+    if _ORG_REGION_MAP is not None: return _ORG_REGION_MAP
+    m={}
+    try:
+        p=os.path.join(os.path.dirname(os.path.abspath(__file__)),'bd_org.json')
+        org=json.load(open(p,encoding='utf-8'))
+        for canon,v in org.get('bds',{}).items():
+            reg=v.get('region')
+            if not reg: continue
+            m[canon.strip().lower()]=reg
+            zn=(v.get('zohoName') or '').strip().lower()
+            if zn: m[zn]=reg
+    except Exception as e:  # noqa: BLE001
+        print(f"  [WARN] dashboard_pipeline: bd_org.json not loaded ({e}); leads region falls back to State")
+    _ORG_REGION_MAP=m
+    return m
+def region_for(owner, state):
+    """Map a lead to an org region: BD owner -> bd_org region first, then State."""
+    m=_load_org_regions()
+    o=str(owner or '').strip().lower()
+    if o and o in m: return m[o]
+    st=str(state or '').strip().lower()
+    if st in STATE_REGION: return STATE_REGION[st]
+    return 'Other' if str(state or '').strip() else 'Unknown'
 
 def _crm_phone_map(crm):
     crm=crm.copy(); crm['_phone']=crm['_phone'].astype(str).str.strip()
@@ -77,13 +125,14 @@ def build_leads(df, crm):
 def build_leads_from_crm(crm):
     """Build the lead universe directly from the Zoho CRM Leads module (all sources).
 
-    Dedupe by normalized phone, keeping the richest record per phone: highest
-    lead-status priority (Under Discussion > Lead Contacted > New Leads > Lead
-    Dropped), tie-broken by most-recent Created_Time. Records with no phone cannot
-    be deduped and are each kept. Owner/Status/Source/DropReason/Brand come straight
-    off the CRM record. Leads owned by an EXCLUDE owner (Super Admin / Sourav Basu)
-    are treated as unassigned (owner=None) so they do not inflate assigned rates or
-    create a phantom BD."""
+    Analyst L1: NO dedup. Every Zoho Lead is a lead — the universe is the full
+    Leads module (~15.5k). The previous phone-dedup dropped ~2.7k records and the
+    analyst confirmed that was wrong. Every Zoho Lead has an Owner, so assigned ==
+    total and unassigned == 0. Owner/Status/Source/DropReason/Brand come straight
+    off the CRM record; the real owner (incl Super Admin/Sourav Basu) is KEPT so
+    totals stay complete — those two are excluded from per-BD stats downstream, not
+    from totals. Region comes from the BD owner -> bd_org.json region, State fallback
+    (analyst R1). No Tier is emitted (analyst L2)."""
     c=crm.copy()
     for col in ('Status','Owner','Source','DropReason','City','Brand','_state','_tier','_prop'):
         if col not in c.columns: c[col]=''
@@ -94,21 +143,18 @@ def build_leads_from_crm(crm):
     for col in ('City','_state','Source'):
         tmask=tmask|c[col].astype(str).str.lower().str.contains('test lead|dummy|<test',na=False)
     c=c[~tmask].copy()
-    prio={'Under Discussion':4,'Lead Contacted':3,'New Leads':2,'Lead Dropped':1}
-    c['_pr']=c['Status'].map(prio).fillna(0)
     if 'CreatedTime' in c.columns:
         c['_ct']=pd.to_datetime(c['CreatedTime'],errors='coerce')
     else:
         c['_ct']=pd.NaT
-    has=c[c['_phone']!=''].copy().sort_values(['_pr','_ct'],ascending=[False,False]).drop_duplicates('_phone',keep='first')
-    none=c[c['_phone']=='']
-    d=pd.concat([has,none],ignore_index=True)
+    # Analyst L1: NO phone dedup. Keep EVERY lead row as its own lead.
+    d=c
     rows=[]
     for _,r in d.iterrows():
         state=str(r.get('_state') or '').strip()
-        region=REGION.get(state,'Other' if state else 'Unknown')
         owner=str(r.get('Owner') or '').strip()
-        if (owner in EXCLUDE) or (not owner): owner=None
+        region=region_for(owner,state)          # R1: owner -> org region, State fallback
+        if not owner: owner=None                # keep real owner (incl EXCLUDE); assigned==total (L1)
         city=str(r.get('City') or '').strip()
         ct=r.get('_ct')
         dt=ct.strftime('%Y-%m-%d') if pd.notna(ct) else ''
@@ -117,7 +163,7 @@ def build_leads_from_crm(crm):
         row={'dt':dt,'state':state,'region':region,'city':city,
              'brand':str(r.get('Brand') or '').strip(),
              'owner':owner,'status':status,
-             'prop':str(r.get('_prop') or '').strip(),'tier':str(r.get('_tier') or '').strip(),
+             'prop':str(r.get('_prop') or '').strip(),   # L2: no 'tier' key emitted
              'source':src,'dropReason':str(r.get('DropReason') or '').strip()}
         cl,ci=cluster_for(city,region); row['cluster']=cl; row['ci']=ci
         rows.append(row)
@@ -180,6 +226,6 @@ def assemble(df, crm, zoom_agg, users, quality, generated):
     leads=build_leads_from_crm(crm)  # universe = Zoho CRM Leads module (all sources)
     return {'generated':generated,'weights':WEIGHTS,'dims':DIMS,
             'leads':leads,'bds':build_bds(zoom_agg,users,quality),
-            'regions':sorted(set(REGION.values())),
+            'regions':ORG_REGIONS,   # analyst R1 org taxonomy (South split 1/2/3)
             'leadsBySource':build_leads_by_source(leads),
             'dropReasons':build_drop_reasons(leads)}
