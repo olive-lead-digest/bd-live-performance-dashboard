@@ -9,7 +9,6 @@ import {
 import clsx from 'clsx';
 import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
-import { inr } from '@/lib/format';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { CsvButton } from '@/components/CsvButton';
 
@@ -63,6 +62,34 @@ export default function Reporting() {
       return { isEmpty: true, currName: "", prevName: "", currDay: 1 };
     }
 
+    // Date-UNFILTERED base (analyst fix — the calendar filter previously "did
+    // nothing useful" here because restricting to one month wiped out the prior
+    // month, so the MTD-vs-prior comparison always compared against zero). This
+    // base respects every NON-date global filter + the on-page search but ignores
+    // the from/to range, so the prior period never collapses. The CURRENT period
+    // still comes from the date-filtered set, so a selected range genuinely
+    // narrows the current view.
+    const passNonDate = (l: any) => {
+      if (filters.region.size && !filters.region.has(l.region)) return false;
+      if (filters.state.size && !filters.state.has(l.state)) return false;
+      if (filters.city.size && !filters.city.has(l.city)) return false;
+      if (filters.cluster.size && !filters.cluster.has(l.cluster)) return false;
+      if (filters.brand.size && !filters.brand.has(l.brand)) return false;
+      if (filters.owner.size && !(l.owner && filters.owner.has(l.owner))) return false;
+      if (filters.prop.size && !filters.prop.has(l.prop)) return false;
+      if (filters.status.size && !filters.status.has(l.status || '(unassigned)')) return false;
+      return true;
+    };
+    const baseSearch = (data?.leads || []).filter(passNonDate).filter(l => {
+      if (!query) return true;
+      if (isBrandSearch) return !!l.brand && l.brand.toLowerCase() === query;
+      return (
+        (!!l.owner && l.owner.toLowerCase().includes(query)) ||
+        (!!l.region && l.region.toLowerCase().includes(query)) ||
+        (!!l.city && l.city.toLowerCase().includes(query))
+      );
+    });
+
     // Date Math
     const maxDate = filteredLeads.reduce((max, l) => l.dt > max ? l.dt : max, '2000-01-01');
     const currDate = new Date(maxDate);
@@ -80,7 +107,8 @@ export default function Reporting() {
     const prevName = monthNames[prevMonth];
 
     const currentLeads = searchFiltered.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
-    const previousLeads = searchFiltered.filter(l => l.dt.startsWith(prevMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+    // Prior period drawn from the date-UNFILTERED base so a selected range never zeroes it out.
+    const previousLeads = baseSearch.filter(l => l.dt.startsWith(prevMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
     const currRates = calculateRates(currentLeads);
     const prevRates = calculateRates(previousLeads);
 
@@ -179,14 +207,13 @@ export default function Reporting() {
         if (rec.bps) {
           const bandItem = bandData.find(b => b.name === rec.band);
           if (bandItem) bandItem.value++;
-          const pipelineVal = rec.n * 12500;
-          const securedRev = rec.active * 12500;
-          const winRate = rec.n > 0 ? (rec.active / rec.n) * 100 : 0;
+          // Real counts only (analyst correction — no count×₹ estimates).
+          const activeCount = Math.round((rec.active / 100) * rec.n);
           scatterData.push({
             name: rec.owner,
-            pipeline: pipelineVal,
-            revenue: securedRev,
-            winRate: Math.round(winRate)
+            leads: rec.n,
+            active: activeCount,
+            activeRate: Math.round(rec.active),
           });
         }
         if (rec.q) {
@@ -254,7 +281,7 @@ export default function Reporting() {
 
       return { ...baseData, scatterData, bandData, radarData, localLeaderboard, statusCounts, brandCounts };
     }
-  }, [filteredLeads, bds, weights, searchQuery]);
+  }, [filteredLeads, bds, weights, searchQuery, filters, data]);
 
   const summaryBullets = useMemo<SummaryBullet[]>(() => {
     const rd: any = reportData;
@@ -397,9 +424,11 @@ export default function Reporting() {
 
             {/* Zoom Stats Card (Shared between Person and Macro view) */}
             <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-4">
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
                 {isPersonSearch ? `${searchQuery}'s Telephony & Zoom Activity` : 'Telephony & Zoom Activity'}
+                <span className="text-brand-purple-300 normal-case tracking-normal ml-1">(last 90 days)</span>
               </h3>
+              <p className="text-[10px] text-text-secondary italic mb-3">Rolling last-90-day Zoom Phone window — not month-to-date (no MTD Zoom slice in the feed yet).</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 items-center">
                 <div>
                   <p className="text-[10px] text-text-secondary uppercase">Outreach</p>
@@ -809,7 +838,7 @@ export default function Reporting() {
 
                 <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">
-                    {isLocationSearch ? `Revenue Efficiency Matrix (${searchQuery})` : 'Revenue Efficiency Matrix'}
+                    {isLocationSearch ? `Lead Efficiency Matrix (${searchQuery})` : 'Lead Efficiency Matrix'}
                   </h2>
                   <div className="flex-1 w-full relative">
                     <div className="absolute inset-0">
@@ -819,26 +848,24 @@ export default function Reporting() {
                             <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" />
                             <XAxis
                               type="number"
-                              dataKey="pipeline"
-                              name="Pipeline"
+                              dataKey="leads"
+                              name="Leads"
                               tick={{ fill: '#9896a3', fontSize: 11 }}
                               stroke="#9896a3"
-                              tickFormatter={(v) => inr(v)}
                             />
                             <YAxis
                               type="number"
-                              dataKey="revenue"
-                              name="Active Pipeline (est.)"
+                              dataKey="active"
+                              name="Active leads"
                               tick={{ fill: '#9896a3', fontSize: 11 }}
                               stroke="#9896a3"
-                              tickFormatter={(v) => inr(v)}
                             />
-                            <ZAxis type="number" dataKey="winRate" range={[50, 300]} name="Win Rate" />
+                            <ZAxis type="number" dataKey="activeRate" range={[50, 300]} name="Active %" />
                             <RechartsTooltip
                               cursor={{ strokeDasharray: '3 3' }}
                               contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
                               itemStyle={{ fontSize: '13px', fontWeight: 600 }}
-                              formatter={(value: any, name: any) => [name === 'Win Rate' ? `${value}%` : `₹${value.toLocaleString('en-IN')}`, name]}
+                              formatter={(value: any, name: any) => [name === 'Active %' ? `${value}%` : Number(value).toLocaleString('en-IN'), name]}
                             />
                             <Scatter name="BDs" data={(reportData as any).scatterData} fill="#10b981" fillOpacity={0.7} />
                           </ScatterChart>
