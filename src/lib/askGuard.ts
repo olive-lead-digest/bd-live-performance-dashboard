@@ -61,11 +61,13 @@ const QUESTION_WORDS = new Set<string>([
   'doing', 'tracking', 'track', 'looking', 'look', 'status', 'update', 'about',
 ]);
 
+// P0-1 — suggestions offered when a query can't be mapped. All are grounded and
+// answerable now that the assistant sees leads + signings/deals + proposals.
 export const ASK_SUGGESTIONS: string[] = [
-  'How is Spark tracking on LOIs?',
-  'Top BDs?',
+  'How many MAs has Spark signed?',
+  'Collections this financial year?',
+  'Top BDs by signings?',
   'Best active-rate region?',
-  'Lowest performers in June by brand',
 ];
 
 /**

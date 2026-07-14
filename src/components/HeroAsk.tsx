@@ -9,26 +9,28 @@ import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 const PHRASES = [
   'Ask anything about BD performance…',
   'Ask AI',
-  'How is Spark tracking on LOIs?',
-  'Who are the top BDs?',
+  'How many MAs has Spark signed?',
+  'Collections this financial year?',
+  'Top BDs by signings?',
   'Which region has the best active rate?',
-  'Lowest performers in June, brand-wise?',
   'How is Olive trending month over month?',
 ];
 
-// P1-10: Spark's conversion event is the LOI (Spark MAs follow LOI), so the
-// old "Why is Spark dropping?" chip framed a crisis the org's own scoring says
-// is mismeasured. Replaced with a question the data actually supports.
-// P3 — a larger pool the visible chips rotate through (Overview-relevant, since
-// HeroAsk lives on the Overview page).
+// P0-1: the assistant is now grounded on the full feed — leads AND signings/
+// deals (MAs, LOIs, TA fees, collections, BD ranking) AND proposals/approvals.
+// So the chip pool mixes leads + deals + proposals questions that are all
+// answerable; nothing here points at data the model can't back with numbers.
+// P3 — a larger pool the 3 visible chips rotate through (Overview-relevant,
+// since HeroAsk lives on the Overview page).
 const CHIP_POOL = [
-  'How is Spark tracking on LOIs?',
-  'Top BDs this quarter?',
+  'How many MAs has Spark signed?',
+  'Collections this financial year?',
+  'Top BDs by signings?',
   'Best active-rate region?',
-  'Lowest performers in June by brand',
+  'Why are leads dropping in North?',
+  'Proposal approval rate by department?',
+  'Upcoming signings in the next 20 days?',
   'How is Olive trending month over month?',
-  'Which region has the most unassigned pipeline?',
-  'Where are we losing deals in the funnel?',
 ];
 
 const TYPE_SPEED = 55;
@@ -123,6 +125,11 @@ export function HeroAsk() {
   const [copied, setCopied] = useState(false);
   const [followUp, setFollowUp] = useState('');
   const [chipOffset, setChipOffset] = useState(0);
+  // P0-1 (G) — the question the on-screen answer is responding to. Ask AI is
+  // single-turn (a new question replaces the last answer); showing the question
+  // above the answer makes that replacement clear instead of feeling like lost
+  // chat history.
+  const [askedQuestion, setAskedQuestion] = useState('');
 
   const [typed, setTyped] = useState('');
   const phraseIdx = useRef(0);
@@ -177,7 +184,7 @@ export function HeroAsk() {
   }, [loading, answer]);
   const visibleChips = [0, 1, 2].map((i) => CHIP_POOL[(chipOffset + i) % CHIP_POOL.length]);
 
-  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); setFallback(null); setFollowUp(''); setCopied(false); };
+  const clearAll = () => { setQuery(''); setAnswer(null); setError(null); setFallback(null); setFollowUp(''); setCopied(false); setAskedQuestion(''); };
 
   const copyAnswer = async () => {
     if (!answer) return;
@@ -203,7 +210,7 @@ export function HeroAsk() {
       return;
     }
 
-    setLoading(true); setError(null); setAnswer(null); setFallback(null);
+    setLoading(true); setError(null); setAnswer(null); setFallback(null); setAskedQuestion(question);
     try {
       const res = await fetch('/api/ask', {
         method: 'POST',
@@ -290,6 +297,14 @@ export function HeroAsk() {
         ))}
       </div>
 
+      {/* P0-1 (E) — scope helper next to the INPUT (not just appended to
+          answers). Ask AI reads the whole dataset and ignores the dashboard's
+          active filters, so we say that plainly and stamp data freshness. */}
+      <p className="mt-2 text-[11px] text-text-secondary/80 leading-relaxed relative z-10">
+        Answers cover all brands &amp; regions — not your current dashboard filters.
+        {data?.generated ? ` Data as of ${data.generated} UTC.` : ''}
+      </p>
+
       {(loading || answer || error || fallback) && (
         <div className="mt-4 p-4 sm:p-5 rounded-xl border-t border-border-subtle bg-background/50 relative z-10">
           <div className="flex gap-3">
@@ -322,13 +337,18 @@ export function HeroAsk() {
 
               {answer && (
                 <>
-                  {/* P3 — copy the raw answer to the clipboard. */}
-                  <div className="flex justify-end -mt-1 mb-1">
+                  {/* P0-1 (G) — label the answer with the question it answers so
+                      single-turn replacement never feels like lost history.
+                      P3 — copy the raw answer to the clipboard. */}
+                  <div className="flex items-center justify-between gap-3 -mt-1 mb-1.5">
+                    <p className="text-[11px] uppercase tracking-wider text-text-secondary/70 truncate min-w-0">
+                      Answer{askedQuestion ? <> · <span className="normal-case text-text-secondary">{askedQuestion}</span></> : ''}
+                    </p>
                     <button
                       type="button"
                       onClick={copyAnswer}
                       aria-label="Copy answer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary hover:text-white hover:bg-surface transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary hover:text-white hover:bg-surface transition-colors shrink-0"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       {copied ? 'Copied' : 'Copy'}
@@ -337,13 +357,10 @@ export function HeroAsk() {
                   <div className="max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
                     {renderAnswer(answer)}
                   </div>
-                  {/* P1-9 (2) — scope line on every answer: names the data
-                      scope, states filter-awareness, and stamps data-as-of.
-                      Ask AI reads the entire dataset and does NOT honour the
-                      dashboard's active filters, so we say so plainly. */}
+                  {/* P0-1 (E) — short, non-alarming scope stamp under the
+                      answer; the full scope note lives beside the input above. */}
                   <p className="mt-4 pt-3 border-t border-border-subtle/60 text-[11px] text-text-secondary leading-relaxed">
-                    Scope: entire dataset (not affected by dashboard filters)
-                    {data?.generated ? ` · data as of ${data.generated} UTC` : ''}
+                    Covers all brands &amp; regions{data?.generated ? ` · data as of ${data.generated} UTC` : ''}
                   </p>
                   {/* P3 — ask a follow-up inline without scrolling back up. */}
                   <form
