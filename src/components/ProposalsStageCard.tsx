@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { ClipboardCheck, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
@@ -35,6 +35,7 @@ const DEPTS: { key: 'salesRevenue' | 'design' | 'ops'; label: string }[] = [
 export function ProposalsStageCard() {
   const { data } = useDashboard();
   const p = data?.proposals;
+  const [arrBrand, setArrBrand] = useState<string>('');
 
   const stateRows = useMemo(() => {
     const t = p?.totals;
@@ -47,7 +48,12 @@ export function ProposalsStageCard() {
   const t = p.totals;
   const total = t.proposals || 0;
   const dept = p.byDeptApproval || ({} as NonNullable<typeof p.byDeptApproval>);
-  const arr = p.arrOccupancy || ({} as NonNullable<typeof p.arrOccupancy>);
+  // ARR / occupancy split by brand (analyst correction) — one average per brand
+  // is meaningful; a single overall average is not. Falls back to the overall
+  // block if the feed carries no per-brand split.
+  const arrBrands = Object.keys(p.arrOccupancyByBrand || {});
+  const activeArrBrand = arrBrand && arrBrands.includes(arrBrand) ? arrBrand : (arrBrands[0] || '');
+  const arr = (p.arrOccupancyByBrand && activeArrBrand && p.arrOccupancyByBrand[activeArrBrand]) || p.arrOccupancy;
 
   return (
     <div className="glass-panel p-4 sm:p-6 flex flex-col relative z-10">
@@ -100,18 +106,30 @@ export function ProposalsStageCard() {
         })}
       </div>
 
-      {/* Department-level approval status */}
+      {/* Department-level approval status — approved OF REQUIRED (a proposal only
+          needs a department's approval when that department is required for it). */}
       <div className="mb-6">
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-3">Department approvals</h3>
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-3">Department approvals (of required)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {DEPTS.map((d) => {
             const v = dept[d.key];
             if (!v) return null;
-            const routed = (v.approved || 0) + (v.rejected || 0) + (v.pending || 0);
-            if (routed === 0) return null; // dept not applicable for these brands/models
+            const required = Number(v.required) || 0;
+            if (required === 0) return null; // dept not required for any of these brands/models
+            const approved = Number(v.approved) || 0;
+            const approvedPct = required > 0 ? (approved / required) * 100 : 0;
             return (
               <div key={d.key} className="rounded-xl p-3 border border-border-subtle/60 bg-surface/40 flex flex-col gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white">{d.label}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-white">{d.label}</span>
+                  <span className="text-[10px] font-bold text-emerald-400 tabular-nums">{approvedPct.toFixed(0)}%</span>
+                </div>
+                <div className="text-xs text-white font-bold">
+                  {num(approved)} <span className="text-text-secondary font-medium">of {num(required)} required approved</span>
+                </div>
+                <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, approvedPct)}%` }} />
+                </div>
                 <div className="flex flex-col gap-1 text-[11px]">
                   <Row label="Approved" value={v.approved} color="#34d399" />
                   <Row label="Pending" value={v.pending} color="#ffb020" />
@@ -123,13 +141,38 @@ export function ProposalsStageCard() {
         </div>
       </div>
 
-      {/* ARR & Occupancy averages (Sales/Revenue-set targets) */}
+      {/* By brand & by model (analyst correction — these were not visible before) */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <ByGroup title="By brand" data={p.byBrand} />
+        <ByGroup title="By model" data={p.byModel} />
+      </div>
+
+      {/* ARR & Occupancy averages (Sales/Revenue-set targets) — split BY BRAND */}
       <div>
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-1">
-          Revenue targets (averages across proposals)
-        </h3>
+        <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+            Revenue targets (averages across proposals)
+          </h3>
+          {arrBrands.length > 0 && (
+            <div className="flex bg-black/40 p-1 rounded-lg border border-border-subtle/50">
+              {arrBrands.map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setArrBrand(b)}
+                  className={
+                    'px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ' +
+                    (activeArrBrand === b ? 'bg-brand-pink-500 text-white shadow-[0_0_10px_rgba(218,26,132,0.4)]' : 'text-text-secondary hover:text-white')
+                  }
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <p className="text-[10px] text-text-secondary italic mb-3">
           ARR = Average Room Rate (₹ per room-night) — not Annual Recurring Revenue.
+          {arrBrands.length ? ` Showing ${activeArrBrand}.` : ''}
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Metric label="Year 1 ARR" value={arr.year1Arr} kind="arr" />
@@ -143,6 +186,43 @@ export function ProposalsStageCard() {
         Proposals are the pre-deal, under-approval stage from Zoho. Once the required department
         approvals land, a deal auto-creates at &ldquo;Business Approval Received&rdquo;.
       </p>
+    </div>
+  );
+}
+
+function ByGroup({
+  title,
+  data,
+}: {
+  title: string;
+  data?: Record<string, { proposals: number; approved: number; rejected: number; pending: number }>;
+}) {
+  const rows = Object.entries(data || {})
+    .map(([name, v]) => ({ name, ...v }))
+    .filter((r) => (Number(r.proposals) || 0) > 0)
+    .sort((a, b) => (Number(b.proposals) || 0) - (Number(a.proposals) || 0));
+  if (rows.length === 0) return null;
+  return (
+    <div>
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-3">{title}</h3>
+      <div className="flex flex-col gap-2">
+        {rows.map((r) => {
+          const appr = r.proposals > 0 ? (Number(r.approved) / r.proposals) * 100 : 0;
+          return (
+            <div key={r.name} className="rounded-lg p-2.5 border border-border-subtle/60 bg-surface/40">
+              <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
+                <span className="text-white font-bold truncate">{r.name}</span>
+                <span className="text-text-secondary whitespace-nowrap">
+                  {num(r.proposals)} proposals · <span className="text-emerald-400 font-bold">{appr.toFixed(0)}%</span> appr.
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, appr)}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

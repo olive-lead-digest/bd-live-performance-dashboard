@@ -1,35 +1,55 @@
 'use client';
 
-import { calculateRates } from '@/lib/utils';
+import { isContacted } from '@/lib/utils';
 import { Lead } from '@/lib/types';
 import { useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
 
-export function FunnelChart({ leads }: { leads: Lead[] }) {
-  const { stages, rates } = useMemo(() => {
-    const r = calculateRates(leads);
-    const max = leads.length || 1;
+// Overview conversion funnel (analyst correction):
+//   Total Leads → Contacted → Active Deals → Signed
+// Leads side comes from the filtered lead set; the deal side (Active Deals =
+// open deals in Business Approval Received + Under Negotiation; Signed =
+// MA-signed + Spark LOI) comes from the deals feed (dealsRuntime — honours the
+// brand/region/etc. filters). Every consecutive conversion is capped at 100%.
+export function FunnelChart({ leads, deals }: { leads: Lead[]; deals?: any }) {
+  const { stages, conv } = useMemo(() => {
+    const totalLeads = leads.length;
+    const contacted = leads.filter((l) => isContacted(l.status)).length;
+
+    const funnel: Array<{ stage: string; count: number }> = Array.isArray(deals?.funnel) ? deals.funnel : [];
+    const stageCount = (name: string) => Number(funnel.find((f) => f.stage === name)?.count) || 0;
+
+    // Active Deals = open deals in Business Approval Received + Under Negotiation.
+    const activeDeals =
+      Number(deals?.inProgress?.count) ||
+      stageCount('Business Approval Received') + stageCount('Under Negotiation');
+    // Signed = MA-signed + Spark LOI.
+    const maSigned = stageCount('MA Signed') || Number(deals?.totals?.signed) || 0;
+    const loiSigned = stageCount('LOI Signed') || Number(deals?.portfolio?.sparkLOI) || 0;
+    const signed = maSigned + loiSigned;
 
     const stages = [
-      { label: 'Total Leads', value: leads.length, from: '#3f1f5c', to: '#5a3186', pct: 100 },
-      { label: 'Assigned', value: r.n, from: '#502875', to: '#7c46b3', pct: (r.n / max) * 100 },
-      { label: 'Contacted', value: r.contacted, from: '#8d2f7e', to: '#c2166f', pct: (r.contacted / max) * 100 },
-      { label: 'Active Deals', value: r.active, from: '#da1a84', to: '#ff5cae', pct: (r.active / max) * 100 },
+      { label: 'Total Leads', value: totalLeads, from: '#3f1f5c', to: '#5a3186' },
+      { label: 'Contacted', value: contacted, from: '#8d2f7e', to: '#c2166f' },
+      { label: 'Active Deals', value: activeDeals, from: '#7c46b3', to: '#a470d6' },
+      { label: 'Signed', value: signed, from: '#da1a84', to: '#ff5cae' },
     ];
-    return { stages, rates: r };
-  }, [leads]);
+    const conv = totalLeads > 0 ? Math.min(100, (signed / totalLeads) * 100) : 0;
+    return { stages, conv };
+  }, [leads, deals]);
 
-  const overall = leads.length ? (rates.active / leads.length) * 100 : 0;
+  const max = stages[0].value || 1;
 
   return (
     <div className="w-full h-full flex flex-col justify-center">
       <div className="flex flex-col">
         {stages.map((step, i) => {
           const prev = i > 0 ? stages[i - 1].value : null;
-          const advance = prev && prev > 0 ? (step.value / prev) * 100 : null;
+          // Conversion vs the previous stage, hard-capped at 100% (never >100).
+          const advance = prev && prev > 0 ? Math.min(100, (step.value / prev) * 100) : null;
           const isLast = i === stages.length - 1;
           // Centered tapering width; keep a floor so labels stay legible.
-          const width = Math.max(22, step.pct);
+          const width = Math.max(22, (step.value / max) * 100);
 
           return (
             <div key={step.label} className="flex flex-col">
@@ -56,7 +76,7 @@ export function FunnelChart({ leads }: { leads: Lead[] }) {
                     {/* glossy top sheen */}
                     <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
                     <span className="relative text-white text-base font-black tracking-tight z-10 drop-shadow">
-                      {step.value.toLocaleString()}
+                      {step.value.toLocaleString('en-IN')}
                     </span>
                   </div>
                 </div>
@@ -65,8 +85,10 @@ export function FunnelChart({ leads }: { leads: Lead[] }) {
                 <div className="w-20 shrink-0">
                   {advance !== null ? (
                     <span className="text-[11px] font-bold text-emerald-400">
-                      {advance.toFixed(0)}%
-                      <span className="block text-[9px] font-semibold uppercase tracking-wider text-text-secondary">advance</span>
+                      {advance.toFixed(1)}%
+                      <span className="block text-[9px] font-semibold uppercase tracking-wider text-text-secondary">
+                        of prev
+                      </span>
                     </span>
                   ) : (
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-text-secondary">Top of funnel</span>
@@ -88,13 +110,13 @@ export function FunnelChart({ leads }: { leads: Lead[] }) {
       {/* Summary footer */}
       <div className="mt-6 pt-4 border-t border-border-subtle/60 flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Lead → Deal Conversion</span>
-          <span className="text-lg font-black text-brand-pink-400 leading-tight">{overall.toFixed(1)}%</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Lead → Signed Conversion</span>
+          <span className="text-lg font-black text-brand-pink-400 leading-tight">{conv.toFixed(2)}%</span>
         </div>
         <div className="flex flex-col text-right">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Dropped</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-text-secondary">Signed</span>
           <span className="text-sm font-bold text-white leading-tight">
-            {rates.dropped.toLocaleString()} <span className="text-text-secondary font-medium">({rates.drop.toFixed(0)}%)</span>
+            {stages[3].value.toLocaleString('en-IN')} <span className="text-text-secondary font-medium">(MA + Spark LOI)</span>
           </span>
         </div>
       </div>

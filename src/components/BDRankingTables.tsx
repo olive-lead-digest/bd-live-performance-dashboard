@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
-import { Trophy, Map } from 'lucide-react';
+import { Trophy, Map, Users } from 'lucide-react';
 import { num } from '@/lib/format';
 import { CsvButton } from '@/components/CsvButton';
 
@@ -62,7 +62,17 @@ export function BDRankingTables() {
     return [...list].sort((a: RegionRank, b: RegionRank) => (a.rank ?? 999) - (b.rank ?? 999));
   }, [ranking]);
 
-  if (!ranking || (bds.length === 0 && regions.length === 0)) return null;
+  // Region heads — listed separately, no individual BD rank (they are excluded
+  // from the BD ranking). Deterministic order: achievement desc, then name.
+  const regionHeads = useMemo<BDRank[]>(() => {
+    const list = ranking?.regionHeads;
+    if (!Array.isArray(list)) return [];
+    return [...list].sort(
+      (a: BDRank, b: BDRank) => (b.achievementPct ?? 0) - (a.achievementPct ?? 0) || String(a.bd).localeCompare(String(b.bd))
+    );
+  }, [ranking]);
+
+  if (!ranking || (bds.length === 0 && regions.length === 0 && regionHeads.length === 0)) return null;
 
   const rule =
     ranking?.meta?.pointRules ||
@@ -174,6 +184,59 @@ export function BDRankingTables() {
                     <td className="py-2.5 px-3 text-white font-bold">{r.region || '—'}</td>
                     <td className="py-2.5 px-3 text-text-secondary">{r.regionHead || '—'}</td>
                     <td className="py-2.5 px-3 text-right text-text-secondary tabular-nums">{r.bds != null ? num(r.bds) : '—'}</td>
+                    <td className="py-2.5 px-3 text-right text-text-secondary tabular-nums">{num(r.ytdTarget)}</td>
+                    <td className="py-2.5 px-3 text-right text-white tabular-nums">{r.ytdAchievement ?? 0}</td>
+                    <td className="py-2.5 pl-3 text-right"><PctBar p={r.achievementPct} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Region heads — listed separately from the BD ranking, no individual rank */}
+      {regionHeads.length > 0 && (
+        <div className="glass-panel p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+              <Users className="w-4 h-4 text-brand-purple-400" /> Region Heads
+            </h2>
+            <CsvButton
+              base="region-heads"
+              filters={filters}
+              columns={[
+                { key: 'regionHead', label: 'Region Head' },
+                { key: 'region', label: 'Region' },
+                { key: 'ytdTarget', label: 'YTD Target' },
+                { key: 'ytdAchievement', label: 'YTD Achieved' },
+                { key: 'achievementPct', label: 'Achievement %' },
+              ]}
+              rows={regionHeads.map((r) => ({ ...r, regionHead: r.bd }))}
+            />
+          </div>
+          <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">
+            Region heads are shown separately and carry no individual BD rank — they are excluded from the BD ranking above.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
+                  <th className="text-left py-2 pr-3 font-bold">Region Head</th>
+                  <th className="text-left py-2 px-3 font-bold">Region</th>
+                  <th className="text-right py-2 px-3 font-bold">YTD Target</th>
+                  <th className="text-right py-2 px-3 font-bold">YTD Achieved</th>
+                  <th className="text-right py-2 pl-3 font-bold">Achievement %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionHeads.map((r, i) => (
+                  <tr key={`${r.bd}-${i}`} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
+                    <td className="py-2.5 pr-3 text-white font-bold">
+                      {r.bd || '—'}
+                      <span className="ml-2 text-[9px] uppercase tracking-wider text-brand-purple-300 bg-brand-purple-900/40 border border-brand-purple-500/30 px-1.5 py-0.5 rounded">Region Head</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-text-secondary">{r.region || '—'}</td>
                     <td className="py-2.5 px-3 text-right text-text-secondary tabular-nums">{num(r.ytdTarget)}</td>
                     <td className="py-2.5 px-3 text-right text-white tabular-nums">{r.ytdAchievement ?? 0}</td>
                     <td className="py-2.5 pl-3 text-right"><PctBar p={r.achievementPct} /></td>

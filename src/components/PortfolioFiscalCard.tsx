@@ -191,7 +191,7 @@ export function PortfolioFiscalCard() {
               </div>
               <div className="rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
-                  <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections (received)
+                  <IndianRupee className="w-3 h-3 text-emerald-400" /> Collections
                 </span>
                 <span className="text-3xl font-black tabular-nums text-emerald-400">
                   {inr(active.collections?.amount ?? 0)}
@@ -226,9 +226,14 @@ export function PortfolioFiscalCard() {
 
           <p className="mt-5 text-[11px] leading-relaxed text-text-secondary">
             {period === 'ytd' ? 'Financial year begins 1 Apr. ' : ''}
-            <span className="text-amber-400/90 font-medium">Collections are approximate</span> — this is
-            <span className="text-text-secondary font-medium"> Received (Actual_Amount_Total)</span>, attributed to
-            each deal&apos;s signing (MA) date, as the CRM carries no per-payment date.
+            {active.collections?.approx ? (
+              <>
+                <span className="text-amber-400/90 font-medium">Collections are approximate</span> — attributed to each
+                deal&apos;s signing (MA) date.
+              </>
+            ) : (
+              <>Collections are real cash received, windowed by actual payment date (TA-Schedule).</>
+            )}
             {asOf ? <span className="text-text-secondary"> As of {asOf}.</span> : null}
           </p>
         </div>

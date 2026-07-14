@@ -5,10 +5,10 @@ import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 
+// Tier removed (analyst correction — the feed no longer carries a lead tier).
 const FILTER_CONFIG = [
   { key: 'brand', label: 'Brand' },
   { key: 'region', label: 'Region' },
-  { key: 'tier', label: 'Tier' },
   { key: 'status', label: 'Status' },
   { key: 'cluster', label: 'Cluster' },
   { key: 'state', label: 'State' },
@@ -32,7 +32,6 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     data.leads.forEach(l => {
       if (l.brand) res.brand.add(l.brand);
       if (l.region) res.region.add(l.region);
-      if (l.tier) res.tier.add(l.tier);
       if (l.status) res.status.add(l.status);
       else res.status.add('(unassigned)');
       if (l.cluster) res.cluster.add(l.cluster);

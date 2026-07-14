@@ -170,9 +170,6 @@ export function DealsOverview() {
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
-                {feesFy?.collectedActual != null && (
-                  <span className="block text-[9px] text-text-secondary mt-0.5">received {inr(feesFy.collectedActual)}</span>
-                )}
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
@@ -195,9 +192,6 @@ export function DealsOverview() {
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
                 <span className="text-base sm:text-lg font-black text-emerald-400 tracking-tight">{inr(feesAll?.collected)}</span>
-                {feesAll?.collectedActual != null && (
-                  <span className="block text-[9px] text-text-secondary mt-0.5">received {inr(feesAll.collectedActual)}</span>
-                )}
               </div>
               <div>
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
