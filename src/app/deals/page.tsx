@@ -223,12 +223,13 @@ export default function DealsPage() {
           onClick={() => drill('MA Signed deals', wonRecs)}
         />
         <KpiCard
-          title={deals.inProgress?.label ?? 'Under Negotiation'}
+          title="Open Pipeline"
           value={((deals.inProgress?.count ?? totals.active) ?? 0).toLocaleString('en-IN')}
-          sub="in negotiation"
+          sub="BA Received + Under Negotiation"
+          tooltip={`Open Pipeline = every open deal in active negotiation: Business Approval Received + Under Negotiation${negStages.length ? ` (${negStages.join(' + ')})` : ''}. This is a combined cohort — distinct from the single "Under Negotiation" stage in the Signing Funnel below.`}
           icon={TrendingUp}
           color="#502875"
-          onClick={() => drill(deals.inProgress?.label ?? 'Under Negotiation', drillRecords.filter((r) => isOpenRec(r) && negStages.includes(r.stage)))}
+          onClick={() => drill('Open Pipeline (BA Received + Under Negotiation)', drillRecords.filter((r) => isOpenRec(r) && negStages.includes(r.stage)))}
         />
         <KpiCard
           title="Dropped"
@@ -286,7 +287,9 @@ export default function DealsPage() {
           Main path: Business Approval Received → Under Negotiation → MA Signed, each % against its
           true parent cohort. MA Signed % is computed against the {funnelModel.maCohortLabel}. LOI
           Signed is a Spark-only side branch (excluded from the main-path chain). Drop rows are exits,
-          not forward conversions. Tap any stage to list the underlying deals.
+          not forward conversions. Tap any stage to list the underlying deals. Note: the
+          &ldquo;Under Negotiation&rdquo; row here is that single stage only; the &ldquo;Open Pipeline&rdquo;
+          KPI above combines it with Business Approval Received, so the two figures differ by design.
         </p>
         <div className="flex flex-col gap-3">
           {funnelModel.rows.map((f) => {
@@ -297,6 +300,7 @@ export default function DealsPage() {
                 key={f.stage}
                 role="button"
                 tabIndex={0}
+                title={f.stage === 'Under Negotiation' ? 'The single "Under Negotiation" funnel stage. The "Open Pipeline" KPI above additionally includes Business Approval Received, so it reads higher.' : undefined}
                 onClick={() => drill(f.stage, recsForFunnel(f))}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drill(f.stage, recsForFunnel(f)); } }}
                 className={clsx(
@@ -383,11 +387,13 @@ export default function DealsPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy.deals} signed</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <RevStat label="Contracted" value={inr(feesFy?.contracted)} />
-              <RevStat label="Collected" value={inr(feesFy?.collected)} accent="#34d399" />
-              <RevStat label="Receivable" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn />
+            <div className="grid grid-cols-2 gap-3">
+              <RevStat label="Contracted (FY)" value={inr(feesFy?.contracted)} tooltip="Ta_Fee_Contracted on deals whose MA was signed this fiscal year." />
+              <RevStat label="Cash received this FY" value={inr(feesFy?.collected)} accent="#34d399" tooltip="Cash actually received during this FY, windowed by payment date — includes collections on contracts signed in prior years, so it can exceed FY-contracted. A FY receivable is therefore not meaningful; see the all-time Receivable." />
             </div>
+            <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
+              &ldquo;Cash received this FY&rdquo; is windowed by actual payment date and can include collections on prior-FY contracts, so it may exceed FY-contracted — a FY receivable is omitted here; the meaningful Receivable is shown all-time.
+            </p>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
             <div className="text-[11px] uppercase tracking-widest font-bold text-text-secondary mb-3">All-time · contracted book</div>
@@ -607,11 +613,12 @@ function ConvArrow({ pct }: { pct: string | null }) {
   );
 }
 
-function KpiCard({ title, value, sub, icon: Icon, color, onClick }: any) {
+function KpiCard({ title, value, sub, icon: Icon, color, onClick, tooltip }: any) {
   const clickable = typeof onClick === 'function';
   return (
     <div
       onClick={onClick}
+      title={tooltip}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e: any) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
@@ -635,9 +642,9 @@ function KpiCard({ title, value, sub, icon: Icon, color, onClick }: any) {
   );
 }
 
-function RevStat({ label, value, accent, warn }: { label: string; value: string; accent?: string; warn?: boolean }) {
+function RevStat({ label, value, accent, warn, tooltip }: { label: string; value: string; accent?: string; warn?: boolean; tooltip?: string }) {
   return (
-    <div className={`flex flex-col justify-center p-3 rounded-xl border ${warn ? 'bg-amber-500/5 border-amber-500/20' : 'bg-black/20 border-border-subtle/50'}`}>
+    <div title={tooltip} className={`flex flex-col justify-center p-3 rounded-xl border ${warn ? 'bg-amber-500/5 border-amber-500/20' : 'bg-black/20 border-border-subtle/50'}`}>
       <span className="text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-1">{label}</span>
       <span className="text-lg sm:text-xl font-black tracking-tight" style={{ color: accent || '#ffffff' }}>{value}</span>
     </div>
