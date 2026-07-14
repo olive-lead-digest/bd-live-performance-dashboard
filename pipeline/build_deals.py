@@ -25,7 +25,7 @@ Usage:
   python build_deals.py out.json        # write to a specific path
   # or import build_deals(records) with a list of Zoho Deal dicts (used by tests).
 """
-import os, sys, json, re, datetime
+import os, sys, json, re, time, datetime
 from collections import defaultdict
 
 try:
@@ -59,15 +59,18 @@ CANON_FUNNEL_ORDER = [STAGE_BUSINESS_APPROVAL, STAGE_UNDER_NEGOTIATION, STAGE_LO
 #   Expected_MA_Date   -> expected MA signing date (used for upcoming pipeline)
 # Region is a lookup whose .name is the org region (North / South 1 (KA) /
 #   South 2 (AP & TG) / South 3 (TN & KL) / East / West) -- matches bd_org.json.
-# COLLECTIONS CAVEAT: TA_fee_collected is a single cumulative amount per deal; there
-#   is NO per-payment/collection date field (TA_fee_schedule_date_wise is empty org-
-#   wide), so MTD/YTD collections are ATTRIBUTED to the deal's signing date (MA_Date)
-#   and flagged approximate. See mtd/ytd "collections.approx".
+# COLLECTIONS (analyst D2): the REAL received amount + payment date come from the
+#   TA_Schedule subform (Actual_Amount + Actual_Date), fetched per-deal in fetch_deals()
+#   because subforms return ONLY on single-record GETs. Actual_Amount_Total is the
+#   Zoho rollup of that subform and is used to decide which deals need the GET.
 DEAL_FIELDS = (
-    "Deal_Name,Stage,Signing_Probability,Keys,No_of_keys,Brand,Property_Type,Owner,"
+    "Deal_Name,Stage,Signing_Probability,Keys,No_of_keys,Brand,Property_Type,Land_Status,Owner,"
     "Region,State,MA_Date,Expected_Actual_LOI_Date,Expected_LOI_Date,Expected_MA_Date,Closing_Date,"
     "Expected_Actual_TA_fee_contracted,Ta_Fee_Contracted,TA_fee_collected,Actual_Amount_Total,Pending_TA_fee"
 )
+# analyst D1 — Property Status Mix comes from Land_Status (Vacant Land / Operational /
+# Under Construction), NOT Property_Type. Canonical buckets + Unspecified for blanks.
+LAND_STATUS_CANON = ["Vacant Land", "Operational", "Under Construction"]
 # The actual-received rollup of the TA payment schedule (Zoho label "Actual  Amount
 # Total"). Exposed as `collectedActual` alongside the cumulative-keyed TA_fee_collected.
 COLLECTED_FIELD = "Actual_Amount_Total"
@@ -238,6 +241,43 @@ def _region_name(r):
     return "Unspecified"
 
 
+def _deal_region(r):
+    """analyst R1 — map a deal to its org region by BD owner -> bd_org.json region
+    (most reliable), falling back to the Region lookup / State text."""
+    alias, meta, _ = load_org()
+    owner = _owner_name(r)
+    if owner:
+        canon = canon_owner(owner, alias)
+        reg = (meta.get(canon) or {}).get("region")
+        if reg:
+            return reg
+    return _region_name(r)
+
+
+def _sched(r):
+    """analyst D2 — TA_Schedule rows attached by fetch_deals(). Returns a list of
+    (actual_amount_float, actual_date_or_None) so collections use the REAL received
+    amount + real payment date. Deals with no schedule contribute nothing."""
+    out = []
+    for row in (r.get("_schedule") or []):
+        out.append((_num(row.get("Actual_Amount")), _pdate(row.get("Actual_Date"))))
+    return out
+
+
+def norm_land_status(v):
+    """analyst D1 — normalise the Deals Land_Status picklist to a canonical bucket."""
+    s = str(v or "").strip().lower()
+    if not s or s in ("-none-", "none"):
+        return "Unspecified"
+    if "vacant" in s:
+        return "Vacant Land"
+    if "operational" in s:
+        return "Operational"
+    if "construct" in s:
+        return "Under Construction"
+    return str(v).strip().title()
+
+
 def _pdate(v):
     """Parse a Zoho date ('YYYY-MM-DD' or ISO) to datetime.date, else None."""
     if not v:
@@ -279,34 +319,48 @@ def build_portfolio(records):
     return p
 
 
-def _period_block(records, start, end=None):
-    """Signings + collections for won deals whose MA_Date is in [start, end].
-    Collections are ATTRIBUTED to signing date (no per-payment date exists)."""
+def _signings_in(records, start, end=None):
+    """MA-Signed (won) deals whose MA_Date is in [start, end], by brand + region."""
     sig = {"count": 0, "byBrand": defaultdict(int), "byRegion": defaultdict(int)}
-    col = {"amount": 0.0, "byBrand": defaultdict(float), "byRegion": defaultdict(float)}
     for r in records:
         if classify_stage(r.get("Stage")) != STAGE_MA:
             continue
         d = _pdate(r.get("MA_Date"))
         if not d or d < start or (end and d > end):
             continue
-        brand = norm_brand(r.get("Brand"))
-        region = _region_name(r)
-        amt = _num(r.get(COLLECTED_FIELD))
         sig["count"] += 1
-        sig["byBrand"][brand] += 1
-        sig["byRegion"][region] += 1
-        col["amount"] += amt
-        col["byBrand"][brand] += amt
-        col["byRegion"][region] += amt
-    return {
-        "signings": {"count": sig["count"], "byBrand": dict(sig["byBrand"]),
-                     "byRegion": dict(sig["byRegion"])},
-        "collections": {"amount": round(col["amount"], 2),
-                        "byBrand": {k: round(v, 2) for k, v in col["byBrand"].items()},
-                        "byRegion": {k: round(v, 2) for k, v in col["byRegion"].items()},
-                        "approx": True},
-    }
+        sig["byBrand"][norm_brand(r.get("Brand"))] += 1
+        sig["byRegion"][_deal_region(r)] += 1
+    return {"count": sig["count"], "byBrand": dict(sig["byBrand"]),
+            "byRegion": dict(sig["byRegion"])}
+
+
+def _collections_in(records, start, end=None):
+    """analyst D2 — REAL collections in [start, end] from the TA_Schedule subform:
+    sum Actual_Amount over rows whose Actual_Date is in the window (NOT signing date).
+    Exact (approx=False) because there is now a real per-payment date."""
+    amt = 0.0
+    bb = defaultdict(float)
+    br = defaultdict(float)
+    for r in records:
+        brand = norm_brand(r.get("Brand"))
+        region = _deal_region(r)
+        for (a, d) in _sched(r):
+            if not d or d < start or (end and d > end):
+                continue
+            amt += a
+            bb[brand] += a
+            br[region] += a
+    return {"amount": round(amt, 2),
+            "byBrand": {k: round(v, 2) for k, v in bb.items()},
+            "byRegion": {k: round(v, 2) for k, v in br.items()},
+            "approx": False, "basis": "TA_Schedule.Actual_Date"}
+
+
+def _period_block(records, start, end=None):
+    """Signings (MA_Date) + REAL collections (TA_Schedule Actual_Date) for a window."""
+    return {"signings": _signings_in(records, start, end),
+            "collections": _collections_in(records, start, end)}
 
 
 def build_upcoming(records, today, horizon_days=20):
@@ -386,31 +440,37 @@ def build_ranking(records, today):
             if d and d >= fs and brand == "Spark":
                 add(owner, 1.0)
 
+    # analyst R2 — the 4 region heads (isHead in bd_org.json) are listed SEPARATELY
+    # and never ranked among individual BDs.
+    heads = {c for c, v in (org.get("bds") or {}).items() if v.get("isHead")}
+
     # Seed every directory BD so non-signers still appear (target set, 0 achievement).
     names = set(ach.keys())
     for canon in meta:
         if canon.strip().lower() not in CLOSER_EXCLUDE:
             names.add(canon)
 
-    bds = []
-    for canon in names:
+    def _entry(canon):
         m = meta.get(canon, {})
         a = round(ach.get(canon, 0.0), 2)
-        bds.append({
-            "bd": canon,
-            "region": m.get("region"),
-            "regionHead": m.get("regionHead"),
-            "ytdTarget": target,
-            "ytdAchievement": a,
-            "achievementPct": round((a / target) * 100, 1) if target else 0.0,
-        })
+        return {"bd": canon, "region": m.get("region"), "regionHead": m.get("regionHead"),
+                "ytdTarget": target, "ytdAchievement": a,
+                "achievementPct": round((a / target) * 100, 1) if target else 0.0}
+
+    all_entries = [_entry(c) for c in names]
+
+    # Individual BD ranking = BDs only (heads removed), ranked by achievement.
+    bds = [e for e in all_entries if e["bd"] not in heads]
     bds.sort(key=lambda x: x["ytdAchievement"], reverse=True)
     for i, b in enumerate(bds, 1):
         b["rank"] = i
+    # Region heads listed separately, flagged, NOT ranked (no rank key).
+    region_heads = [dict(e, isRegionHead=True) for e in all_entries if e["bd"] in heads]
+    region_heads.sort(key=lambda x: x["ytdAchievement"], reverse=True)
 
-    # Region-wise aggregate (only mapped regions; unmapped BDs grouped as "Unmapped").
+    # Region-wise aggregate over ALL members (BDs + heads) so region totals are complete.
     reg = defaultdict(lambda: {"bds": 0, "ytdTarget": 0, "ytdAchievement": 0.0, "regionHead": None})
-    for b in bds:
+    for b in all_entries:
         rk = b["region"] or "Unmapped"
         reg[rk]["bds"] += 1
         reg[rk]["ytdTarget"] += b["ytdTarget"]
@@ -435,8 +495,10 @@ def build_ranking(records, today):
             "targetPerMonth": 1,
             "pointRules": "Olive MA=1, Open MA=0.5, Spark=1 (counted at LOI; Spark MA not counted)",
             "excluded": sorted(CLOSER_EXCLUDE),
+            "regionHeadsExcludedFromBdRank": sorted(heads),
         },
-        "bds": bds,
+        "bds": bds,               # individual BDs only (analyst R2)
+        "regionHeads": region_heads,
         "regions": regions,
     }
 
@@ -457,12 +519,19 @@ def build_deals(records, generated=None, today=None):
     undated_ma = 0                           # MA-signed deals with NO MA_Date
     by_brand = defaultdict(lambda: {"deals": 0, "signed": 0, "keys": 0})
     prop_type = defaultdict(int)
+    land_status = defaultdict(int)           # analyst D1 — Property Status Mix (Land_Status)
     closers = defaultdict(lambda: {"signed": 0, "feeContracted": 0.0})
-    # Fees accumulated on BOTH scopes. contracted=Ta_Fee_Contracted, collected=
-    # TA_fee_collected (cumulative keyed), collectedActual=Actual_Amount_Total (received),
-    # pending=Pending_TA_fee.
-    fees_all = {"contracted": 0.0, "collected": 0.0, "collectedActual": 0.0, "pending": 0.0}
-    fees_fy = {"contracted": 0.0, "collected": 0.0, "collectedActual": 0.0, "pending": 0.0}
+    # Fees. contracted=Ta_Fee_Contracted (MA-signed book), collectedActual=
+    # Actual_Amount_Total (Zoho rollup, ref), pending=Pending_TA_fee (MA-signed).
+    # analyst D2 — the real `collected` now comes from the TA_Schedule subform
+    # (sum Actual_Amount), NOT the flat TA_fee_collected field, which is kept for QA.
+    fees_all = {"contracted": 0.0, "collectedFlatLegacy": 0.0, "collectedActual": 0.0, "pending": 0.0}
+    fees_fy = {"contracted": 0.0, "collectedFlatLegacy": 0.0, "collectedActual": 0.0, "pending": 0.0}
+    collected_all = 0.0                      # sum TA_Schedule.Actual_Amount (all deals, all-time)
+    collected_by_brand = defaultdict(float)  # all-time collected by brand
+    collected_by_region = defaultdict(float) # all-time collected by region
+    sched_deals = 0                          # deals that had >=1 TA_Schedule row
+    sched_rows = 0                           # total TA_Schedule rows seen
     sign_prob = {k: {"count": 0, "keys": 0} for k in PROB_LEVELS + ["Unspecified"]}
     # P0-2 — per-deal records so the client can RE-FILTER the deal side (brand,
     # region, state, owner, date). Aggregates above stay for back-compat/fallback.
@@ -488,6 +557,19 @@ def build_deals(records, generated=None, today=None):
         by_brand[brand]["keys"] += keys
         prop_type[ptype] += 1
 
+        region = _deal_region(r)                         # analyst R1 (owner -> org region)
+        land_status[norm_land_status(r.get("Land_Status"))] += 1   # analyst D1
+
+        # analyst D2 — real collections from the TA_Schedule subform (any stage).
+        sch = _sched(r)
+        if sch:
+            sched_deals += 1
+        for (amt, sd) in sch:
+            sched_rows += 1
+            collected_all += amt
+            collected_by_brand[brand] += amt
+            collected_by_region[region] += amt
+
         if is_won:
             signed += 1
             keys_contracted += keys   # keysContracted counts MA-Signed (won) deals ONLY
@@ -496,11 +578,11 @@ def build_deals(records, generated=None, today=None):
             stage_counts[STAGE_MA] += 1
             by_brand[brand]["signed"] += 1
             c  = _num(r.get("Ta_Fee_Contracted"))
-            cl = _num(r.get("TA_fee_collected"))
-            ca = _num(r.get(COLLECTED_FIELD))          # Actual_Amount_Total (received)
+            cl = _num(r.get("TA_fee_collected"))       # flat legacy field (QA/ref only)
+            ca = _num(r.get(COLLECTED_FIELD))          # Actual_Amount_Total (Zoho rollup)
             pd = _num(r.get("Pending_TA_fee"))
             fees_all["contracted"] += c
-            fees_all["collected"] += cl
+            fees_all["collectedFlatLegacy"] += cl
             fees_all["collectedActual"] += ca
             fees_all["pending"] += pd
             d = _pdate(r.get("MA_Date"))
@@ -510,7 +592,7 @@ def build_deals(records, generated=None, today=None):
                 fy_signed += 1
                 keys_contracted_fy += keys
                 fees_fy["contracted"] += c
-                fees_fy["collected"] += cl
+                fees_fy["collectedFlatLegacy"] += cl
                 fees_fy["collectedActual"] += ca
                 fees_fy["pending"] += pd
             fee_c = _num(r.get("Expected_Actual_TA_fee_contracted")) or c
@@ -526,6 +608,12 @@ def build_deals(records, generated=None, today=None):
             b = _prob_bucket(r.get("Signing_Probability"))
             sign_prob[b]["count"] += 1
             sign_prob[b]["keys"] += keys
+            # analyst D3 — a Spark deal's fee counts at LOI Signed (its win milestone),
+            # so LOI-signed Spark deals credit their closer just like an MA signing.
+            if canon == STAGE_LOI and brand == "Spark" and owner and owner.strip().lower() not in CLOSER_EXCLUDE:
+                fee_loi = _num(r.get("Expected_Actual_TA_fee_contracted")) or _num(r.get("Ta_Fee_Contracted"))
+                closers[owner]["signed"] += 1
+                closers[owner]["feeContracted"] += fee_loi
 
         # --- Per-deal record (P0-2) ------------------------------------------
         stage_type = "won" if is_won else ("dropped" if is_drop else "open")
@@ -548,10 +636,11 @@ def build_deals(records, generated=None, today=None):
             "feeCollectedActual": round(_num(r.get(COLLECTED_FIELD)), 2),
             "feePending": round(_num(r.get("Pending_TA_fee")), 2),
             "owner": owner,
-            "region": _region_name(r),
+            "region": region,   # analyst R1 (owner -> org region, State fallback)
             "state": str(r.get("State") or "").strip(),
             "signingProbability": _prob_bucket(r.get("Signing_Probability")),
             "propertyType": ptype,
+            "landStatus": norm_land_status(r.get("Land_Status")),   # analyst D1
         })
 
     total = signed + active + dropped
@@ -571,15 +660,26 @@ def build_deals(records, generated=None, today=None):
     def _fees_block(f):
         return {
             "contracted": round(f["contracted"], 2),
-            "collected": round(f["collected"], 2),
             "collectedActual": round(f["collectedActual"], 2),
+            "collectedFlatLegacy": round(f["collectedFlatLegacy"], 2),
             "pending": round(f["pending"], 2),
         }
 
+    # analyst D2 — all-time collected = sum of TA_Schedule Actual_Amount across deals.
     fees_all_block = _fees_block(fees_all)
+    fees_all_block["collected"] = round(collected_all, 2)
+    fees_all_block["receivable"] = round(fees_all["contracted"] - collected_all, 2)
+    fees_all_block["collectedByBrand"] = {k: round(v, 2) for k, v in collected_by_brand.items()}
+    fees_all_block["collectedByRegion"] = {k: round(v, 2) for k, v in collected_by_region.items()}
+
+    # FY collected is windowed by REAL payment date (Actual_Date >= FY start), NOT signing.
+    ytd_col = _collections_in(records, fs)
     fees_fy_block = _fees_block(fees_fy)
     fees_fy_block["fyStart"] = fs.isoformat()
-    fees_fy_block["deals"] = fy_signed
+    fees_fy_block["signedDeals"] = fy_signed
+    fees_fy_block["collected"] = ytd_col["amount"]
+    fees_fy_block["collectedByBrand"] = ytd_col["byBrand"]
+    fees_fy_block["collectedByRegion"] = ytd_col["byRegion"]
 
     mtd_start = today.replace(day=1)
     return {
@@ -599,25 +699,38 @@ def build_deals(records, generated=None, today=None):
         "upcoming": build_upcoming(records, today, 20),
         "ranking": build_ranking(records, today),
         "dateBasis": {"signings": "MA_Date", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
-                      "collections": "attributed to MA_Date (no per-payment date field)",
-                      "region": "derived from State (v2 REST omits Region lookup)"},
+                      "collections": "TA_Schedule.Actual_Date (real per-payment date)",
+                      "region": "BD owner -> bd_org region, State fallback"},
         "funnel": funnel,
+        # analyst D4 — the active/in-progress bucket is Business Approval Received +
+        # Under Negotiation (LOI is a separate Spark-only stage). Frontend relabels
+        # the combined bucket "Under Negotiation".
+        "inProgress": {
+            "label": "Under Negotiation",
+            "stages": [STAGE_BUSINESS_APPROVAL, STAGE_UNDER_NEGOTIATION],
+            "count": stage_counts.get(STAGE_BUSINESS_APPROVAL, 0) + stage_counts.get(STAGE_UNDER_NEGOTIATION, 0),
+        },
         "fees": {
-            # Back-compat top-level (all-time, contracted book basis).
+            # Back-compat top-level (all-time).
             "contracted": fees_all_block["contracted"],
-            "collected": fees_all_block["collected"],
+            "collected": fees_all_block["collected"],          # TA_Schedule Actual_Amount
+            "receivable": fees_all_block["receivable"],        # contracted - collected
             "pending": fees_all_block["pending"],
             "collectedActual": fees_all_block["collectedActual"],
-            # Both scopes, clearly keyed.
             "allTime": fees_all_block,
             "fy": fees_fy_block,
-            "collectedBasis": ("TA_fee_collected is cumulative per deal with no payment "
-                               "date; FY collected = collected on deals SIGNED in this FY, "
-                               "not cash received this FY."),
+            "collectedBasis": ("collected = sum TA_Schedule.Actual_Amount (real cash received); "
+                               "receivable = contracted - collected; fy.collected + mtd/ytd "
+                               "collections are windowed by Actual_Date (real payment date); "
+                               "contracted = Ta_Fee_Contracted on MA-signed deals."),
+            "dealsWithSchedule": sched_deals,
+            "scheduleRows": sched_rows,
             "undatedMASigned": undated_ma,
         },
         "byBrand": {b: v for b, v in by_brand.items()},
         "propertyType": {p: c for p, c in prop_type.items()},
+        "landStatus": {**{k: land_status.get(k, 0) for k in LAND_STATUS_CANON},
+                       **{k: v for k, v in land_status.items() if k not in LAND_STATUS_CANON}},
         "signingProbability": sign_prob,
         "closers": sorted(
             [{"bd": bd, "signed": v["signed"], "feeContracted": round(v["feeContracted"], 2)}
@@ -629,6 +742,59 @@ def build_deals(records, generated=None, today=None):
 
 
 # --- Live Zoho fetch ---------------------------------------------------------
+def _fetch_schedule(rid, headers, tries=4):
+    """analyst D2 — single-record GET to pull the TA_Schedule subform for one deal.
+    Subforms return ONLY on a single-record GET, never on list/COQL. Returns the list
+    of subform rows (each {Amount, Actual_Amount, Date, Actual_Date, ...}) or []."""
+    url = f"https://www.zohoapis.in/crm/v2/Deals/{rid}"
+    for attempt in range(tries):
+        try:
+            rr = requests.get(url, headers=headers, timeout=30)
+            if rr.status_code == 429:            # rate limited -> back off and retry
+                time.sleep(2 * (attempt + 1)); continue
+            if rr.status_code == 204:
+                return []
+            rr.raise_for_status()
+            data = rr.json().get("data", [])
+            if not data:
+                return []
+            return data[0].get("TA_Schedule") or []
+        except Exception as e:  # noqa: BLE001
+            if attempt == tries - 1:
+                print(f"  [WARN] TA_Schedule GET {rid}: {e}")
+                return []
+            time.sleep(1.5 * (attempt + 1))
+    return []
+
+
+def _needs_schedule(r):
+    """A deal can carry collections only when it is MA/LOI signed OR has a non-zero
+    actual-amount rollup. Those are the only deals worth a single-record GET."""
+    st = classify_stage(r.get("Stage"))
+    if st in (STAGE_MA, STAGE_LOI):
+        return True
+    return _num(r.get("Actual_Amount_Total")) > 0 or _num(r.get("TA_fee_collected")) > 0
+
+
+def _attach_schedules(records, headers):
+    """analyst D2 — attach r['_schedule'] (TA_Schedule rows) to every deal that can
+    carry collections, via polite single-record GETs (batched, rate-limit aware)."""
+    targets = [r for r in records if _needs_schedule(r)]
+    print(f"  TA_Schedule: fetching subforms for {len(targets)} deals (MA/LOI/collected) ...")
+    got = 0
+    for i, r in enumerate(targets):
+        rid = r.get("id")
+        if not rid:
+            continue
+        sched = _fetch_schedule(rid, headers)
+        if sched:
+            r["_schedule"] = sched
+            got += 1
+        if (i + 1) % 25 == 0:
+            time.sleep(0.4)          # gentle pacing to stay under Zoho's rate limit
+    print(f"  TA_Schedule: {got}/{len(targets)} deals had >=1 schedule row")
+
+
 def fetch_deals():
     if not (ZOHO_CLIENT_ID and ZOHO_REFRESH_TOKEN):
         print("  [WARN] Zoho creds missing; returning no records"); return []
@@ -652,6 +818,8 @@ def fetch_deals():
             break
         page += 1
     print(f"  {len(records):,} Deals records")
+    # analyst D2 — enrich with the TA_Schedule subform (real collections + payment dates).
+    _attach_schedules(records, headers)
     return records
 
 
