@@ -3,10 +3,11 @@
 import { useDashboard } from '@/lib/DashboardContext';
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import { PhoneCall, MessagesSquare, XCircle, MapPin, Layers, Trophy, ArrowRight, Inbox } from 'lucide-react';
+import { PhoneCall, MessagesSquare, XCircle, MapPin, Trophy, ArrowRight, Inbox } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsBySourceCard } from '@/components/LeadsBySourceCard';
 import { DropReasonsCard } from '@/components/DropReasonsCard';
+import { signingsByOwner } from '@/lib/utils';
 
 // Pipeline stages in logical progression order, matching the real status taxonomy
 // (dashboard_data.json). "Lead Dropped" is tracked separately as fall-out.
@@ -23,7 +24,8 @@ const ACTIVE_KEYS = ['Under Discussion'];
 type Row = { name: string; total: number; [stage: string]: number | string };
 
 export default function Pipeline() {
-  const { filteredLeads, isLoading, setFilter } = useDashboard();
+  const { filteredLeads, isLoading, setFilter, dealsRuntime } = useDashboard();
+  const signingsMap = useMemo(() => signingsByOwner(dealsRuntime.deals), [dealsRuntime]);
 
   const getSplitData = (field: keyof typeof filteredLeads[0]): Row[] => {
     const groups: Record<string, Record<string, number>> = {};
@@ -45,7 +47,6 @@ export default function Pipeline() {
   };
 
   const regionData = useMemo(() => getSplitData('region'), [filteredLeads]);
-  const tierData = useMemo(() => getSplitData('tier'), [filteredLeads]);
 
   // Overall pipeline totals across the current filter.
   const overview = useMemo(() => {
@@ -79,7 +80,7 @@ export default function Pipeline() {
     .map(st => ({ label: st.label, v: overview.counts[st.key] }))
     .sort((a, b) => b.v - a.v)[0];
   const summaryBullets: SummaryBullet[] = [
-    { tone: overview.activeRate >= overview.dropRate ? 'up' : 'warn', text: `${overview.activeRate.toFixed(0)}% of the pipeline is still active and ${overview.dropRate.toFixed(0)}% has dropped, across ${num(overview.total)} leads.` },
+    { tone: overview.dropRate <= 30 ? 'up' : 'warn', text: `${num(overview.total)} leads in the pipeline; ${overview.dropRate.toFixed(0)}% have dropped.` },
     ...(dominantStage ? [{ tone: 'info' as const, text: `Most leads sit in "${dominantStage.label}" (${num(dominantStage.v)}) — the current bottleneck stage.` }] : []),
     ...(topRegionRow ? [{ tone: 'info' as const, text: `${topRegionRow.name} carries the largest pipeline at ${num(topRegionRow.total as number)} leads.` }] : []),
     ...(bdData[0] ? [{ tone: 'up' as const, text: `${bdData[0].name} leads all reps by volume (${num(bdData[0].total as number)} leads).` }] : []),
@@ -162,11 +163,6 @@ export default function Pipeline() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white">Pipeline Overview</h2>
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap w-full lg:w-auto justify-between lg:justify-start">
             <div className="text-right">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Still Active</div>
-              <div className="text-xl font-black text-emerald-400 leading-tight">{overview.activeRate.toFixed(1)}%</div>
-            </div>
-            <div className="w-px h-8 bg-border-subtle" />
-            <div className="text-right">
               <div className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Dropped</div>
               <div className="text-xl font-black text-white leading-tight">{overview.dropRate.toFixed(1)}%</div>
             </div>
@@ -230,10 +226,9 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* ── Region / Tier breakdowns ────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {/* ── Region breakdown ────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6">
         <BreakdownCard title="By Region" icon={MapPin} data={regionData} filterKey="region" />
-        <BreakdownCard title="By Tier" icon={Layers} data={tierData} filterKey="tier" />
       </div>
 
       {/* ── Source & Drop-reason breakdowns (render only when feed carries them) ── */}
@@ -248,7 +243,7 @@ export default function Pipeline() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" /> Top Performers
           </h2>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">By lead volume</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary bg-surface px-2 py-1 rounded">By signings, then volume</span>
         </div>
 
         {/* Legend */}
@@ -265,7 +260,12 @@ export default function Pipeline() {
           {bdData.length === 0 && <div className="text-sm text-text-secondary py-6 text-center xl:col-span-2">No assigned-owner data in this view.</div>}
           {(() => {
             const max = bdData.reduce((m, r) => Math.max(m, r.total as number), 0);
-            return bdData.map((row, i) => (
+            // Signings are the primary KPI, so rank Top Performers by signings first,
+            // then lead volume as the tiebreaker (deterministic).
+            const ranked = [...bdData].sort(
+              (a, b) => (signingsMap[b.name as string] || 0) - (signingsMap[a.name as string] || 0) || (b.total as number) - (a.total as number)
+            );
+            return ranked.map((row, i) => (
               <button
                 key={row.name}
                 onClick={() => setFilter('owner' as any, row.name)}
@@ -284,6 +284,7 @@ export default function Pipeline() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-bold text-white truncate">{row.name}</span>
                     <div className="flex items-baseline gap-3 shrink-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-pink-400">{signingsMap[row.name as string] || 0} signing{(signingsMap[row.name as string] || 0) === 1 ? '' : 's'}</span>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{activeOf(row).toFixed(0)}% active</span>
                       <span className="text-sm font-black text-white tabular-nums">{num(row.total as number)}</span>
                     </div>
