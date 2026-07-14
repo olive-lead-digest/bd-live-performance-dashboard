@@ -72,6 +72,31 @@ export function PortfolioFiscalCard() {
 
   const active: FiscalPeriod | undefined = period === 'mtd' ? mtd : ytd;
 
+  // P1-2 — the "Signed Portfolio" CSV must export the underlying signed-portfolio
+  // DEALS, not the 4-tile KPI summary. Rows = every MA-signed deal (stageType
+  // 'won') plus Spark LOIs (stage 'LOI Signed'). Filter-aware: prefer the
+  // recomputed filtered records when a global filter is active.
+  const signedRecords: any[] = Array.isArray((deals as any)?._filteredRecords)
+    ? (deals as any)._filteredRecords
+    : Array.isArray((deals as any)?.records)
+    ? (deals as any).records
+    : [];
+  const signedPortfolioRows = useMemo(
+    () =>
+      signedRecords
+        .filter((r) => r.stageType === 'won' || r.stage === 'LOI Signed')
+        .map((r) => ({
+          deal: r.name || '(unnamed)',
+          brand: r.brand || '—',
+          bd: r.owner || 'Unassigned',
+          region: r.region || '—',
+          keys: r.keys ?? '',
+          fee: Math.round(Number(r.feeContracted) || 0),
+          date: (r.stageType === 'won' ? r.maDate : r.expectedDate) || '',
+        })),
+    [signedRecords]
+  );
+
   const asOf = useMemo(() => {
     const p: any = period === 'mtd' ? mtd : ytd;
     return p?.asOf || p?.period || p?.start || null;
@@ -93,11 +118,18 @@ export function PortfolioFiscalCard() {
               <CsvButton
                 base="portfolio-signed"
                 filters={filters}
+                label="CSV · Signed portfolio"
+                title={`Export ${signedPortfolioRows.length} signed-portfolio deals (MA-signed + Spark LOI)`}
                 columns={[
-                  { key: 'label', label: 'Segment' },
-                  { key: 'value', label: 'Count' },
+                  { key: 'deal', label: 'Deal / Property' },
+                  { key: 'brand', label: 'Brand' },
+                  { key: 'bd', label: 'BD' },
+                  { key: 'region', label: 'Region' },
+                  { key: 'keys', label: 'Keys' },
+                  { key: 'fee', label: 'Fee (₹)' },
+                  { key: 'date', label: 'Date' },
                 ]}
-                rows={PORTFOLIO_TILES.map((t) => ({ label: `${t.label} — ${t.sub}`, value: portfolio?.[t.key] ?? 0 }))}
+                rows={signedPortfolioRows}
               />
             </div>
           </div>

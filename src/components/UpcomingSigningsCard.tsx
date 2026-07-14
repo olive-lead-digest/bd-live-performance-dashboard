@@ -84,7 +84,11 @@ export function UpcomingSigningsCard() {
                     <td className="py-2.5 px-3 text-text-secondary">{r.bd || '—'}</td>
                     <td className="py-2.5 px-3 text-text-secondary">{r.region || '—'}</td>
                     <td className="py-2.5 px-3 text-right text-white tabular-nums">{r.keys != null ? num(r.keys) : '—'}</td>
-                    <td className="py-2.5 px-3 text-right text-emerald-400 tabular-nums">{inr(r.taFee)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">
+                      {r.taFee
+                        ? <span className="text-emerald-400">{inr(r.taFee)}</span>
+                        : <span className="text-text-secondary" title="TA fee not captured yet in Zoho for this deal">TBD</span>}
+                    </td>
                     <td className="py-2.5 px-3 text-right text-white tabular-nums whitespace-nowrap">{shortDate(r.expectedDate)}</td>
                     <td className="py-2.5 pl-3 text-center">
                       <TypeBadge type={r.type} />
@@ -115,7 +119,9 @@ export function UpcomingSigningsCard() {
                   <span className="text-text-secondary">{r.region}</span>
                   <span className="flex items-center gap-3">
                     <span className="text-text-secondary inline-flex items-center gap-1"><KeyRound className="w-3 h-3" />{num(r.keys ?? 0)}</span>
-                    <span className="text-emerald-400 font-bold">{inr(r.taFee)}</span>
+                    {r.taFee
+                      ? <span className="text-emerald-400 font-bold">{inr(r.taFee)}</span>
+                      : <span className="text-text-secondary font-bold" title="TA fee not captured yet in Zoho for this deal">TBD</span>}
                   </span>
                 </div>
                 <div className="text-[11px] text-white font-bold">{shortDate(r.expectedDate)}</div>
