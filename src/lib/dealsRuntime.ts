@@ -28,6 +28,7 @@ export interface DealRecord {
   state?: string;
   signingProbability?: string;
   propertyType?: string;
+  landStatus?: string;
 }
 
 // Global filter dimensions the DEAL side can honour (records carry these fields).
@@ -143,6 +144,7 @@ function aggregate(filtered: DealRecord[], fallback: any) {
   const dropCounts: Record<string, number> = {};
   const byBrand: Record<string, any> = {};
   const propType: Record<string, number> = {};
+  const landStat: Record<string, number> = {};
   const closers: Record<string, { signed: number; feeContracted: number }> = {};
   const feesAll = zeroFees();
   const feesFy = zeroFees();
@@ -154,10 +156,12 @@ function aggregate(filtered: DealRecord[], fallback: any) {
     const brand = normBrand(r.brand);
     const keys = Number(r.keys) || 0;
     const ptype = String(r.propertyType || 'Unspecified').trim() || 'Unspecified';
+    const lstat = String(r.landStatus || 'Unspecified').trim() || 'Unspecified';
     if (!byBrand[brand]) byBrand[brand] = { deals: 0, signed: 0, keys: 0, feeContracted: 0, feeCollected: 0, feePending: 0 };
     byBrand[brand].deals += 1;
     byBrand[brand].keys += keys;
     propType[ptype] = (propType[ptype] || 0) + 1;
+    landStat[lstat] = (landStat[lstat] || 0) + 1;
 
     if (r.stageType === 'won') {
       signed += 1;
@@ -285,6 +289,7 @@ function aggregate(filtered: DealRecord[], fallback: any) {
     },
     byBrand: byBrandRounded,
     propertyType: propType,
+    landStatus: landStat,
     signingProbability: prob,
     closers: closerRows,
     portfolio,

@@ -82,15 +82,26 @@ export interface OrgMap {
 }
 
 export interface ApprovalDept {
+  // NEW feed: required-subset counts (a proposal only needs an approval from a
+  // department when that department is required for its brand/model).
+  required: number;
   approved: number;
   rejected: number;
   pending: number;
-  none: number;
 }
 
 export interface ArrOcc {
   avg: number | null;
   n: number;
+}
+
+export interface ArrOccSet {
+  year1Arr: ArrOcc;
+  year1Occ: ArrOcc;
+  stabilisedArr: ArrOcc;
+  stabilisedOcc: ArrOcc;
+  landlordArr: ArrOcc;
+  landlordOcc: ArrOcc;
 }
 
 export interface Proposals {
@@ -110,14 +121,9 @@ export interface Proposals {
   };
   byBrand: Record<string, { proposals: number; approved: number; rejected: number; pending: number }>;
   byModel: Record<string, { proposals: number; approved: number; rejected: number; pending: number }>;
-  arrOccupancy: {
-    year1Arr: ArrOcc;
-    year1Occ: ArrOcc;
-    stabilisedArr: ArrOcc;
-    stabilisedOcc: ArrOcc;
-    landlordArr: ArrOcc;
-    landlordOcc: ArrOcc;
-  };
+  arrOccupancy: ArrOccSet;
+  // NEW feed: ARR / occupancy split by brand (Olive / Spark / Open Hotels).
+  arrOccupancyByBrand?: Record<string, ArrOccSet>;
 }
 
 export interface SourceStat {
@@ -148,6 +154,10 @@ export interface BPS {
   Cmp: number;
   Lv: number;
   Cav: number;
+  /** Signings sub-score component (analyst correction — signings are the
+   *  primary KPI, so they factor into the balanced score). 0 when no
+   *  signings map is supplied to buildLeaderboard. */
+  Sg?: number;
   score: number;
 }
 
@@ -169,6 +179,9 @@ export interface LeaderboardRec {
   conn: number;
   bps: BPS | null;
   band: string;
+  /** MA-Signed + LOI-Signed count for this BD (from the deals feed). Surfaced
+   *  on performance cards and folded into the balanced score. */
+  signings?: number;
   /** P1-8: present in leads/deals data but NOT in the org roster (bd_org.json)
    *  — an ex-BD or test account. Excluded from band counts and QA percentages. */
   inactive?: boolean;

@@ -158,7 +158,27 @@ export function calculateRates(ls: Lead[]): Rates {
   };
 }
 
-export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {Q: number, Cv: number, Cmp: number, Lv: number, Cav: number}, roster?: Set<string>): LeaderboardRec[] {
+/*
+ * Per-BD signings map (MA-Signed + LOI-Signed) from the deals feed's per-deal
+ * records. Deterministic. Signings are the org's primary KPI, so they are folded
+ * into the balanced score and surfaced as a figure on the performance cards.
+ * House / excluded accounts are dropped to match the deals closers list.
+ */
+export function signingsByOwner(deals?: { records?: any[] } | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  const recs: any[] = Array.isArray(deals?.records) ? (deals!.records as any[]) : [];
+  const EXCLUDE = new Set(['super admin', 'sourav basu']);
+  for (const r of recs) {
+    const owner = String(r?.owner || '').trim();
+    if (!owner || EXCLUDE.has(owner.toLowerCase())) continue;
+    const isMA = r?.stageType === 'won';
+    const isLOI = r?.stage === 'LOI Signed';
+    if (isMA || isLOI) out[owner] = (out[owner] || 0) + 1;
+  }
+  return out;
+}
+
+export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {Q: number, Cv: number, Cmp: number, Lv: number, Cav: number}, roster?: Set<string>, signingsMap?: Record<string, number>): LeaderboardRec[] {
   const byo: Record<string, Lead[]> = {};
   fl.forEach(l => {
     if (l.owner) {
@@ -166,7 +186,7 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       byo[l.owner].push(l);
     }
   });
-  
+
   const recs: LeaderboardRec[] = Object.keys(byo).map(owner => {
     const ls = byo[owner];
     const rt = calculateRates(ls);
@@ -189,31 +209,41 @@ export function buildLeaderboard(fl: Lead[], bds: Record<string, BD>, weights: {
       conn: (bd.zoom && bd.zoom.conn) || 0,
       bps: null,
       band: '',
+      // Signings (MA + LOI) for this BD — undefined when no map supplied so
+      // callers that don't pass one keep the prior behaviour unchanged.
+      signings: signingsMap ? (signingsMap[owner] || 0) : undefined,
       // P1-8: not in the org roster (ex-BD / test account) → excluded from
       // band counts & QA percentages by consumers, but kept (never deleted).
       inactive: roster ? !roster.has(owner) : false
     };
   });
-  
+
   const Lv = pctile(recs.map(r => r.n));
   const Cav = pctile(recs.map(r => r.conn));
-  
+
   recs.forEach((r, i) => {
+    // Signings fold into the balanced score as an ADDITIVE bonus (it never lowers
+    // an existing score, so the band thresholds stay meaningful): +5 pts per
+    // signing, capped at +20. Sg is the 0-100 sub-score kept for the profile bars.
+    const sg = r.signings || 0;
+    const sgBonus = clamp(sg * 5, 0, 20);
+    const Sg = clamp(sg * 20, 0, 100);
     if (r.reviewed && r.q) {
       const Q = r.q.overall * 10;
       const Cmp = r.q.brand_alignment * 10;
       const Cv = clamp(50 + r.active * 2.2 + (r.contact - 40) * 0.25 - Math.max(0, r.drop - 10) * 1.1);
-      
-      const sc = weights.Q * Q + weights.Cv * Cv + weights.Cmp * Cmp + weights.Lv * Lv[i] + weights.Cav * Cav[i];
-      
-      r.bps = { Q, Cv, Cmp, Lv: Lv[i], Cav: Cav[i], score: sc };
+
+      const base = weights.Q * Q + weights.Cv * Cv + weights.Cmp * Cmp + weights.Lv * Lv[i] + weights.Cav * Cav[i];
+      const sc = Math.min(100, base + sgBonus);
+
+      r.bps = { Q, Cv, Cmp, Lv: Lv[i], Cav: Cav[i], Sg, score: sc };
       r.band = sc >= 72 ? 'Top performer' : sc >= 63 ? 'Strong' : sc >= 54 ? 'Developing' : 'Priority coaching';
     } else {
       r.bps = null;
       r.band = 'Pending review';
     }
   });
-  
+
   return recs;
 }
 
