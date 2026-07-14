@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Users, ChevronRight,
+  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
 
-// P2-2 — 7 primary destinations (10 routes consolidated). P2-1 — Team uses a
-// Trophy and Directory uses Users so the two people-facing items stay visually
-// distinct; Deals & Pipeline is one Handshake item.
+// R-0 — 6 primary destinations. The standalone Directory section was removed
+// (its /directory route now permanently redirects to Overview — see
+// next.config redirects); the BD roster still ships inside the downloadable
+// report. Deals & Pipeline is one Handshake item.
 const NAV_ITEMS = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Deals & Pipeline', href: '/deals', icon: Handshake },
@@ -17,7 +18,6 @@ const NAV_ITEMS = [
   { name: 'Portfolio & Fiscal', href: '/portfolio', icon: TrendingUp },
   { name: 'Geography', href: '/geography', icon: Map },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Directory', href: '/directory', icon: Users },
 ];
 
 export function Sidebar({

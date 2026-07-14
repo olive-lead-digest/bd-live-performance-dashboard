@@ -21,6 +21,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // P1-1 — allow any page (e.g. the Analytics date pill) to open the global
+  // FilterDrawer via a custom window event, without prop-drilling the setter.
+  useEffect(() => {
+    const open = () => setIsFiltersOpen(true);
+    window.addEventListener('olive:open-filters', open);
+    return () => window.removeEventListener('olive:open-filters', open);
+  }, []);
+
   const toggleCollapse = () =>
     setCollapsed((c) => {
       const next = !c;
