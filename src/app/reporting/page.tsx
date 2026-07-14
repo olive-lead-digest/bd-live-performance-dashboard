@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis
 } from 'recharts';
 import clsx from 'clsx';
-import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck, ChevronDown } from 'lucide-react';
 import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { CsvButton } from '@/components/CsvButton';
@@ -380,12 +380,23 @@ export default function Reporting() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-2 sm:py-1.5 bg-brand-purple-900/40 border border-brand-purple-500/30 rounded-lg shrink-0 justify-center">
+          {/* P1-1 — the date pill now WIRES to the app's global date-range filter
+              (Filters → Duration): clicking opens the FilterDrawer, whose presets
+              (This month / Last month / Last 30 / custom) re-filter the leads this
+              view is built from. The label reflects the resulting current window. */}
+          <button
+            type="button"
+            onClick={() => { try { window.dispatchEvent(new CustomEvent('olive:open-filters')); } catch { /* no-op */ } }}
+            title="Change the date range — opens Filters → Duration"
+            aria-label="Change date range — opens the Filters panel"
+            className="flex items-center gap-2 px-3 py-2 sm:py-1.5 bg-brand-purple-900/40 border border-brand-purple-500/30 rounded-lg shrink-0 justify-center cursor-pointer hover:bg-brand-purple-800/60 hover:border-brand-purple-400/50 transition-colors"
+          >
             <CalendarDays className="w-4 h-4 text-brand-purple-300" />
             <span className="text-sm font-semibold text-brand-purple-100">
-              MTD: {currName || "Curr"} 1-{currDay}
+              {filters.from || filters.to ? 'Window' : 'MTD'}: {currName || "Curr"} 1-{currDay}
             </span>
-          </div>
+            <ChevronDown className="w-3.5 h-3.5 text-brand-purple-300" />
+          </button>
           {chartData && chartData.length > 0 && (
             <CsvButton
               base={searchQuery ? `analytics-${searchQuery}` : 'analytics-daily-volume'}
@@ -423,12 +434,19 @@ export default function Reporting() {
             {renderComparisonCard(isBrandSearch ? `Active Deals (${searchQuery.toUpperCase()})` : "Total Active Deals (MTD)", currActive!, prevActive!, v => Math.round(v).toLocaleString())}
 
             {/* Zoom Stats Card (Shared between Person and Macro view) */}
-            <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
-                {isPersonSearch ? `${searchQuery}'s Telephony & Zoom Activity` : 'Telephony & Zoom Activity'}
-                <span className="text-brand-purple-300 normal-case tracking-normal ml-1">(last 90 days)</span>
-              </h3>
-              <p className="text-[10px] text-text-secondary italic mb-3">Rolling last-90-day Zoom Phone window — not month-to-date (no MTD Zoom slice in the feed yet).</p>
+            <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2 border-brand-purple-500/30">
+              {/* P1-7 — this Zoom/telephony block is a ROLLING 90-DAY window, not
+                  MTD like the KPI cards beside it. The window is stated in the
+                  title AND a badge + divider so the two are never conflated. */}
+              <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  {isPersonSearch ? `${searchQuery}'s Telephony & Zoom` : 'Telephony & Zoom'}
+                </h3>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-brand-purple-100 bg-brand-purple-500/25 border border-brand-purple-400/50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  Last 90 days
+                </span>
+              </div>
+              <p className="text-[10px] text-text-secondary italic mb-3 border-b border-border-subtle/50 pb-2">Rolling last-90-day Zoom Phone window — a different window from the month-to-date KPIs beside it (no MTD Zoom slice in the feed yet), so don&apos;t read these against the MTD lead counts.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 items-center">
                 <div>
                   <p className="text-[10px] text-text-secondary uppercase">Outreach</p>
@@ -524,7 +542,7 @@ export default function Reporting() {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-                          <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                          <XAxis dataKey="day" type="category" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} interval={0} minTickGap={0} tickFormatter={(val) => `${val}`} />
                           <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
                           <RechartsTooltip
                             contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
@@ -589,7 +607,7 @@ export default function Reporting() {
                        <ResponsiveContainer width="100%" height="100%">
                          <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-                           <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                           <XAxis dataKey="day" type="category" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} interval={0} minTickGap={0} tickFormatter={(val) => `${val}`} />
                            <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
                            <RechartsTooltip
                              contentStyle={{ backgroundColor: '#16151a', border: '1px solid #2a2930', borderRadius: '8px' }}
@@ -729,7 +747,7 @@ export default function Reporting() {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-                          <XAxis dataKey="day" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} tickFormatter={(val) => `Day ${val}`} />
+                          <XAxis dataKey="day" type="category" stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} interval={0} minTickGap={0} tickFormatter={(val) => `${val}`} />
                           <YAxis stroke="#9896a3" tick={{fill: '#9896a3', fontSize: 11}} tickLine={false} axisLine={false} />
 
                           {isBrandSearch ? (
