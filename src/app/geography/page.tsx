@@ -149,8 +149,12 @@ export default function Geography() {
   const summaryBullets = useMemo<SummaryBullet[]>(() => {
     const b: SummaryBullet[] = [];
     if (!cityData.length && !regionalData.length) return b;
+    // Coverage caveat: what share of leads actually carry a recognised city.
+    const totalN = searchFiltered.length;
+    const mappedCount = searchFiltered.filter(l => l.city && l.city !== 'Other' && CITY_DATA[l.city]).length;
+    const mappedPct = totalN ? (mappedCount / totalN) * 100 : 0;
     const topCity = cityData[0];
-    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top market with ${topCity.leads.toLocaleString('en-IN')} leads (${topCity.active.toFixed(1)}% active).` });
+    if (topCity) b.push({ tone: 'up', text: `${topCity.name} is the top city market with ${topCity.leads.toLocaleString('en-IN')} leads (${topCity.active.toFixed(1)}% active) — based on the city-mapped ${mappedPct.toFixed(0)}% of leads only.` });
     const topRegion = regionalData[0];
     if (topRegion) b.push({ tone: 'info', text: `${topRegion.name} leads all tagged regions with ${topRegion.total.toLocaleString('en-IN')} leads.` });
     // P2-6 — surface untagged-region leads as a data-hygiene figure, never as a
@@ -179,6 +183,33 @@ export default function Geography() {
   const unmapped = unmappedLeads.length;
   const unmappedPct = searchFiltered.length ? (unmapped / searchFiltered.length) * 100 : 0;
 
+  // P1-6 — coverage reconciliation. City-mapping and region-tagging are DIFFERENT
+  // completeness levels, and the region-ranking excludes the untagged bucket, so
+  // the page's totals never visibly foot. Compute both partitions of the SAME N
+  // so a reconciliation line can show N = city-mapped + unmapped AND
+  // N = region-tagged + untagged.
+  const isRegionTagged = (l: any) => l.region && l.region !== 'Unknown' && l.region !== '(none)' && l.region !== 'Other';
+  const coverage = useMemo(() => {
+    const N = searchFiltered.length;
+    const U = unmappedLeads.length;
+    const M = N - U;
+    const T = searchFiltered.filter(isRegionTagged).length;
+    const G = N - T;
+    const p = (x: number) => (N ? (x / N) * 100 : 0);
+    return { N, M, U, T, G, mPct: p(M), uPct: p(U), tPct: p(T), gPct: p(G) };
+  }, [searchFiltered, unmappedLeads]);
+
+  // Shared column shape for the unmapped-leads export + drill (P1-3), so the
+  // one-click CSV and the drawer list are identical.
+  const UNMAPPED_COLUMNS = [
+    { key: 'name', label: 'BD', format: (r: any) => r.owner || 'Unassigned' },
+    { key: 'region', label: 'Region', format: (r: any) => r.region || 'Unknown' },
+    { key: 'brand', label: 'Brand', format: (r: any) => r.brand || '—' },
+    { key: 'city', label: 'City (raw)', format: (r: any) => r.city || '(blank)' },
+    { key: 'status', label: 'Status', format: (r: any) => r.status || '(unassigned)' },
+    { key: 'dt', label: 'Date', align: 'right' as const, format: (r: any) => r.dt || '' },
+  ];
+
   // State-level roll-up from the mapped cities (city data is sparse, so a state
   // table is the honest aggregation; a true choropleth is a follow-up — see report).
   const stateData = useMemo(() => {
@@ -196,14 +227,7 @@ export default function Geography() {
     openDrill({
       title: 'Unmapped leads',
       subtitle: `${unmapped.toLocaleString()} lead${unmapped === 1 ? '' : 's'} (${unmappedPct.toFixed(1)}%) with no mapped city`,
-      columns: [
-        { key: 'name', label: 'BD', format: (r: any) => r.owner || 'Unassigned' },
-        { key: 'region', label: 'Region', format: (r: any) => r.region || 'Unknown' },
-        { key: 'brand', label: 'Brand', format: (r: any) => r.brand || '—' },
-        { key: 'city', label: 'City (raw)', format: (r: any) => r.city || '(blank)' },
-        { key: 'status', label: 'Status', format: (r: any) => r.status || '(unassigned)' },
-        { key: 'dt', label: 'Date', align: 'right', format: (r: any) => r.dt || '' },
-      ],
+      columns: UNMAPPED_COLUMNS,
       rows: unmappedLeads,
       csvFilename: 'geography-unmapped-leads',
     });
@@ -286,29 +310,62 @@ export default function Geography() {
       <ExecSummary bullets={summaryBullets} />
       <LeadsAsOfStamp className="mb-4" />
 
-      {/* P2-7 — Unmapped leads: Geography's real headline, promoted to a
-          first-class card with a drill-down + CSV (Zoho hygiene queue). */}
+      {/* P2-7 / P1-3 — Unmapped leads: Geography's real headline, a first-class
+          card with a ONE-CLICK CSV export plus a drill-down (Zoho hygiene queue). */}
       {unmapped > 0 && (
-        <button
-          onClick={openUnmapped}
-          className="w-full text-left glass-panel p-4 sm:p-5 mb-6 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.04] transition-colors flex items-center gap-4 group relative z-10"
-        >
+        <div className="w-full glass-panel p-4 sm:p-5 mb-4 border border-amber-500/30 bg-amber-500/[0.04] flex items-center gap-4 relative z-10">
           <span className="w-11 h-11 shrink-0 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
           </span>
-          <div className="flex-1 min-w-0">
+          <button onClick={openUnmapped} className="flex-1 min-w-0 text-left group" title="View the full unmapped-leads list">
             <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">Data hygiene · Unmapped leads</div>
             <div className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-0.5">
               {unmapped.toLocaleString()} <span className="text-base font-bold text-amber-400">({unmappedPct.toFixed(1)}%)</span>
             </div>
             <p className="text-xs text-text-secondary mt-1">
-              No known city mapping. Tap to view the full list and export a CSV for the Zoho hygiene queue.
+              No known city mapping. Use <span className="text-amber-300 font-semibold">Export CSV</span> for the Zoho hygiene queue, or <span className="text-amber-300 font-semibold">View list</span> to browse them.
             </p>
+          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <CsvButton
+              base="geography-unmapped-leads"
+              filters={filters}
+              label="Export CSV"
+              title={`Export all ${unmapped.toLocaleString()} unmapped leads to CSV`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/25 transition-colors disabled:opacity-40"
+              columns={UNMAPPED_COLUMNS}
+              rows={unmappedLeads}
+            />
+            <button onClick={openUnmapped} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/25 transition-colors">
+              View list <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider shrink-0 group-hover:bg-amber-500/25 transition-colors">
-            View list <ArrowRight className="w-3.5 h-3.5" />
-          </span>
-        </button>
+        </div>
+      )}
+
+      {/* P1-6 — coverage reconciliation so the page's totals visibly foot, and a
+          caveat that city-mapping vs region-tagging are different completeness levels. */}
+      {coverage.N > 0 && (
+        <div className="glass-panel p-4 mb-6 relative z-10">
+          <span className="font-bold text-white uppercase tracking-widest text-[10px]">Coverage reconciliation</span>
+          <div className="mt-2 flex flex-col lg:flex-row lg:flex-wrap gap-x-8 gap-y-1.5 text-[11px] text-text-secondary">
+            <span>
+              Total leads <b className="text-white tabular-nums">{coverage.N.toLocaleString('en-IN')}</b> = city-mapped{' '}
+              <b className="text-white tabular-nums">{coverage.M.toLocaleString('en-IN')}</b> ({coverage.mPct.toFixed(1)}%) + unmapped{' '}
+              <b className="text-amber-400 tabular-nums">{coverage.U.toLocaleString('en-IN')}</b> ({coverage.uPct.toFixed(1)}%)
+            </span>
+            <span>
+              Total leads <b className="text-white tabular-nums">{coverage.N.toLocaleString('en-IN')}</b> = region-tagged{' '}
+              <b className="text-white tabular-nums">{coverage.T.toLocaleString('en-IN')}</b> ({coverage.tPct.toFixed(1)}%) + untagged{' '}
+              <b className="text-amber-400 tabular-nums">{coverage.G.toLocaleString('en-IN')}</b> ({coverage.gPct.toFixed(1)}%)
+            </span>
+          </div>
+          <p className="mt-2 text-[10px] text-text-secondary italic leading-snug">
+            City-mapping and region-tagging are different completeness levels: {coverage.tPct.toFixed(0)}% of leads carry a
+            region tag but only {coverage.mPct.toFixed(0)}% map to a recognised city. Headline &ldquo;top market&rdquo; claims
+            are based on the city-mapped {coverage.mPct.toFixed(0)}% only.
+          </p>
+        </div>
       )}
 
       {/* Macro-Regional Row */}
@@ -601,10 +658,14 @@ export default function Geography() {
                    />
                  </div>
                  {unmapped > 0 && (
-                   <span className="text-[10px] text-text-secondary flex items-center gap-1 bg-surface px-2 py-1 rounded-full border border-border-subtle">
+                   <button
+                     onClick={openUnmapped}
+                     title="View the full unmapped-leads list"
+                     className="text-[10px] text-text-secondary flex items-center gap-1 bg-surface px-2 py-1 rounded-full border border-border-subtle hover:border-brand-pink-500/40 hover:text-white transition-colors"
+                   >
                      <MapPin className="w-3 h-3 text-brand-pink-500" />
-                     {unmapped} unmapped
-                   </span>
+                     {unmapped.toLocaleString('en-IN')} unmapped
+                   </button>
                  )}
                </div>
                
