@@ -138,7 +138,9 @@ export default function Leaderboard() {
             { key: 'signings', label: 'Signings', format: (r: any) => (r.signings ?? 0).toString() },
             { key: 'n', label: 'Leads' },
             { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
+            { key: 'activeCI', label: 'Active % 95% CI', format: (r: any) => (r.n >= 10 && r.activeCI ? `${r.activeCI[0].toFixed(1)}-${r.activeCI[1].toFixed(1)}` : '') },
             { key: 'drop', label: 'Drop %', format: (r: any) => (r.drop != null ? r.drop.toFixed(1) : '') },
+            { key: 'dropCI', label: 'Drop % 95% CI', format: (r: any) => (r.n >= 10 && r.dropCI ? `${r.dropCI[0].toFixed(1)}-${r.dropCI[1].toFixed(1)}` : '') },
             { key: 'contact', label: 'Contact %', format: (r: any) => (r.contact != null ? r.contact.toFixed(1) : '') },
             { key: 'qa', label: 'QA Rating', format: (r: any) => (r.reviewed && r.q ? r.q.overall.toFixed(1) : '') },
           ]}
@@ -164,6 +166,19 @@ export default function Leaderboard() {
       </header>
 
       <ExecSummary bullets={summaryBullets} />
+
+      {/* P1-9 — legend: the small range under Active%/Drop% is a 95% confidence
+          interval, not a separate count. Documented on-screen so the paired
+          "13% / 11-17" reads unambiguously; the CSV carries the same CI columns. */}
+      <div className="glass-card px-4 py-3 mb-6 text-[11px] text-text-secondary leading-relaxed">
+        <span className="font-bold text-white uppercase tracking-widest text-[10px]">Legend</span>
+        <span className="ml-2">
+          <b className="text-white">Score</b> — balanced BD score (quality, conversion, compliance, lead &amp; call volume).
+          {' '}<b className="text-white">Active% / Drop%</b> — the point estimate with a <b className="text-white">95% confidence interval</b> shown as the small range beneath it
+          (e.g. &ldquo;13% / 11–17&rdquo; means 13% active, 95% CI 11–17%); the CI is shown only for reps with ≥10 leads, where the rate is statistically meaningful.
+          {' '}<b className="text-white">Sign.</b> — MA + Spark-LOI signings. <b className="text-white">QA Rating</b> — AI call-review score out of 10.
+        </span>
+      </div>
 
       <div className="flex flex-col gap-10">
         {(['Top performer', 'Strong', 'Developing', 'Priority coaching']).map((groupName) => {
