@@ -1,7 +1,7 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { buildLeaderboard, qaCoverage, rosterOwnerSet } from '@/lib/utils';
+import { buildLeaderboard, qaCoverage, rosterOwnerSet, signingsByOwner } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { X, Star, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Filter as FilterIcon } from 'lucide-react';
@@ -10,28 +10,31 @@ import type { LeaderboardRec } from '@/lib/types';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { CsvButton } from '@/components/CsvButton';
 
-type SortOption = 'score' | 'volume' | 'active';
+type SortOption = 'score' | 'signings' | 'volume' | 'active';
 
 export default function Leaderboard() {
-  const { data, filteredLeads, isLoading, filters } = useDashboard();
+  const { data, filteredLeads, dealsRuntime, isLoading, filters } = useDashboard();
   const [selectedRep, setSelectedRep] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('score');
 
   const leaderboard = useMemo(() => {
     if (!data) return [];
     // P1-8: tag anyone not in the org roster (ex-BD / test account) as inactive.
-    let list = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org));
+    // Signings (MA + LOI) per BD fold into the balanced score (primary KPI).
+    const sig = signingsByOwner(dealsRuntime.deals);
+    let list = buildLeaderboard(filteredLeads, data.bds, data.weights, rosterOwnerSet(data.org), sig);
 
     // Apply inline sorting
     list.sort((a, b) => {
       if (sortBy === 'score') return (b.bps?.score || 0) - (a.bps?.score || 0);
+      if (sortBy === 'signings') return (b.signings || 0) - (a.signings || 0);
       if (sortBy === 'volume') return b.n - a.n;
       if (sortBy === 'active') return b.active - a.active;
       return 0;
     });
-    
+
     return list;
-  }, [data, filteredLeads, sortBy]);
+  }, [data, filteredLeads, sortBy, dealsRuntime]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, LeaderboardRec[]> = {
@@ -132,6 +135,7 @@ export default function Leaderboard() {
             { key: 'owner', label: 'BD Rep' },
             { key: 'band', label: 'Band', format: (r: any) => r.band || '' },
             { key: 'score', label: 'Score', format: (r: any) => (r.bps ? r.bps.score.toFixed(1) : '') },
+            { key: 'signings', label: 'Signings', format: (r: any) => (r.signings ?? 0).toString() },
             { key: 'n', label: 'Leads' },
             { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
             { key: 'drop', label: 'Drop %', format: (r: any) => (r.drop != null ? r.drop.toFixed(1) : '') },
@@ -143,7 +147,7 @@ export default function Leaderboard() {
         <div className="flex items-center gap-2 bg-surface p-1.5 rounded-lg border border-border-subtle shrink-0">
           <FilterIcon className="w-4 h-4 text-text-secondary ml-2" />
           <span className="text-xs font-bold text-text-secondary uppercase mr-1">Sort:</span>
-          {(['score', 'volume', 'active'] as SortOption[]).map(opt => (
+          {(['score', 'signings', 'volume', 'active'] as SortOption[]).map(opt => (
             <button
               key={opt}
               onClick={() => setSortBy(opt)}
@@ -179,7 +183,8 @@ export default function Leaderboard() {
               <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2 text-xs font-semibold text-text-secondary uppercase tracking-wider">
                 <div className="col-span-3">BD Rep</div>
                 <div className="col-span-1 text-center">Score</div>
-                <div className="col-span-3">Score Profile</div>
+                <div className="col-span-2">Score Profile</div>
+                <div className="col-span-1 text-right">Sign.</div>
                 <div className="col-span-1 text-right">Leads</div>
                 <div className="col-span-1 text-right">Active%</div>
                 <div className="col-span-1 text-right">Drop%</div>
@@ -206,9 +211,9 @@ export default function Leaderboard() {
                         <span className="text-base md:text-sm font-bold text-white truncate">{r.owner}</span>
                         {(r.low || r.n < 25) && <Star className="w-3.5 h-3.5 md:w-3 md:h-3 text-yellow-500 fill-yellow-500" />}
                       </div>
-                      {/* Mobile Only: Score */}
-                      <div className="md:hidden flex items-baseline gap-1">
-                        <span className="text-xs text-text-secondary uppercase font-bold">Score</span>
+                      {/* Mobile Only: Signings + Score */}
+                      <div className="md:hidden flex items-baseline gap-2">
+                        <span className="text-[10px] text-brand-pink-400 uppercase font-bold">{r.signings ?? 0} sign</span>
                         <span className="text-lg font-black text-white">{r.bps ? r.bps.score.toFixed(0) : '—'}</span>
                       </div>
                     </div>
@@ -221,7 +226,7 @@ export default function Leaderboard() {
                       )}
                     </div>
 
-                    <div className="col-span-1 md:col-span-3 flex md:items-end gap-1.5 md:gap-1 h-10 md:h-6">
+                    <div className="col-span-1 md:col-span-2 flex md:items-end gap-1.5 md:gap-1 h-10 md:h-6">
                       {r.bps ? (
                         <>
                           <div className="w-full md:w-4 bg-brand-pink-500 rounded-sm transition-all" style={{ height: `${Math.max(10, r.bps.Q)}%` }} title="Quality" />
@@ -250,6 +255,7 @@ export default function Leaderboard() {
                     </div>
 
                     {/* Desktop Stats */}
+                    <div className="col-span-1 text-right text-sm font-bold text-brand-pink-400 hidden md:block">{r.signings ?? 0}</div>
                     <div className="col-span-1 text-right text-sm font-semibold text-white hidden md:block">{r.n}</div>
                     
                     <div className="col-span-1 text-right flex flex-col items-end hidden md:flex">
@@ -361,7 +367,7 @@ export default function Leaderboard() {
                     <span className="text-xl font-black text-white">{selectedData.contact.toFixed(0)}%</span>
                   </div>
                   <div className="bg-surface/50 border border-border-subtle p-3 rounded-lg flex flex-col gap-1">
-                    <span className="text-[10px] uppercase font-bold text-text-secondary">Active Rate (CI)</span>
+                    <span className="text-[10px] uppercase font-bold text-text-secondary">In-Discussion % (CI)</span>
                     <span className="text-xl font-black text-brand-pink-400">
                       {selectedData.active.toFixed(0)}% 
                     </span>
