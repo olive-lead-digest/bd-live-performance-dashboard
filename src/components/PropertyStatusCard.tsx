@@ -5,43 +5,49 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { LandPlot } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-const STATUS_ORDER = ['Vacant Land', 'Operational', 'Under Construction', 'Unknown'] as const;
+// Property status = land status, sourced from deals.landStatus (analyst
+// correction — the lead-level `prop` field is unpopulated org-wide, so this
+// card now reads the real Zoho Deals land-status mix).
+const STATUS_ORDER = ['Vacant Land', 'Operational', 'Under Construction', 'Unspecified'] as const;
 const STATUS_COLORS: Record<string, string> = {
   'Vacant Land': '#da1a84',
   'Operational': '#34d399',
   'Under Construction': '#a470d6',
-  'Unknown': '#6b7280',
+  'Unspecified': '#6b7280',
 };
 const BRANDS = ['Olive', 'Spark', 'Open Hotels'] as const;
 const MAIN_PROPS = ['Vacant Land', 'Operational', 'Under Construction'] as const;
 
 export function PropertyStatusCard() {
-  const { filteredLeads } = useDashboard();
+  const { dealsRuntime } = useDashboard();
 
   const { dist, total, brandMatrix } = useMemo(() => {
+    const deals = dealsRuntime.deals;
+    const ls: Record<string, number> = (deals?.landStatus as Record<string, number>) || {};
     const counts: Record<string, number> = {
-      'Vacant Land': 0,
-      'Operational': 0,
-      'Under Construction': 0,
-      'Unknown': 0,
+      'Vacant Land': Number(ls['Vacant Land']) || 0,
+      'Operational': Number(ls['Operational']) || 0,
+      'Under Construction': Number(ls['Under Construction']) || 0,
+      'Unspecified': Number(ls['Unspecified']) || 0,
     };
     const matrix: Record<string, Record<string, number>> = {};
     BRANDS.forEach(b => {
       matrix[b] = { 'Vacant Land': 0, 'Operational': 0, 'Under Construction': 0 };
     });
 
-    (filteredLeads || []).forEach(l => {
-      const p = STATUS_ORDER.includes(l.prop as any) ? l.prop : 'Unknown';
-      counts[p] = (counts[p] || 0) + 1;
-      if (matrix[l.brand] && (MAIN_PROPS as readonly string[]).includes(p)) {
-        matrix[l.brand][p] += 1;
+    const records: any[] = Array.isArray(deals?.records) ? deals.records : [];
+    records.forEach(r => {
+      const p = STATUS_ORDER.includes(r.landStatus) ? r.landStatus : 'Unspecified';
+      const b = String(r.brand || '').trim();
+      if (matrix[b] && (MAIN_PROPS as readonly string[]).includes(p)) {
+        matrix[b][p] += 1;
       }
     });
 
     const t = STATUS_ORDER.reduce((s, k) => s + counts[k], 0);
     const d = STATUS_ORDER.map(name => ({ name, value: counts[name] }));
     return { dist: d, total: t, brandMatrix: matrix };
-  }, [filteredLeads]);
+  }, [dealsRuntime]);
 
   if (!total) {
     return (
@@ -93,7 +99,7 @@ export function PropertyStatusCard() {
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-lg font-black text-white leading-none">{total.toLocaleString()}</span>
-            <span className="text-[9px] uppercase tracking-widest text-text-secondary">leads</span>
+            <span className="text-[9px] uppercase tracking-widest text-text-secondary">deals</span>
           </div>
         </div>
 
