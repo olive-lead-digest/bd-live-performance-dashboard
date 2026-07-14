@@ -1,18 +1,14 @@
 'use client';
 
 import { useDashboard } from '@/lib/DashboardContext';
-import { calculateRates, isActive, ESTIMATED_DEAL_VALUE } from '@/lib/utils';
+import { calculateRates, isActive } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import clsx from 'clsx';
 import { SplitSquareHorizontal, Trophy, Plus, Minus } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
-import { compactNum } from '@/lib/format';
 
-// Illustrative estimate only — leads carry no monetary amount (see utils.ts).
-const AVG_DEAL_SIZE = ESTIMATED_DEAL_VALUE;
-
-// P1-2: shared Indian compact scale (K/L/Cr, never T/M/B). Callers prefix ₹.
-const formatCurrency = (num: number) => compactNum(num);
+// Analyst correction: the estimated-₹ cohort metrics ("Est. Active/Pipeline
+// value") were removed — cohorts are compared on REAL lead metrics only.
 
 type FilterSelection = { type: string, value: string };
 type CohortState = { primary: FilterSelection, secondary: FilterSelection };
@@ -29,20 +25,17 @@ export default function Compare() {
     const brands = new Set<string>();
     const regions = new Set<string>();
     const clusters = new Set<string>();
-    const tiers = new Set<string>();
-    
+
     filteredLeads.forEach(l => {
       if (l.brand && l.brand !== 'Unknown' && l.brand !== '(none)') brands.add(l.brand);
       if (l.region && l.region !== 'Unknown' && l.region !== '(none)') regions.add(l.region);
       if (l.cluster && l.cluster !== 'Unknown' && l.cluster !== '(none)') clusters.add(l.cluster);
-      if (l.tier && l.tier !== 'Unknown' && l.tier !== '(none)') tiers.add(l.tier);
     });
 
     return {
       brands: Array.from(brands).sort(),
       regions: Array.from(regions).sort(),
-      clusters: Array.from(clusters).sort(),
-      tiers: Array.from(tiers).sort()
+      clusters: Array.from(clusters).sort()
     };
   }, [filteredLeads]);
 
@@ -53,37 +46,30 @@ export default function Compare() {
         if (f.type === 'brand') return l.brand && l.brand.toLowerCase() === f.value.toLowerCase();
         if (f.type === 'region') return l.region && l.region.toLowerCase() === f.value.toLowerCase();
         if (f.type === 'cluster') return l.cluster && l.cluster.toLowerCase() === f.value.toLowerCase();
-        if (f.type === 'tier') return l.tier && l.tier.toLowerCase() === f.value.toLowerCase();
         return true;
       };
-      
+
       return applyFilter(cohort.primary) && applyFilter(cohort.secondary);
     });
 
     const rates = calculateRates(leads);
-    const pipelineValue = leads.length * AVG_DEAL_SIZE;
-    const securedRevenue = rates.active * AVG_DEAL_SIZE;
     // "winRate" identifier kept for stability, but this is the real contact rate (contacted / assigned).
     const winRate = rates.contact;
-    const contactRate = leads.length > 0 ? (rates.n / leads.length) * 100 : 0;
-    const yieldPerLead = leads.length > 0 ? securedRevenue / leads.length : 0;
-    
+    const dropRate = rates.drop;
+
     let highIntentCount = 0;
     let ciCount = 0;
-    let tier1Count = 0;
     const owners = new Set<string>();
 
     leads.forEach(l => {
       const s = l.status;
       if (isActive(s)) highIntentCount++; // active conversation = highest real intent in this pipeline
       if (l.ci) ciCount++;
-      if (l.tier === 'Tier 1') tier1Count++;
       if (l.owner) owners.add(l.owner);
     });
 
     const highIntentRate = leads.length > 0 ? (highIntentCount / leads.length) * 100 : 0;
     const ciExposure = leads.length > 0 ? (ciCount / leads.length) * 100 : 0;
-    const tier1Concentration = leads.length > 0 ? (tier1Count / leads.length) * 100 : 0;
 
     const bds = data?.bds || {};
     let totalQ = 0;
@@ -99,14 +85,10 @@ export default function Compare() {
 
     return {
       leads: leads.length,
-      pipelineValue,
-      securedRevenue,
       winRate,
-      contactRate,
-      yieldPerLead,
+      dropRate,
       highIntentRate,
       ciExposure,
-      tier1Concentration,
       avgTeamScore
     };
   };
@@ -149,13 +131,10 @@ export default function Compare() {
   const calculateOverallWinner = () => {
     const scores = { A: 0, B: 0, C: 0 };
     const metrics: { key: MetricKey, reverse: boolean }[] = [
-      { key: 'securedRevenue', reverse: false },
-      { key: 'pipelineValue', reverse: false },
-      { key: 'yieldPerLead', reverse: false },
-      { key: 'highIntentRate', reverse: false },
-      { key: 'tier1Concentration', reverse: false },
-      { key: 'winRate', reverse: false },
       { key: 'leads', reverse: false },
+      { key: 'winRate', reverse: false },
+      { key: 'highIntentRate', reverse: false },
+      { key: 'dropRate', reverse: true },
       { key: 'avgTeamScore', reverse: false },
       { key: 'ciExposure', reverse: true },
     ];
@@ -213,9 +192,6 @@ export default function Compare() {
       </optgroup>
       <optgroup label="Clusters">
         {comparisonOptions.clusters.map(c => <option key={`cluster:${c}`} value={`cluster:${c}`}>{c}</option>)}
-      </optgroup>
-      <optgroup label="Tiers">
-        {comparisonOptions.tiers.map(t => <option key={`tier:${t}`} value={`tier:${t}`}>{t}</option>)}
       </optgroup>
     </>
   );
@@ -308,13 +284,10 @@ export default function Compare() {
 
         {/* Metrics Body */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pt-2">
-          {renderMetricBox("Est. Active Value", "securedRevenue", v => formatCurrency(v), "₹")}
-          {renderMetricBox("Est. Pipeline Value", "pipelineValue", v => formatCurrency(v), "₹")}
-          {renderMetricBox("Est. Yield per Lead", "yieldPerLead", v => formatCurrency(v), "₹")}
-          {renderMetricBox("Active Rate", "highIntentRate", v => v.toFixed(1), "", "%")}
-          {renderMetricBox("Tier 1 Concentration", "tier1Concentration", v => v.toFixed(1), "", "%")}
-          {renderMetricBox("Contact Rate", "winRate", v => v.toFixed(1), "", "%")}
           {renderMetricBox("Gross Lead Volume", "leads", v => v.toLocaleString())}
+          {renderMetricBox("Contact Rate", "winRate", v => v.toFixed(1), "", "%")}
+          {renderMetricBox("In-Discussion %", "highIntentRate", v => v.toFixed(1), "", "%")}
+          {renderMetricBox("Drop Rate", "dropRate", v => v.toFixed(1), "", "%", true)}
           {renderMetricBox("Avg Team Score", "avgTeamScore", v => Math.round(v).toString())}
           {renderMetricBox("Competitor Exposure", "ciExposure", v => v.toFixed(1), "", "%", true)}
         </div>
@@ -334,14 +307,14 @@ export default function Compare() {
     if (showThird) arr.push({ l: lblC, v: pick(statsC) });
     return arr.sort((a, b) => b.v - a.v);
   };
-  const revRank = rank(s => s.securedRevenue);
+  const leadRank = rank(s => s.leads);
   const wrRank = rank(s => s.winRate);
   const ciRank = rank(s => s.ciExposure);
   const summaryBullets: SummaryBullet[] = [
     winLbl
-      ? { tone: 'up', text: `${winLbl} leads overall, winning ${overallSummary.topScore} of 9 metrics.` }
-      : { tone: 'info', text: `No clear winner — ${lblA} wins ${overallSummary.scores.A} of 9 metrics and ${lblB} wins ${overallSummary.scores.B}${showThird ? `, ${lblC} ${overallSummary.scores.C}` : ''} (the remainder are exact ties).` },
-    { tone: 'info', text: `Highest est. active value: ${revRank[0].l} at ₹${formatCurrency(revRank[0].v)}.` },
+      ? { tone: 'up', text: `${winLbl} leads overall, winning ${overallSummary.topScore} of 6 metrics.` }
+      : { tone: 'info', text: `No clear winner — ${lblA} wins ${overallSummary.scores.A} of 6 metrics and ${lblB} wins ${overallSummary.scores.B}${showThird ? `, ${lblC} ${overallSummary.scores.C}` : ''} (the remainder are exact ties).` },
+    { tone: 'info', text: `Most leads: ${leadRank[0].l} (${leadRank[0].v.toLocaleString()}).` },
     { tone: 'info', text: `Best contact rate: ${wrRank[0].l} (${wrRank[0].v.toFixed(1)}%).` },
     ...(ciRank[0].v > 0 ? [{ tone: 'warn' as const, text: `${ciRank[0].l} carries the highest competitor exposure (${ciRank[0].v.toFixed(1)}%).` }] : []),
   ];
@@ -403,7 +376,7 @@ export default function Compare() {
                     "text-lg font-black tracking-tight",
                     overall.winnerId === 'A' ? "text-brand-pink-400" : overall.winnerId === 'B' ? "text-brand-purple-400" : "text-blue-400"
                   )}>
-                    Cohort {overall.winnerId} <span className="text-xs font-normal text-text-secondary ml-1">({overall.topScore} of 9 metrics)</span>
+                    Cohort {overall.winnerId} <span className="text-xs font-normal text-text-secondary ml-1">({overall.topScore} of 6 metrics)</span>
                   </div>
                 </div>
               ) : (
@@ -411,7 +384,7 @@ export default function Compare() {
                   <span className="text-[10px] text-text-secondary uppercase tracking-widest font-bold block mb-0.5">Metric split</span>
                   <div className="text-lg font-black text-white tracking-tight">No clear winner</div>
                   <div className="text-[11px] text-text-secondary tracking-normal font-normal mt-0.5">
-                    {lblA} {overall.scores.A} · {lblB} {overall.scores.B}{showThird ? ` · ${lblC} ${overall.scores.C}` : ''} of 9
+                    {lblA} {overall.scores.A} · {lblB} {overall.scores.B}{showThird ? ` · ${lblC} ${overall.scores.C}` : ''} of 6
                   </div>
                 </div>
               )}
