@@ -10,32 +10,10 @@ approvals are received a Deal is auto-created at stage "Business Approval Receiv
 In Zoho this is the custom module **Awaiting_BusinessApproval** (module_name
 CustomModule15; singular label "Proposal"). Verified via getFields on the live org.
 
-Canonical Zoho field API names used here (all on Awaiting_BusinessApproval):
-  Final_Decision      picklist  overall proposal state: Approved / Rejected /
-                                To be approved / -None-  (this is the funnel state)
-  Approval_Status     picklist  Design Approval Status   (Approved/Rejected/To be approved/-None-)
-  Approval_Status1    picklist  Ops Approval Status      (Approved/Rejected/To Be Approved/-None-)
-  Approval_Status2    picklist  Sales/Revenue Approval Status (Approved/Rejected/To be approved/-None-)
-  Brand               picklist  Open / Olive / Spark
-  Sub_Brand           picklist  Model: Management / Franchise
-  Arr_1st_Year        text      Year-1 ARR (free text / number-ish)
-  Arr_1st_Year_Occ    percent   Year-1 occupancy %
-  Stabilised_Arr      text      Stabilised ARR
-  Stabilised_Occ      percent   Stabilised occupancy %
-  Number_1            integer   Landlord expected ARR
-  landlord_expected_Occupancy  percent  Landlord expected occupancy %
-  Record_Status__s    picklist  Available / Draft / Trash  (Trash filtered out)
-
-Output shape (consumed by the dashboard's ProposalsStageCard):
-  {"generated",
-   "totals": {proposals, approved, rejected, pending, approvalRatePct},
-   "byDeptApproval": {"salesRevenue":{approved,rejected,pending,none},
-                      "design":{...}, "ops":{...}},
-   "byBrand": {<brand>: {proposals, approved, rejected, pending}},
-   "byModel": {Management|Franchise: {...}},
-   "arrOccupancy": {"year1Arr":{avg,n}, "year1Occ":{avg,n},
-                    "stabilisedArr":{avg,n}, "stabilisedOcc":{avg,n},
-                    "landlordArr":{avg,n}, "landlordOcc":{avg,n}}}
+analyst P1 — each department's approval stats are computed ONLY over proposals whose
+Brand+Model REQUIRES that department. Emit per-dept {required, approved, rejected, pending}.
+analyst P2 — emit byBrand + byModel and ARR/occupancy averages split BY BRAND
+(arrOccupancyByBrand), keeping the 0-100 occupancy clamp.
 
 Usage:
   python build_proposals.py                 # LIVE: fetch from Zoho, write proposals.json
@@ -62,16 +40,34 @@ PROPOSAL_FIELDS = (
     "Number_1,landlord_expected_Occupancy,Record_Status__s"
 )
 
-# Approval-state buckets. Zoho picklists use slightly different casings for the
-# "to be approved" value across the three department fields, so match loosely.
 APPROVED = "approved"
 REJECTED = "rejected"
 PENDING  = "pending"   # "To be approved" / "To Be Approved"
 NONE     = "none"      # "-None-" / null (not applicable / not routed)
 
+# --- analyst P1: which department approval is REQUIRED per (Brand, Model) ------
+REQUIRED = {
+    "salesRevenue": {("Spark", "Management"), ("Olive", "Management"),
+                     ("Open", "Management"), ("Olive", "Franchise")},
+    "design":       {("Spark", "Management"), ("Olive", "Management"),
+                     ("Olive", "Franchise")},
+    "ops":          {("Open", "Franchise")},
+}
+DEPT_FIELD = {"salesRevenue": "Approval_Status2",
+              "design": "Approval_Status", "ops": "Approval_Status1"}
+
+# analyst P2 — proposals store 'Open' for Open Hotels; dashboard labels it 'Open Hotels'.
+BRAND_OUT = {"Olive": "Olive", "Spark": "Spark", "Open": "Open Hotels"}
+
+ARR_METRICS = ("year1Arr", "year1Occ", "stabilisedArr", "stabilisedOcc",
+               "landlordArr", "landlordOcc")
+ARR_FIELD = {"year1Arr": "Arr_1st_Year", "year1Occ": "Arr_1st_Year_Occ",
+             "stabilisedArr": "Stabilised_Arr", "stabilisedOcc": "Stabilised_Occ",
+             "landlordArr": "Number_1", "landlordOcc": "landlord_expected_Occupancy"}
+OCC_METRICS = {"year1Occ", "stabilisedOcc", "landlordOcc"}
+
 
 def _num(v):
-    """Coerce a currency/number-ish value (or Zoho {'value':..} dict) to float."""
     if v is None:
         return None
     if isinstance(v, dict):
@@ -86,7 +82,6 @@ def _num(v):
 
 
 def approval_bucket(v):
-    """Normalise a department/final approval picklist value to a canonical bucket."""
     s = str(v or "").strip().lower()
     if s in ("", "-none-", "none"):
         return NONE
@@ -94,7 +89,7 @@ def approval_bucket(v):
         return APPROVED
     if s == "rejected":
         return REJECTED
-    if "approv" in s:  # 'to be approved' / 'to be approved.'
+    if "approv" in s:
         return PENDING
     return NONE
 
@@ -121,9 +116,6 @@ def norm_model(m):
 
 
 def _avg(values, lo=None, hi=None):
-    """Return {'avg':..,'n':..} for a list of numbers (None entries ignored).
-    Optional [lo, hi] range filters out out-of-range dirty values (e.g. an
-    occupancy field with a stray '850' entered) so the average stays meaningful."""
     xs = [x for x in values if x is not None]
     if lo is not None:
         xs = [x for x in xs if x >= lo]
@@ -134,24 +126,25 @@ def _avg(values, lo=None, hi=None):
     return {"avg": round(sum(xs) / len(xs), 2), "n": len(xs)}
 
 
+def _arr_block(acc):
+    out = {}
+    for m in ARR_METRICS:
+        out[m] = _avg(acc[m], lo=0, hi=100) if m in OCC_METRICS else _avg(acc[m], lo=0)
+    return out
+
+
 def build_proposals(records, generated=None):
-    """Aggregate a list of Zoho Awaiting_BusinessApproval dicts into proposals.json."""
     generated = generated or datetime.datetime.now().isoformat(timespec="seconds")
 
     approved = rejected = pending = none_state = 0
-    dept = {
-        "salesRevenue": defaultdict(int),
-        "design": defaultdict(int),
-        "ops": defaultdict(int),
-    }
+    dept = {d: {"required": 0, "approved": 0, "rejected": 0} for d in REQUIRED}
     by_brand = defaultdict(lambda: {"proposals": 0, "approved": 0, "rejected": 0, "pending": 0})
     by_model = defaultdict(lambda: {"proposals": 0, "approved": 0, "rejected": 0, "pending": 0})
-    acc = {k: [] for k in ("year1Arr", "year1Occ", "stabilisedArr", "stabilisedOcc",
-                            "landlordArr", "landlordOcc")}
+    acc = {m: [] for m in ARR_METRICS}
+    acc_brand = {bk: {m: [] for m in ARR_METRICS} for bk in ("Olive", "Spark", "Open Hotels")}
 
     total = 0
     for r in records:
-        # Skip trashed / recycle-bin rows.
         if str(r.get("Record_Status__s") or "").strip().lower() == "trash":
             continue
         total += 1
@@ -166,12 +159,19 @@ def build_proposals(records, generated=None):
         else:
             none_state += 1
 
-        dept["salesRevenue"][approval_bucket(r.get("Approval_Status2"))] += 1
-        dept["design"][approval_bucket(r.get("Approval_Status"))] += 1
-        dept["ops"][approval_bucket(r.get("Approval_Status1"))] += 1
-
         brand = norm_brand(r.get("Brand"))
         model = norm_model(r.get("Sub_Brand"))
+        bm = (brand, model)
+
+        for d, reqset in REQUIRED.items():
+            if bm in reqset:
+                dept[d]["required"] += 1
+                b = approval_bucket(r.get(DEPT_FIELD[d]))
+                if b == APPROVED:
+                    dept[d]["approved"] += 1
+                elif b == REJECTED:
+                    dept[d]["rejected"] += 1
+
         for bucket, key in ((by_brand, brand), (by_model, model)):
             bucket[key]["proposals"] += 1
             if final == APPROVED:
@@ -181,19 +181,21 @@ def build_proposals(records, generated=None):
             elif final == PENDING:
                 bucket[key]["pending"] += 1
 
-        acc["year1Arr"].append(_num(r.get("Arr_1st_Year")))
-        acc["year1Occ"].append(_num(r.get("Arr_1st_Year_Occ")))
-        acc["stabilisedArr"].append(_num(r.get("Stabilised_Arr")))
-        acc["stabilisedOcc"].append(_num(r.get("Stabilised_Occ")))
-        acc["landlordArr"].append(_num(r.get("Number_1")))
-        acc["landlordOcc"].append(_num(r.get("landlord_expected_Occupancy")))
+        vals = {m: _num(r.get(ARR_FIELD[m])) for m in ARR_METRICS}
+        for m in ARR_METRICS:
+            acc[m].append(vals[m])
+        bk = BRAND_OUT.get(brand)
+        if bk:
+            for m in ARR_METRICS:
+                acc_brand[bk][m].append(vals[m])
 
     decided = approved + rejected
     approval_rate = round((approved / decided) * 100, 1) if decided else 0.0
 
     def dept_out(d):
-        return {"approved": d.get(APPROVED, 0), "rejected": d.get(REJECTED, 0),
-                "pending": d.get(PENDING, 0), "none": d.get(NONE, 0)}
+        req, ap, rj = d["required"], d["approved"], d["rejected"]
+        return {"required": req, "approved": ap, "rejected": rj,
+                "pending": req - ap - rj}
 
     return {
         "generated": generated,
@@ -205,25 +207,15 @@ def build_proposals(records, generated=None):
             "notRouted": none_state,
             "approvalRatePct": approval_rate,
         },
-        "byDeptApproval": {
-            "salesRevenue": dept_out(dept["salesRevenue"]),
-            "design": dept_out(dept["design"]),
-            "ops": dept_out(dept["ops"]),
-        },
+        "byDeptApproval": {d: dept_out(dept[d]) for d in ("salesRevenue", "design", "ops")},
         "byBrand": {b: v for b, v in by_brand.items()},
         "byModel": {m: v for m, v in by_model.items()},
-        "arrOccupancy": {
-            "year1Arr": _avg(acc["year1Arr"], lo=0),
-            "year1Occ": _avg(acc["year1Occ"], lo=0, hi=100),
-            "stabilisedArr": _avg(acc["stabilisedArr"], lo=0),
-            "stabilisedOcc": _avg(acc["stabilisedOcc"], lo=0, hi=100),
-            "landlordArr": _avg(acc["landlordArr"], lo=0),
-            "landlordOcc": _avg(acc["landlordOcc"], lo=0, hi=100),
-        },
+        "arrOccupancy": _arr_block(acc),
+        "arrOccupancyByBrand": {bk: _arr_block(acc_brand[bk])
+                                for bk in ("Olive", "Spark", "Open Hotels")},
     }
 
 
-# --- Live Zoho fetch ---------------------------------------------------------
 def fetch_proposals():
     if not (ZOHO_CLIENT_ID and ZOHO_REFRESH_TOKEN):
         print("  [WARN] Zoho creds missing; returning no records"); return []
