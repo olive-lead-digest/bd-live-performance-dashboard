@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
       { source: "/compare", destination: "/team?tab=compare", permanent: true },
       { source: "/performance", destination: "/portfolio", permanent: true },
       { source: "/reporting", destination: "/analytics", permanent: true },
+      // R-0 — the standalone Directory section was removed. Its old route
+      // permanently redirects to Overview so the URL is never a dead reachable
+      // page (decision: redirect to Overview, not a 404).
+      { source: "/directory", destination: "/", permanent: true },
     ];
   },
 };
