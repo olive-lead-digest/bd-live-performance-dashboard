@@ -30,7 +30,15 @@ const BRAND_COLORS: Record<string, string> = {
   'Open Hotels': '#a470d6',
 };
 
-const PROP_COLORS = ['#502875', '#da1a84', '#a470d6', '#34d399'];
+// Property status = land status (Vacant Land / Operational / Under Construction),
+// from deals.landStatus (analyst correction — replaces the old property-type mix).
+const LAND_ORDER = ['Vacant Land', 'Operational', 'Under Construction', 'Unspecified'];
+const LAND_COLORS: Record<string, string> = {
+  'Vacant Land': '#da1a84',
+  'Operational': '#34d399',
+  'Under Construction': '#a470d6',
+  'Unspecified': '#6b7280',
+};
 
 const CANON = ['Business Approval Received', 'Under Negotiation', 'LOI Signed', 'MA Signed'];
 
@@ -71,21 +79,31 @@ export default function DealsPage() {
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
   const dealRecords: any[] = Array.isArray(deals.records) ? deals.records : [];
-  const brandFeeFromRecords: Record<string, { contracted: number; collected: number }> = {};
+  // Collected-by-brand comes from the feed's real, schedule-based collections
+  // (fees.allTime.collectedByBrand). Contracted-by-brand is summed from the
+  // per-deal records (real Ta_Fee_Contracted on MA-signed deals). Under an active
+  // filter the feed map is absent, so we degrade to the record-level collected.
+  const collectedByBrand: Record<string, number> =
+    (deals.fees?.allTime?.collectedByBrand || deals.fees?.collectedByBrand || {}) as Record<string, number>;
+  const hasCollectedByBrand = Object.keys(collectedByBrand).length > 0;
+  const contractedByBrandRecords: Record<string, number> = {};
+  const collectedByBrandRecords: Record<string, number> = {};
   for (const r of dealRecords) {
     if (r?.stageType !== 'won') continue;
     const b = String(r.brand || 'Unknown').trim() || 'Unknown';
-    if (!brandFeeFromRecords[b]) brandFeeFromRecords[b] = { contracted: 0, collected: 0 };
-    brandFeeFromRecords[b].contracted += Number(r.feeContracted) || 0;
-    brandFeeFromRecords[b].collected += Number(r.feeCollected) || 0;
+    contractedByBrandRecords[b] = (contractedByBrandRecords[b] || 0) + (Number(r.feeContracted) || 0);
+    collectedByBrandRecords[b] = (collectedByBrandRecords[b] || 0) + (Number(r.feeCollected) || 0);
   }
-  const brandFee = (b: string, row: any) => {
-    const contracted = row?.feeContracted != null ? Number(row.feeContracted) : (brandFeeFromRecords[b]?.contracted || 0);
-    const collected = row?.feeCollected != null ? Number(row.feeCollected) : (brandFeeFromRecords[b]?.collected || 0);
+  const brandFee = (b: string) => {
+    const contracted = contractedByBrandRecords[b] || 0;
+    const collected = hasCollectedByBrand ? (Number(collectedByBrand[b]) || 0) : (collectedByBrandRecords[b] || 0);
     return { contracted, collected, receivable: receivable(contracted, collected) };
   };
   const closers: Array<{ bd: string; signed: number; feeContracted: number }> = Array.isArray(deals.closers) ? deals.closers : [];
-  const propertyType: Record<string, number> = deals.propertyType || {};
+  const landStatus: Record<string, number> = deals.landStatus || {};
+  const negStages: string[] = Array.isArray(deals.inProgress?.stages)
+    ? deals.inProgress.stages
+    : ['Business Approval Received', 'Under Negotiation'];
 
   const leadsCount = Array.isArray(filteredLeads) ? filteredLeads.length : null;
   const proposalsCount =
@@ -96,7 +114,7 @@ export default function DealsPage() {
     a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : null;
   const propOfLeads = convPct(proposalsCount, leadsCount);
   const dealsOfProp = convPct(totals.deals, proposalsCount ?? undefined);
-  const propData = Object.entries(propertyType).map(([name, value]) => ({ name, value: Number(value) || 0 }));
+  const propData = LAND_ORDER.filter((k) => landStatus[k] != null).map((name) => ({ name, value: Number(landStatus[name]) || 0 }));
   const brandNames = Object.keys(byBrand);
   const maxBrandSigned = Math.max(1, ...brandNames.map((b) => Number(byBrand[b]?.signed) || 0));
 
@@ -204,7 +222,14 @@ export default function DealsPage() {
           color="#da1a84"
           onClick={() => drill('MA Signed deals', wonRecs)}
         />
-        <KpiCard title="In-Progress" value={(totals.active ?? 0).toLocaleString('en-IN')} sub="active" icon={TrendingUp} color="#502875" onClick={() => drill('In-Progress deals', drillRecords.filter(isOpenRec))} />
+        <KpiCard
+          title={deals.inProgress?.label ?? 'Under Negotiation'}
+          value={((deals.inProgress?.count ?? totals.active) ?? 0).toLocaleString('en-IN')}
+          sub="in negotiation"
+          icon={TrendingUp}
+          color="#502875"
+          onClick={() => drill(deals.inProgress?.label ?? 'Under Negotiation', drillRecords.filter((r) => isOpenRec(r) && negStages.includes(r.stage)))}
+        />
         <KpiCard
           title="Dropped"
           value={(totals.dropped ?? 0).toLocaleString('en-IN')}
@@ -345,7 +370,7 @@ export default function DealsPage() {
               { key: 'receivable', label: 'Receivable' },
             ]}
             rows={brandNames.map((b) => {
-              const bf = brandFee(b, byBrand[b] || {});
+              const bf = brandFee(b);
               return { brand: b, deals: byBrand[b]?.deals ?? 0, signed: byBrand[b]?.signed ?? 0, contracted: Math.round(bf.contracted), collected: Math.round(bf.collected), receivable: Math.round(bf.receivable) };
             })}
           />
@@ -358,19 +383,17 @@ export default function DealsPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy.deals} signed</span>
               )}
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <RevStat label="Contracted" value={inr(feesFy?.contracted)} />
               <RevStat label="Collected" value={inr(feesFy?.collected)} accent="#34d399" />
-              <RevStat label="Received" value={inr(feesFy?.collectedActual)} />
               <RevStat label="Receivable" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn />
             </div>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
             <div className="text-[11px] uppercase tracking-widest font-bold text-text-secondary mb-3">All-time · contracted book</div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <RevStat label="Contracted" value={inr(feesAll?.contracted)} />
               <RevStat label="Collected" value={inr(feesAll?.collected)} accent="#34d399" />
-              <RevStat label="Received" value={inr(feesAll?.collectedActual)} />
               <RevStat label="Receivable" value={inr(receivable(feesAll?.contracted, feesAll?.collected))} accent="#ffb020" warn />
             </div>
           </div>
@@ -380,7 +403,7 @@ export default function DealsPage() {
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date, so Current-FY figures exclude them.</div>
           )}
-          <div>Contracted = Ta_Fee_Contracted; Collected = TA_fee_collected (cumulative keyed); Received = Actual_Amount_Total.</div>
+          <div>Contracted = Ta_Fee_Contracted on MA-signed deals; Collected = real cash received (sum of TA-Schedule actuals); Receivable = Contracted − Collected.</div>
         </div>
 
         <div className="overflow-x-auto">
@@ -398,7 +421,7 @@ export default function DealsPage() {
             <tbody>
               {brandNames.map((b) => {
                 const row = byBrand[b] || {};
-                const bf = brandFee(b, row);
+                const bf = brandFee(b);
                 return (
                   <tr
                     key={b}
@@ -422,7 +445,7 @@ export default function DealsPage() {
               })}
               {brandNames.length > 0 && (() => {
                 const tot = brandNames.reduce((a, b) => {
-                  const bf = brandFee(b, byBrand[b] || {});
+                  const bf = brandFee(b);
                   a.deals += Number(byBrand[b]?.deals) || 0;
                   a.signed += Number(byBrand[b]?.signed) || 0;
                   a.contracted += bf.contracted; a.collected += bf.collected; a.receivable += bf.receivable;
@@ -502,15 +525,15 @@ export default function DealsPage() {
         <div className="flex flex-col gap-4 sm:gap-6">
           <div className="glass-panel p-4 sm:p-6 flex flex-col">
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-4">
-              <Building2 className="w-4 h-4 text-brand-purple-400" /> Property Type
+              <Building2 className="w-4 h-4 text-brand-purple-400" /> Property Status
             </h2>
             {propData.length > 0 ? (
               <div className="w-full h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={propData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                      {propData.map((entry, i) => (
-                        <Cell key={entry.name} fill={PROP_COLORS[i % PROP_COLORS.length]} />
+                      {propData.map((entry) => (
+                        <Cell key={entry.name} fill={LAND_COLORS[entry.name] || '#6b7280'} />
                       ))}
                     </Pie>
                     <RechartsTooltip
@@ -524,10 +547,10 @@ export default function DealsPage() {
               <div className="text-sm text-text-secondary">No data available</div>
             )}
             <div className="flex flex-col gap-2 mt-2">
-              {propData.map((p, i) => (
+              {propData.map((p) => (
                 <div key={p.name} className="flex items-center justify-between text-[11px]">
                   <span className="inline-flex items-center gap-2 text-text-secondary">
-                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: PROP_COLORS[i % PROP_COLORS.length] }} />
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: LAND_COLORS[p.name] || '#6b7280' }} />
                     {p.name}
                   </span>
                   <span className="text-white font-bold">{p.value.toLocaleString('en-IN')}</span>
