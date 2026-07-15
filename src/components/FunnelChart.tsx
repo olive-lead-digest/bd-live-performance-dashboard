@@ -40,8 +40,15 @@ export function FunnelChart({ leads, deals }: { leads: Lead[]; deals?: any }) {
 
   const max = stages[0].value || 1;
 
+  // P2-5 — accessible summary of the funnel for screen readers (the numeric
+  // detail is also present as visible text and in the Overview KPI rail).
+  const a11yLabel =
+    'Conversion funnel: ' +
+    stages.map((s) => `${s.label} ${s.value.toLocaleString('en-IN')}`).join(', ') +
+    `. Lead-to-signed conversion ${conv.toFixed(2)} percent.`;
+
   return (
-    <div className="w-full h-full flex flex-col justify-center">
+    <div className="w-full h-full flex flex-col justify-center" role="img" aria-label={a11yLabel}>
       <div className="flex flex-col">
         {stages.map((step, i) => {
           const prev = i > 0 ? stages[i - 1].value : null;
