@@ -2,6 +2,7 @@
 
 import { X, TrendingUp, AlertTriangle, CheckCircle2, BarChart2, Info, Target, Zap } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area, Legend, LineChart, Line } from 'recharts';
+import { useDialog } from '@/lib/useDialog';
 
 export type InsightData = {
   id: string;
@@ -13,12 +14,20 @@ export type InsightData = {
 
 export function InsightModal({ insight, onClose }: { insight: InsightData | null; onClose: () => void }) {
   if (!insight) return null;
+  return <InsightDialog insight={insight} onClose={onClose} />;
+}
+
+// P2-3 — full modal dialog semantics (role="dialog" + aria-modal, labelled by
+// the observation title, focus trap + ESC + focus restore, labelled close).
+// Split out so the useDialog hook mounts only when a modal is open.
+function InsightDialog({ insight, onClose }: { insight: InsightData; onClose: () => void }) {
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
 
   const renderEvidence = () => {
     switch (insight.evidenceType) {
       case 'bar-chart':
         return (
-          <div className="h-64 w-full mt-4">
+          <div className="h-64 w-full mt-4" role="img" aria-label={`Bar chart of quantitative evidence for: ${insight.title}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={insight.evidenceData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -36,7 +45,7 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
 
       case 'area-chart':
         return (
-          <div className="h-64 w-full mt-4 relative">
+          <div className="h-64 w-full mt-4 relative" role="img" aria-label={`Area chart of quantitative evidence for: ${insight.title}`}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={insight.evidenceData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -59,7 +68,7 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
 
       case 'line-chart':
         return (
-          <div className="h-64 w-full mt-4">
+          <div className="h-64 w-full mt-4" role="img" aria-label={`Line chart of quantitative evidence for: ${insight.title}`}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={insight.evidenceData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -140,7 +149,14 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
   return (
     <>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] transition-opacity animate-in fade-in" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-1.5rem)] max-w-3xl max-h-[90vh] overflow-y-auto no-scrollbar bg-panel border border-border-subtle shadow-[0_0_80px_rgba(0,0,0,0.5)] rounded-2xl z-[110] animate-in zoom-in-95 duration-300">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="insight-modal-title"
+        tabIndex={-1}
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-1.5rem)] max-w-3xl max-h-[90vh] overflow-y-auto no-scrollbar bg-panel border border-border-subtle shadow-[0_0_80px_rgba(0,0,0,0.5)] rounded-2xl z-[110] animate-in zoom-in-95 duration-300 focus:outline-none"
+      >
         
         {/* Header */}
         <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border-subtle bg-surface/30 flex items-start justify-between">
@@ -150,10 +166,10 @@ export function InsightModal({ insight, onClose }: { insight: InsightData | null
             </div>
             <div>
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-1">Strategic Observation</h2>
-              <p className="text-xl font-bold text-white leading-tight pr-8">{insight.title}</p>
+              <p id="insight-modal-title" className="text-xl font-bold text-white leading-tight pr-8">{insight.title}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 -mr-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors">
+          <button type="button" onClick={onClose} aria-label="Close" className="p-2 -mr-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400">
             <X className="w-5 h-5" />
           </button>
         </div>
