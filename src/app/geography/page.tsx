@@ -375,8 +375,9 @@ export default function Geography() {
             const health = getHealthColor(r.activeRate);
             const isSelected = searchQuery.toLowerCase() === r.name.toLowerCase();
             return (
-              <button 
-                key={r.name} 
+              <button
+                key={r.name}
+                type="button"
                 onClick={() => {
                   if (isSelected) {
                     setSearchQuery("");
@@ -386,7 +387,7 @@ export default function Geography() {
                   }
                 }}
                 className={clsx(
-                  "glass-card p-4 border text-left transition-all hover:bg-surface/80 group", 
+                  "glass-card p-4 border text-left transition-all hover:bg-surface/80 group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel",
                   health.border,
                   isSelected ? "ring-2 ring-brand-pink-500 bg-surface/50 shadow-[0_0_15px_rgba(218,26,132,0.2)]" : ""
                 )}
@@ -413,14 +414,20 @@ export default function Geography() {
           <div className="flex items-center justify-between z-10 relative mb-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Conversion Health Map</h2>
             <div className="flex items-center gap-2">
-              <button onClick={handleZoomIn} aria-label="Zoom in" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomIn className="w-4 h-4" /></button>
-              <button onClick={handleZoomOut} aria-label="Zoom out" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><ZoomOut className="w-4 h-4" /></button>
-              <button onClick={handleReset} aria-label="Reset map view" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle"><RotateCcw className="w-4 h-4" /></button>
+              <button onClick={handleZoomIn} aria-label="Zoom in" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"><ZoomIn className="w-4 h-4" /></button>
+              <button onClick={handleZoomOut} aria-label="Zoom out" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"><ZoomOut className="w-4 h-4" /></button>
+              <button onClick={handleReset} aria-label="Reset map view" className="p-1.5 rounded bg-surface hover:bg-brand-purple-800 text-white border border-border-subtle cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"><RotateCcw className="w-4 h-4" /></button>
             </div>
           </div>
 
           <div className="flex-1 relative z-10 -mt-10">
-            <ComposableMap projection="geoMercator" projectionConfig={{ scale: 1200, center: [80, 22] }} className="w-full h-full outline-none">
+            <ComposableMap
+              projection="geoMercator"
+              projectionConfig={{ scale: 1200, center: [80, 22] }}
+              className="w-full h-full outline-none"
+              role="img"
+              aria-label={`Conversion health map of India showing ${cityData.length} mapped cit${cityData.length === 1 ? 'y' : 'ies'} sized by lead volume and coloured by active-deal rate. A keyboard-accessible breakdown of the same cities is in the Top Data Nodes list.`}
+            >
               <ZoomableGroup 
                 zoom={position.zoom} 
                 center={position.coordinates} 
@@ -670,17 +677,19 @@ export default function Geography() {
                </div>
                
                <div className="text-center p-6 mb-4 bg-brand-purple-900/10 border border-brand-purple-500/20 rounded-xl">
-                  <p className="text-sm text-brand-purple-200">Select a city node on the map to view its detailed Performance Dossier.</p>
+                  <p className="text-sm text-brand-purple-200">Select a city node on the map — or tap any city in the list below — to view its detailed Performance Dossier.</p>
                </div>
 
                <div className="flex flex-col gap-2 flex-1 overflow-y-auto no-scrollbar pr-2">
                  {cityData.slice(0, 10).map((c) => {
                    const health = getHealthColor(c.active);
                    return (
-                     <button 
+                     <button
                        key={c.name}
+                       type="button"
                        onClick={() => handleCityClick(c.name, c.coords)}
-                       className="flex flex-col gap-1.5 p-3 rounded-lg border border-transparent hover:border-brand-pink-500/30 hover:bg-brand-pink-500/10 transition-colors text-left group relative overflow-hidden"
+                       aria-label={`Open ${c.name} performance dossier — ${c.leads.toLocaleString('en-IN')} leads, ${c.active.toFixed(1)}% active`}
+                       className="flex flex-col gap-1.5 p-3 rounded-lg border border-transparent hover:border-brand-pink-500/30 hover:bg-brand-pink-500/10 transition-colors text-left group relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
                      >
                        <div className="absolute top-0 right-0 p-1 opacity-10 group-hover:opacity-20 transition-opacity">
                          <span className="text-4xl font-black italic">{c.state}</span>
