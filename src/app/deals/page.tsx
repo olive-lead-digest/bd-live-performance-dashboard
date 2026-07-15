@@ -534,7 +534,11 @@ export default function DealsPage() {
               <Building2 className="w-4 h-4 text-brand-purple-400" /> Property Status
             </h2>
             {propData.length > 0 ? (
-              <div className="w-full h-[200px]">
+              <div
+                className="w-full h-[200px]"
+                role="img"
+                aria-label={`Property status pie chart: ${propData.map((p) => `${p.name} ${p.value.toLocaleString('en-IN')}`).join(', ')}.`}
+              >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={propData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
