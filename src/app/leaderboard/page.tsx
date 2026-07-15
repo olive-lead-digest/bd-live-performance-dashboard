@@ -3,6 +3,7 @@
 import { useDashboard } from '@/lib/DashboardContext';
 import { buildLeaderboard, qaCoverage, rosterOwnerSet, signingsByOwner } from '@/lib/utils';
 import { useMemo, useState } from 'react';
+import { useDialog } from '@/lib/useDialog';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { X, Star, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Filter as FilterIcon } from 'lucide-react';
 import clsx from 'clsx';
@@ -16,6 +17,10 @@ export default function Leaderboard() {
   const { data, filteredLeads, dealsRuntime, isLoading, filters } = useDashboard();
   const [selectedRep, setSelectedRep] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('score');
+  // P2-3 — rep detail drawer gets dialog semantics: focus trap, ESC, focus
+  // restore. Hook is called unconditionally (before any early return) and only
+  // activates while a rep is selected.
+  const repDrawerRef = useDialog<HTMLDivElement>(() => setSelectedRep(null), !!selectedRep);
 
   const leaderboard = useMemo(() => {
     if (!data) return [];
@@ -152,9 +157,13 @@ export default function Leaderboard() {
           {(['score', 'signings', 'volume', 'active'] as SortOption[]).map(opt => (
             <button
               key={opt}
+              type="button"
               onClick={() => setSortBy(opt)}
+              aria-pressed={sortBy === opt}
               className={clsx(
-                "px-3 py-1.5 rounded-md text-xs font-bold transition-all capitalize",
+                // P2-1 — real button hit target: ≥36px tall, pointer cursor,
+                // visible hover / active / focus-visible states.
+                "px-3 py-1.5 min-h-[36px] rounded-md text-xs font-bold transition-all capitalize cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-surface active:scale-95",
                 sortBy === opt ? "bg-brand-pink-500 text-white shadow-[0_0_10px_rgba(218,26,132,0.4)]" : "text-text-secondary hover:text-white hover:bg-surface-light"
               )}
             >
@@ -331,22 +340,33 @@ export default function Leaderboard() {
       {selectedRep && selectedData && (
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSelectedRep(null)} />
-          <div className="fixed right-0 top-0 bottom-0 w-full max-w-[420px] glass-panel rounded-none border-y-0 border-r-0 border-l-brand-pink-500/20 z-50 flex flex-col shadow-[0_0_80px_rgba(0,0,0,0.5)] animate-in slide-in-from-right duration-300">
+          <div
+            ref={repDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rep-drawer-title"
+            tabIndex={-1}
+            className="fixed right-0 top-0 bottom-0 w-full max-w-[420px] glass-panel rounded-none border-y-0 border-r-0 border-l-brand-pink-500/20 z-50 flex flex-col shadow-[0_0_80px_rgba(0,0,0,0.5)] animate-in slide-in-from-right duration-300 focus:outline-none"
+          >
             <div className="flex items-center justify-between p-6 border-b border-border-subtle bg-surface/30">
               <div>
-                <h2 className="text-2xl font-bold text-white">{selectedData.owner}</h2>
+                <h2 id="rep-drawer-title" className="text-2xl font-bold text-white">{selectedData.owner}</h2>
                 <span className={clsx("text-xs font-semibold uppercase tracking-wider mt-1 px-2 py-0.5 rounded border inline-block mt-2", getBandColor(selectedData.band).split(' ')[0], getBandColor(selectedData.band).split(' ')[1], getBandColor(selectedData.band).split(' ')[2])}>
                   {selectedData.band.replace(' review', '').replace(' coaching', '')}
                 </span>
               </div>
-              <button onClick={() => setSelectedRep(null)} className="p-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors">
+              <button type="button" onClick={() => setSelectedRep(null)} aria-label="Close" className="p-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 no-scrollbar">
               {selectedData.reviewed && selectedData.bps ? (
-                <div className="h-[280px] w-full -ml-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-purple-900/10 via-transparent to-transparent">
+                <div
+                  role="img"
+                  aria-label={`Balanced-score radar for ${selectedData.owner}: Quality ${selectedData.bps.Q.toFixed(0)}, Conversion ${selectedData.bps.Cv.toFixed(0)}, Compliance ${selectedData.bps.Cmp.toFixed(0)}, Lead volume ${selectedData.bps.Lv.toFixed(0)}, Call volume ${selectedData.bps.Cav.toFixed(0)} (out of 100).`}
+                  className="h-[280px] w-full -ml-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-purple-900/10 via-transparent to-transparent"
+                >
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
                       { subject: 'Quality', A: selectedData.bps.Q },

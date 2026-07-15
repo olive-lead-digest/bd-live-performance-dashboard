@@ -538,7 +538,7 @@ export default function Reporting() {
                 <div className="glass-panel p-4 sm:p-6 h-[340px] sm:h-[450px] flex flex-col">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Personal Growth Pacing</h2>
                   <div className="flex-1 w-full relative">
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0" role="img" aria-label="Personal growth pacing: line chart comparing current and previous period daily lead volume.">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -603,7 +603,7 @@ export default function Reporting() {
                  <div className="glass-panel p-4 sm:p-6 h-[300px] sm:h-[400px] flex flex-col">
                    <h2 className="text-sm font-semibold uppercase tracking-wider text-white mb-6 shrink-0">Daily Volume Comparison</h2>
                    <div className="flex-1 w-full relative">
-                     <div className="absolute inset-0">
+                     <div className="absolute inset-0" role="img" aria-label="Daily volume comparison: line chart of current vs previous period daily lead volume for this location.">
                        <ResponsiveContainer width="100%" height="100%">
                          <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -743,7 +743,7 @@ export default function Reporting() {
                     {isBrandSearch ? "Brand Performance Comparison (MTD)" : "Daily Volume Comparison"}
                   </h2>
                   <div className="flex-1 w-full relative">
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0" role="img" aria-label={isBrandSearch ? 'Brand performance comparison: line chart of daily lead volume by brand this month.' : 'Daily volume comparison: line chart of current vs previous period daily lead volume.'}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
@@ -859,7 +859,7 @@ export default function Reporting() {
                     {isLocationSearch ? `Lead Efficiency Matrix (${searchQuery})` : 'Lead Efficiency Matrix'}
                   </h2>
                   <div className="flex-1 w-full relative">
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0" role="img" aria-label="Lead efficiency matrix: scatter plot where each point is a BD positioned by total leads and active leads, sized by active percentage.">
                       {(reportData as any).scatterData!.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>

@@ -73,7 +73,11 @@ export function PropertyStatusCard() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="w-full sm:w-40 h-40 shrink-0 relative">
+        <div
+          className="w-full sm:w-40 h-40 shrink-0 relative"
+          role="img"
+          aria-label={`Property status mix of ${total.toLocaleString()} deals: ${dist.map(d => `${d.name} ${d.value.toLocaleString()} (${pct(d.value).toFixed(0)}%)`).join(', ')}.`}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

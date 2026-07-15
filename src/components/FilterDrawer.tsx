@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
 import { useMemo } from 'react';
+import { useDialog } from '@/lib/useDialog';
 
 // Tier removed (analyst correction — the feed no longer carries a lead tier).
 const FILTER_CONFIG = [
@@ -22,6 +23,11 @@ const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padS
 
 export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { data, filters, setFilter, clearFilters, setDateRange } = useDashboard();
+  // P2-3 — the filter drawer is a real modal dialog: role="dialog" + aria-modal,
+  // labelled by its title, focus moved in + trapped, ESC to close, focus restored
+  // to the trigger on close. The hook is called unconditionally and only
+  // activates while the drawer is open.
+  const dialogRef = useDialog<HTMLDivElement>(onClose, isOpen);
 
   // Extract unique values from data for dropdowns
   const options = useMemo(() => {
@@ -82,10 +88,17 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
         onClick={onClose}
       />
-      <div className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-panel border-l border-border-subtle shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="filter-drawer-title"
+        tabIndex={-1}
+        className="fixed right-0 top-0 bottom-0 w-full max-w-sm bg-panel border-l border-border-subtle shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300 focus:outline-none"
+      >
         <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-          <h2 className="text-lg font-semibold text-white">Filters</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors">
+          <h2 id="filter-drawer-title" className="text-lg font-semibold text-white">Filters</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-surface text-text-secondary hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -99,9 +112,11 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 return (
                   <button
                     key={p.label}
+                    type="button"
                     onClick={() => setDateRange(p.from, p.to)}
+                    aria-pressed={isActive}
                     className={clsx(
-                      "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border",
+                      "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel",
                       isActive
                         ? "bg-brand-pink-500/20 border-brand-pink-500/60 text-white shadow-[0_0_10px_rgba(218,26,132,0.3)]"
                         : "bg-surface border-border-subtle text-text-secondary hover:text-white hover:border-brand-pink-500/40"
@@ -144,9 +159,11 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                     return (
                       <button
                         key={val}
+                        type="button"
                         onClick={() => setFilter(key as any, val)}
+                        aria-pressed={isActive}
                         className={clsx(
-                          "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border",
+                          "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel",
                           isActive
                             ? "bg-brand-purple-600/50 border-brand-purple-400 text-white shadow-[0_0_10px_rgba(80,40,117,0.3)]"
                             : "bg-surface border-border-subtle text-text-secondary hover:text-white hover:border-brand-purple-800"
@@ -164,14 +181,16 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
         <div className="p-6 border-t border-border-subtle flex gap-3">
           <button
+            type="button"
             onClick={clearFilters}
-            className="flex-1 py-2.5 rounded-xl border border-border-subtle text-sm font-semibold text-white hover:bg-surface transition-colors"
+            className="flex-1 py-2.5 rounded-xl border border-border-subtle text-sm font-semibold text-white hover:bg-surface transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
           >
             Clear All
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl bg-brand-pink-500 text-sm font-bold text-white hover:bg-brand-pink-400 transition-colors shadow-[0_0_15px_rgba(218,26,132,0.4)]"
+            className="flex-1 py-2.5 rounded-xl bg-brand-pink-500 text-sm font-bold text-white hover:bg-brand-pink-400 transition-colors shadow-[0_0_15px_rgba(218,26,132,0.4)] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-300 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
           >
             Apply Filters
           </button>
