@@ -46,40 +46,6 @@ export const isWon = (s: string | null) => !!s && WON_STATUSES.has(s);
 export const isDropped = (s: string | null) => !!s && DROP_STATUSES.has(s);
 
 /*
- * Estimated value per lead/deal. The lead pipeline has no per-record monetary
- * amount (those live in the CRM Deals module), so every "$" figure in the UI is
- * an ILLUSTRATIVE estimate = count x ESTIMATED_DEAL_VALUE. Centralized here so it
- * can be changed in one place or replaced with a real Deals-join later.
- */
-export const ESTIMATED_DEAL_VALUE = 12500;
-
-/*
- * P0-3 — deterministic estimated value.
- * The Geography est.-value figures were unstable across reloads. There is no
- * Math.random in the maths; the movement came from (a) the leads dataset
- * changing mid-audit and (b) count-based estimates with no fixed per-record
- * basis. To make every estimate a pure, reproducible function of the (now
- * stable) dataset, estimated value is derived from FIXED per-tier average-fee
- * constants defined here in ONE place — never a live/seeded computation.
- * Unknown/blank tiers fall back to ESTIMATED_DEAL_VALUE.
- */
-export const TIER_AVG_FEE: Record<string, number> = {
-  'Tier 1': 20000,
-  'Tier 2': 12500,
-  'Tier 3': 7500,
-};
-
-export const leadEstValue = (l: { tier?: string | null }): number =>
-  TIER_AVG_FEE[(l.tier || '').trim()] ?? ESTIMATED_DEAL_VALUE;
-
-/** Sum of fixed per-tier estimated value over a set of leads (deterministic). */
-export const estValue = (leads: { tier?: string | null }[]): number => {
-  let s = 0;
-  for (const l of leads) s += leadEstValue(l);
-  return s;
-};
-
-/*
  * Normalize a brand value to a stable short key. The real data uses the full
  * string "Open Hotels" (not "Open"), which previously broke brand matching and
  * left the Open line/series empty. Maps: "Open Hotels" -> "open", "Olive" ->

@@ -45,7 +45,7 @@ export function downloadCsv(filename: string, columns: CsvColumn[], rows: any[])
   URL.revokeObjectURL(url);
 }
 
-const FILTER_KEYS = ['brand', 'region', 'state', 'city', 'cluster', 'tier', 'status', 'prop', 'owner'] as const;
+const FILTER_KEYS = ['brand', 'region', 'state', 'city', 'cluster', 'status', 'prop', 'owner'] as const;
 
 /** Compact slug describing the active global filters, used inside filenames. */
 export function filterSlug(filters?: Filters | null): string {

@@ -7,7 +7,6 @@ export interface Lead {
   owner: string | null;
   status: string | null;
   prop: string;
-  tier: string;
   cluster: string;
   ci: boolean;
 }

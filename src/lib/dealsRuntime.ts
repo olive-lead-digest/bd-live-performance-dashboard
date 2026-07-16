@@ -36,7 +36,6 @@ const DEALS_HONOURED = ['brand', 'region', 'state', 'owner', 'from', 'to'] as co
 // Dimensions the deal records genuinely cannot express — a deal module must never
 // look filtered by these; instead it renders an exemption badge.
 const DEALS_EXEMPT: { key: keyof Filters; label: string }[] = [
-  { key: 'tier', label: 'lead-tier' },
   { key: 'status', label: 'lead-status' },
   { key: 'city', label: 'city' },
   { key: 'cluster', label: 'cluster' },

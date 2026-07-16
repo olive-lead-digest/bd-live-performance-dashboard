@@ -14,7 +14,6 @@ export interface Filters {
   cluster: Set<string>;
   brand: Set<string>;
   status: Set<string>;
-  tier: Set<string>;
   prop: Set<string>;
   owner: Set<string>;
 }
@@ -26,7 +25,7 @@ export interface Filters {
 // We use window.history.replaceState directly (no useSearchParams) so the
 // App-Router build never needs a Suspense boundary, and updates never add a
 // history entry or trigger a scroll jump.
-const SET_KEYS = ['region', 'state', 'city', 'cluster', 'brand', 'status', 'tier', 'prop', 'owner'] as const;
+const SET_KEYS = ['region', 'state', 'city', 'cluster', 'brand', 'status', 'prop', 'owner'] as const;
 
 function filtersToQuery(f: Filters): string {
   const p = new URLSearchParams();
@@ -43,7 +42,7 @@ function queryToFilters(search: string): Filters {
   const next: Filters = {
     from: '', to: '',
     region: new Set(), state: new Set(), city: new Set(), cluster: new Set(),
-    brand: new Set(), status: new Set(), tier: new Set(), prop: new Set(), owner: new Set(),
+    brand: new Set(), status: new Set(), prop: new Set(), owner: new Set(),
   };
   try {
     const p = new URLSearchParams(search || '');
@@ -114,7 +113,6 @@ const defaultFilters: Filters = {
   cluster: new Set(),
   brand: new Set(),
   status: new Set(),
-  tier: new Set(),
   prop: new Set(),
   owner: new Set()
 };
@@ -218,7 +216,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       if (filters.city.size && !filters.city.has(l.city)) return false;
       if (filters.cluster.size && !filters.cluster.has(l.cluster)) return false;
       if (filters.brand.size && !filters.brand.has(l.brand)) return false;
-      if (filters.tier.size && !filters.tier.has(l.tier)) return false;
       if (filters.owner.size && !(l.owner && filters.owner.has(l.owner))) return false;
       if (filters.prop.size && !filters.prop.has(l.prop)) return false;
       if (filters.status.size && !filters.status.has(l.status || '(unassigned)')) return false;
