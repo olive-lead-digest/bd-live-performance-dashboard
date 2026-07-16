@@ -35,6 +35,11 @@ export function LeadsBySourceCard() {
 
   const maxL = rows.reduce((m, r) => Math.max(m, r.l), 0);
   const grandTotal = rows.reduce((s, r) => s + r.l, 0);
+  // Item 19 — deal-stage drops (deals.totals.dropped) are shown as a separate,
+  // clearly-labelled total: Deals.Lead_Source is null/"NA" for most dropped deals
+  // (and uses different labels than the Leads module), so attributing them to a
+  // lead source would fabricate data. Per-source drop counts stay lead-stage only.
+  const dealDrops = Number(data?.deals?.totals?.dropped) || 0;
 
   return (
     <div className="glass-panel p-4 sm:p-6 flex flex-col">
@@ -72,8 +77,19 @@ export function LeadsBySourceCard() {
         })}
       </div>
 
+      {dealDrops > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border-subtle/60 bg-surface/40 px-3 py-2.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
+            plus deal-stage drops (not source-attributed)
+          </span>
+          <span className="text-sm font-black text-red-400 tabular-nums">{num(dealDrops)}</span>
+        </div>
+      )}
+
       <p className="mt-3 text-[11px] leading-relaxed text-text-secondary">
         Active-rate and drop-rate are computed over each source&apos;s own total leads.
+        Drop-rate covers lead-stage drops only; deal-stage drops are totalled separately
+        above because dropped deals rarely carry a usable lead source.
       </p>
     </div>
   );

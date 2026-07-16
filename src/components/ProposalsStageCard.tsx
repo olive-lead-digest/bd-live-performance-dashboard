@@ -174,11 +174,13 @@ export function ProposalsStageCard() {
           ARR = Average Room Rate (₹ per room-night) — not Annual Recurring Revenue.
           {arrBrands.length ? ` Showing ${activeArrBrand}.` : ''}
         </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <Metric label="Year 1 ARR" value={arr.year1Arr} kind="arr" />
           <Metric label="Year 1 Occupancy" value={arr.year1Occ} kind="occ" />
           <Metric label="Stabilised ARR" value={arr.stabilisedArr} kind="arr" />
           <Metric label="Stabilised Occupancy" value={arr.stabilisedOcc} kind="occ" />
+          <Metric label="Landlord-expected ARR" value={arr.landlordArr} kind="arr" />
+          <Metric label="Landlord-expected Occupancy" value={arr.landlordOcc} kind="occ" />
         </div>
       </div>
 

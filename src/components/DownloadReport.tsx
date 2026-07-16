@@ -20,7 +20,7 @@ function describeFilters(f: any): string {
   if (!f) return 'None (all data)';
   const parts: string[] = [];
   if (f.from || f.to) parts.push(`Date ${f.from || '…'} to ${f.to || '…'}`);
-  (['brand', 'region', 'state', 'city', 'cluster', 'tier', 'status', 'prop', 'owner'] as const).forEach((k) => {
+  (['brand', 'region', 'state', 'city', 'cluster', 'status', 'prop', 'owner'] as const).forEach((k) => {
     const s = f[k] as Set<string> | undefined;
     if (s && s.size) parts.push(`${k}: ${Array.from(s).join(', ')}`);
   });
@@ -54,9 +54,9 @@ function buildSheets(data: any): { sheets: Sheet[]; asOf: string } {
     ['Portfolio — Open MA', numPlain(portfolio.openMA)],
     ['Portfolio — Spark LOI', numPlain(portfolio.sparkLOI)],
     ['MTD signings', numPlain(mtd?.signings?.count)],
-    ['MTD collections (approx)', inrPlain(mtd?.collections?.amount)],
+    ['MTD collections (TA-Schedule actuals)', inrPlain(mtd?.collections?.amount)],
     ['YTD signings', numPlain(ytd?.signings?.count)],
-    ['YTD collections (approx)', inrPlain(ytd?.collections?.amount)],
+    ['YTD collections (TA-Schedule actuals)', inrPlain(ytd?.collections?.amount)],
   ];
   sheets.push({ name: 'KPI Summary', header: ['Metric', 'Value'], rows: kpi });
 

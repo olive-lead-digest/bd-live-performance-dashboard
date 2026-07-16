@@ -5,7 +5,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 
 /**
  * P0-2 exemption badge. A deal-side module renders this when a filter is active
- * on a dimension the deal records cannot express (lead-tier, lead-status, city,
+ * on a dimension the deal records cannot express (lead-status, city,
  * cluster, property-type). No module may ever LOOK filtered while showing
  * unfiltered data, so the whole deal side surfaces this badge (and dims slightly)
  * whenever such a filter is active.

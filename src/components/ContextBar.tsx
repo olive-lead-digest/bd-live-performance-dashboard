@@ -17,7 +17,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
     activeChips.push({ key: 'date', label: `Date: ${filters.from || '…'} → ${filters.to || '…'}`, id: 'date' });
   }
 
-  ['region', 'cluster', 'state', 'city', 'tier', 'status', 'prop', 'owner'].forEach(k => {
+  ['region', 'cluster', 'state', 'city', 'status', 'prop', 'owner'].forEach(k => {
     const set = filters[k as keyof typeof filters] as Set<string>;
     set.forEach(v => {
       activeChips.push({ key: k, label: `${k}: ${v}`, id: `${k}::${v}` });
