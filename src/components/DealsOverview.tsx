@@ -162,21 +162,20 @@ export function DealsOverview() {
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div title="Ta_Fee_Contracted on deals whose MA was signed this fiscal year.">
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted (FY)</span>
                 <span className="text-lg sm:text-xl font-black text-white tracking-tight">{inr(feesFy?.contracted)}</span>
               </div>
-              <div>
-                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected</span>
+              <div title="Cash actually received during this FY, windowed by payment date — includes collections on contracts signed in prior years, so it can exceed FY-contracted. A FY receivable is therefore not meaningful; see the all-time Receivable below.">
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Cash received this FY</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
-              </div>
-              <div>
-                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable</span>
-                <span className="text-lg sm:text-xl font-black text-amber-400 tracking-tight">{inr(receivable(feesFy?.contracted, feesFy?.collected))}</span>
-                <span className="block text-[9px] text-text-secondary mt-0.5">derived</span>
+                <span className="block text-[9px] text-text-secondary mt-0.5">incl. prior-FY contracts</span>
               </div>
             </div>
+            <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
+              Cash received this FY is windowed by actual payment date and can include collections on prior-FY contracts, so it may exceed FY-contracted; the meaningful Receivable is shown all-time below.
+            </p>
           </div>
 
           {/* All-time / contracted book */}
