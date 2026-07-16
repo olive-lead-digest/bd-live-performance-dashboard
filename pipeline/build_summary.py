@@ -94,11 +94,11 @@ def deals_block(deals):
                    for f in (deals.get("funnel") or [])],
         "mtd": {"period": mtd.get("period"),
                 "signings": (mtd.get("signings") or {}),
-                "collectionsApprox": (mtd.get("collections") or {}).get("amount")},
+                "collections": (mtd.get("collections") or {}).get("amount")},
         "ytd": {"fyStart": ytd.get("fyStart"),
                 "signings": (ytd.get("signings") or {}),
-                "collectionsApprox": {"amount": (ytd.get("collections") or {}).get("amount"),
-                                      "byBrand": (ytd.get("collections") or {}).get("byBrand")}},
+                "collections": {"amount": (ytd.get("collections") or {}).get("amount"),
+                                "byBrand": (ytd.get("collections") or {}).get("byBrand")}},
         "landStatus": deals.get("landStatus"),   # analyst D1 property-status mix (Land_Status)
         "ranking": {"meta": rank.get("meta"),
                     "bds": [{"bd": b.get("bd"), "region": b.get("region"), "rank": b.get("rank"),
@@ -111,7 +111,7 @@ def deals_block(deals):
                       "region": u.get("region"), "type": u.get("type"),
                       "expectedDate": u.get("expectedDate"), "keys": u.get("keys")}
                      for u in (deals.get("upcoming") or [])],
-        "notes": "Signings=MA Signed (won). Collections attributed to signing date (no per-payment date); treat as approximate. Spark counted at LOI.",
+        "notes": "Signings=MA Signed (won); Spark counted at LOI. Collections are real cash received per the Deals TA-Schedule, windowed by the actual payment date.",
     }
     return out
 
@@ -197,6 +197,17 @@ def build_summary(d, deals=None, proposals=None):
             if stt in ACT:  b["a"] += 1
             if stt in DROP: b["d"] += 1
 
+    # Item 19 — deal-stage drops are NOT included in the per-source 'd' counts and
+    # are NOT attributed to lead sources: Deals.Lead_Source is null/"NA" for most
+    # dropped deals and uses a different label vocabulary from the Leads module,
+    # so per-source attribution would be fabricated. Surface the total separately.
+    deal_stage_drops = ((deals or {}).get("totals") or {}).get("dropped")
+    leadsBySourceMeta = {
+        "dealStageDrops": deal_stage_drops,
+        "note": "Per-source 'd' = leads dropped at lead stage (Lead_Status='Lead Dropped') only. "
+                "Deal-stage drops (deals.totals.dropped) are additional and not source-attributed.",
+    }
+
     # Drop-reason counts — pass through the feed aggregate, else recompute.
     dropReasons = d.get("dropReasons")
     if not dropReasons:
@@ -218,16 +229,19 @@ def build_summary(d, deals=None, proposals=None):
                                  "South 3 (TN & KL)", "East", "West", "Other", "Unknown"]),
         "byStatus": byStatus,
         "leadsBySource": leadsBySource,
+        "leadsBySourceMeta": leadsBySourceMeta,
         "dropReasons": dropReasons,
         "trend": trend,
         "leaderboard": lb,
         "deals": deals_block(deals),
         "proposals": proposals_block(proposals),
-        "notes": {"revenue": "Lead-side $ are estimates = leadCount x 12500, not booked revenue.",
+        "notes": {"leads": "Lead-side figures are record counts from the Zoho Leads module; "
+                           "no rupee value is estimated from lead counts.",
                   "won": "Closed-won deals, TA fees, fiscal MTD/YTD signings & collections, signing "
                          "probability, the points-based BD ranking and upcoming signings are in the "
                          "'deals' block. The pre-deal department-approval funnel is in 'proposals'. "
-                         "Collections are attributed to signing date (no per-payment date) and are approximate."},
+                         "Collections are real cash received per the Deals TA-Schedule, windowed by "
+                         "the actual payment date."},
     }
 
 

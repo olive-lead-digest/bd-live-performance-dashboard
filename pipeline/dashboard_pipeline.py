@@ -177,7 +177,10 @@ DROP_STATUSES = {'Lead Dropped'}
 
 def build_leads_by_source(leads):
     """Aggregate leads by their Lead_Source into short-key counts.
-    Shape: {'<Source>': {'l': total, 'c': contacted, 'a': active, 'd': dropped}}"""
+    Shape: {'<Source>': {'l': total, 'c': contacted, 'a': active, 'd': dropped}}.
+    'd' counts LEAD-stage drops only (Lead_Status='Lead Dropped'). Deal-stage
+    drops live in deals.totals.dropped and are NOT attributed to lead sources
+    (Deals.Lead_Source is mostly null/'NA' — see summary.leadsBySourceMeta)."""
     out={}
     for l in leads:
         src=(l.get('source') or 'Unknown') or 'Unknown'
