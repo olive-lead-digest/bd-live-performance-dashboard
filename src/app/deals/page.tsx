@@ -89,7 +89,10 @@ export default function DealsPage() {
   const contractedByBrandRecords: Record<string, number> = {};
   const collectedByBrandRecords: Record<string, number> = {};
   for (const r of dealRecords) {
-    if (r?.stageType !== 'won') continue;
+    // Contracted book = MA-signed (won) + LOI-signed (Spark's signing milestone),
+    // so the by-brand Contracted column foots to the all-time contracted total.
+    const isContracted = r?.stageType === 'won' || r?.stage === 'LOI Signed';
+    if (!isContracted) continue;
     const b = String(r.brand || 'Unknown').trim() || 'Unknown';
     contractedByBrandRecords[b] = (contractedByBrandRecords[b] || 0) + (Number(r.feeContracted) || 0);
     collectedByBrandRecords[b] = (collectedByBrandRecords[b] || 0) + (Number(r.feeCollected) || 0);
@@ -387,12 +390,13 @@ export default function DealsPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy.deals} signed</span>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <RevStat label="Contracted (FY)" value={inr(feesFy?.contracted)} tooltip="Ta_Fee_Contracted on deals whose MA was signed this fiscal year." />
-              <RevStat label="Cash received this FY" value={inr(feesFy?.collected)} accent="#34d399" tooltip="Cash actually received during this FY, windowed by payment date — includes collections on contracts signed in prior years, so it can exceed FY-contracted. A FY receivable is therefore not meaningful; see the all-time Receivable." />
+            <div className="grid grid-cols-3 gap-3">
+              <RevStat label="Contracted (FY)" value={inr(feesFy?.contracted)} tooltip="Ta_Fee_Contracted on deals signed this fiscal year — MA-signed (by MA date) plus LOI-signed (by LOI date)." />
+              <RevStat label="Cash received this FY" value={inr(feesFy?.collected)} accent="#34d399" tooltip="Cash actually received during this FY, windowed by actual payment date." />
+              <RevStat label="Receivable (FY)" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn tooltip="Receivable (FY) = Contracted this FY − cash received this FY." />
             </div>
             <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
-              &ldquo;Cash received this FY&rdquo; is windowed by actual payment date and can include collections on prior-FY contracts, so it may exceed FY-contracted — a FY receivable is omitted here; the meaningful Receivable is shown all-time.
+              Contracted is attributed to the MA/LOI signing date; &ldquo;Cash received this FY&rdquo; is windowed by actual payment date.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
@@ -409,7 +413,7 @@ export default function DealsPage() {
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date, so Current-FY figures exclude them.</div>
           )}
-          <div>Contracted = Ta_Fee_Contracted on MA-signed deals; Collected = real cash received (sum of TA-Schedule actuals); Receivable = Contracted − Collected.</div>
+          <div>Contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals (attributed to the MA/LOI signing date); Collected = real cash received (sum of TA-Schedule actuals); Receivable = Contracted − Collected.</div>
         </div>
 
         <div className="overflow-x-auto">
@@ -580,8 +584,9 @@ export default function DealsPage() {
                 return (
                   <button
                     key={b}
+                    type="button"
                     onClick={() => drill(`${b} — signed deals`, wonRecs.filter((r) => brandOf(r) === b))}
-                    className="text-left cursor-pointer rounded-lg -mx-1 px-1 py-1 hover:bg-surface/30 transition-colors"
+                    className="text-left cursor-pointer rounded-lg -mx-1 px-1 py-1 hover:bg-surface/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
                     title={`List ${b} signed deals`}
                   >
                     <div className="flex items-center justify-between text-[11px] mb-1">

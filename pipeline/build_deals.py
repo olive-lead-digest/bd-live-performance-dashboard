@@ -301,6 +301,20 @@ def fy_months_elapsed(today):
     return (today.year - fs.year) * 12 + (today.month - fs.month) + 1
 
 
+def _signing_date(r, canon=None):
+    """The date a deal became CONTRACTED (its signing/won milestone):
+      MA Signed  -> MA_Date
+      LOI Signed -> Expected_Actual_LOI_Date, falling back to Expected_LOI_Date.
+    Returns a datetime.date or None. Ta_Fee_Contracted is attributed to a fiscal
+    year by this date (contracted book = MA-signed + LOI-signed deals)."""
+    canon = canon or classify_stage(r.get("Stage"))
+    if canon == STAGE_MA:
+        return _pdate(r.get("MA_Date"))
+    if canon == STAGE_LOI:
+        return _pdate(r.get("Expected_Actual_LOI_Date")) or _pdate(r.get("Expected_LOI_Date"))
+    return None
+
+
 def build_portfolio(records):
     """Won-deal portfolio counts by brand + Spark LOI (LOI is Spark-only)."""
     p = {"oliveMA": 0, "sparkMA": 0, "openMA": 0, "sparkLOI": 0}
@@ -521,8 +535,10 @@ def build_deals(records, generated=None, today=None):
     prop_type = defaultdict(int)
     land_status = defaultdict(int)           # analyst D1 — Property Status Mix (Land_Status)
     closers = defaultdict(lambda: {"signed": 0, "feeContracted": 0.0})
-    # Fees. contracted=Ta_Fee_Contracted (MA-signed book), collectedActual=
-    # Actual_Amount_Total (Zoho rollup, ref), pending=Pending_TA_fee (MA-signed).
+    # Fees. contracted=Ta_Fee_Contracted over the CONTRACTED book = MA-signed +
+    # LOI-signed deals (LOI Signed is Spark's signing milestone), attributed to the
+    # MA/LOI signing date; collectedActual=Actual_Amount_Total (Zoho rollup, ref),
+    # pending=Pending_TA_fee (MA-signed).
     # analyst D2 — the real `collected` now comes from the TA_Schedule subform
     # (sum Actual_Amount), NOT the flat TA_fee_collected field, which is kept for QA.
     fees_all = {"contracted": 0.0, "collectedFlatLegacy": 0.0, "collectedActual": 0.0, "pending": 0.0}
@@ -530,6 +546,9 @@ def build_deals(records, generated=None, today=None):
     collected_all = 0.0                      # sum TA_Schedule.Actual_Amount (all deals, all-time)
     collected_by_brand = defaultdict(float)  # all-time collected by brand
     collected_by_region = defaultdict(float) # all-time collected by region
+    contracted_by_brand = defaultdict(float) # all-time contracted by brand (MA+LOI signed)
+    contracted_by_region = defaultdict(float)# all-time contracted by region (MA+LOI signed)
+    fy_contracted_signings = 0               # MA+LOI signings attributed to the current FY
     sched_deals = 0                          # deals that had >=1 TA_Schedule row
     sched_rows = 0                           # total TA_Schedule rows seen
     sign_prob = {k: {"count": 0, "keys": 0} for k in PROB_LEVELS + ["Unspecified"]}
@@ -585,11 +604,14 @@ def build_deals(records, generated=None, today=None):
             fees_all["collectedFlatLegacy"] += cl
             fees_all["collectedActual"] += ca
             fees_all["pending"] += pd
+            contracted_by_brand[brand] += c            # contracted book (MA portion)
+            contracted_by_region[region] += c
             d = _pdate(r.get("MA_Date"))
             if d is None:
                 undated_ma += 1
             elif d >= fs:
                 fy_signed += 1
+                fy_contracted_signings += 1            # MA signing in current FY
                 keys_contracted_fy += keys
                 fees_fy["contracted"] += c
                 fees_fy["collectedFlatLegacy"] += cl
@@ -608,6 +630,20 @@ def build_deals(records, generated=None, today=None):
             b = _prob_bucket(r.get("Signing_Probability"))
             sign_prob[b]["count"] += 1
             sign_prob[b]["keys"] += keys
+            # TA-fee fix — LOI Signed is a CONTRACTED milestone (Spark's signing
+            # event): its Ta_Fee_Contracted joins the all-time contracted book and
+            # is attributed to the current FY by the LOI signing date (actual, or
+            # the expected LOI date when the actual is blank). Included here so
+            # `fees.contracted` spans MA-signed + LOI-signed deals (not MA only).
+            if canon == STAGE_LOI:
+                c_loi = _num(r.get("Ta_Fee_Contracted"))
+                fees_all["contracted"] += c_loi
+                contracted_by_brand[brand] += c_loi
+                contracted_by_region[region] += c_loi
+                sd_loi = _signing_date(r, canon)
+                if sd_loi is not None and sd_loi >= fs:
+                    fees_fy["contracted"] += c_loi
+                    fy_contracted_signings += 1
             # analyst D3 — a Spark deal's fee counts at LOI Signed (its win milestone),
             # so LOI-signed Spark deals credit their closer just like an MA signing.
             if canon == STAGE_LOI and brand == "Spark" and owner and owner.strip().lower() not in CLOSER_EXCLUDE:
@@ -622,6 +658,7 @@ def build_deals(records, generated=None, today=None):
         exp_d = (_pdate(r.get("Expected_MA_Date"))
                  or _pdate(r.get("Expected_Actual_LOI_Date"))
                  or _pdate(r.get("Expected_LOI_Date")))
+        sign_d = _signing_date(r, canon)   # contracted/signing date (MA_Date | LOI date)
         deal_records.append({
             "id": r.get("id"),
             "name": str(r.get("Deal_Name") or "").strip(),
@@ -630,6 +667,7 @@ def build_deals(records, generated=None, today=None):
             "stageType": stage_type,
             "maDate": ma_d.isoformat() if ma_d else None,
             "expectedDate": exp_d.isoformat() if exp_d else None,
+            "signingDate": sign_d.isoformat() if sign_d else None,   # contracted date (MA/LOI)
             "keys": keys,
             "feeContracted": round(_num(r.get("Ta_Fee_Contracted")), 2),
             "feeCollected": round(_num(r.get("TA_fee_collected")), 2),
@@ -671,6 +709,8 @@ def build_deals(records, generated=None, today=None):
     fees_all_block["receivable"] = round(fees_all["contracted"] - collected_all, 2)
     fees_all_block["collectedByBrand"] = {k: round(v, 2) for k, v in collected_by_brand.items()}
     fees_all_block["collectedByRegion"] = {k: round(v, 2) for k, v in collected_by_region.items()}
+    fees_all_block["contractedByBrand"] = {k: round(v, 2) for k, v in contracted_by_brand.items()}
+    fees_all_block["contractedByRegion"] = {k: round(v, 2) for k, v in contracted_by_region.items()}
 
     # FY collected is windowed by REAL payment date (Actual_Date >= FY start), NOT signing.
     ytd_col = _collections_in(records, fs)
@@ -678,6 +718,9 @@ def build_deals(records, generated=None, today=None):
     fees_fy_block["fyStart"] = fs.isoformat()
     fees_fy_block["signedDeals"] = fy_signed
     fees_fy_block["collected"] = ytd_col["amount"]
+    fees_fy_block["contractedSignings"] = fy_contracted_signings   # MA + LOI signed this FY
+    # receivable = contracted (MA+LOI signed this FY) - cash collected this FY.
+    fees_fy_block["receivable"] = round(fees_fy["contracted"] - ytd_col["amount"], 2)
     fees_fy_block["collectedByBrand"] = ytd_col["byBrand"]
     fees_fy_block["collectedByRegion"] = ytd_col["byRegion"]
 
@@ -699,6 +742,9 @@ def build_deals(records, generated=None, today=None):
         "upcoming": build_upcoming(records, today, 20),
         "ranking": build_ranking(records, today),
         "dateBasis": {"signings": "MA_Date", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
+                      "contracted": ("Contracted attributed to the MA/LOI signing date "
+                                     "(MA_Date for MA Signed; Expected_Actual_LOI_Date, "
+                                     "else Expected_LOI_Date, for LOI Signed); FY = signed this FY."),
                       "collections": "TA_Schedule.Actual_Date (real per-payment date)",
                       "region": "BD owner -> bd_org region, State fallback"},
         "funnel": funnel,
@@ -722,7 +768,8 @@ def build_deals(records, generated=None, today=None):
             "collectedBasis": ("collected = sum TA_Schedule.Actual_Amount (real cash received); "
                                "receivable = contracted - collected; fy.collected + mtd/ytd "
                                "collections are windowed by Actual_Date (real payment date); "
-                               "contracted = Ta_Fee_Contracted on MA-signed deals."),
+                               "contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals, "
+                               "attributed to the MA/LOI signing date (FY = signed this FY)."),
             "dealsWithSchedule": sched_deals,
             "scheduleRows": sched_rows,
             "undatedMASigned": undated_ma,
