@@ -18,6 +18,7 @@ export interface DealRecord {
   stageType?: 'open' | 'won' | 'dropped';
   maDate?: string | null; // signing date (won)
   expectedDate?: string | null; // expected LOI/MA date (open)
+  signingDate?: string | null; // contracted date: MA_Date (MA) | LOI date (LOI Signed)
   keys?: number;
   feeContracted?: number;
   feeCollected?: number;
@@ -205,7 +206,18 @@ function aggregate(filtered: DealRecord[], fallback: any) {
       active += 1;
       const st = r.stage && CANON_ORDER.includes(r.stage) ? r.stage : STAGE_BA;
       stageCounts[st] = (stageCounts[st] || 0) + 1;
-      if (r.stage === STAGE_LOI) portfolio.sparkLOI += 1;
+      if (r.stage === STAGE_LOI) {
+        portfolio.sparkLOI += 1;
+        // LOI Signed is a CONTRACTED milestone (Spark's signing event): its
+        // Ta_Fee_Contracted joins the all-time contracted book + the by-brand
+        // split, and the FY total when signed this FY (by the LOI signing date),
+        // mirroring the pipeline so filtered contracted spans MA + LOI signed.
+        const cLoi = Number(r.feeContracted) || 0;
+        feesAll.contracted += cLoi;
+        byBrand[brand].feeContracted += cLoi;
+        const sd = r.signingDate || r.expectedDate || null;
+        if (fyStart && sd && sd >= fyStart) feesFy.contracted += cLoi;
+      }
       const b = PROB_LEVELS.includes(String(r.signingProbability)) ? String(r.signingProbability) : 'Unspecified';
       prob[b].count += 1;
       prob[b].keys += keys;
