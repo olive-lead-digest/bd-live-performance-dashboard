@@ -90,50 +90,118 @@ export default function Reporting() {
       );
     });
 
-    // Date Math
-    const maxDate = filteredLeads.reduce((max, l) => l.dt > max ? l.dt : max, '2000-01-01');
-    const currDate = new Date(maxDate);
-    const currYear = currDate.getFullYear();
-    const currMonth = currDate.getMonth();
-    const currDay = currDate.getDate();
-    const prevMonthDate = new Date(currYear, currMonth - 1, currDay);
-    const prevMonth = prevMonthDate.getMonth();
-    const prevYear = prevMonthDate.getFullYear();
-
-    const currMonthPrefix = `${currYear}-${String(currMonth + 1).padStart(2, '0')}`;
-    const prevMonthPrefix = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
+    // --- Date window (analyst FIX — the global date range now drives this page) --
+    // Default: month-to-date around the latest lead, compared to the prior month
+    // (unchanged). When a GLOBAL date range (from/to) is active, honour it
+    // literally: the CURRENT window is exactly [from,to] and the comparison is the
+    // equal-length window immediately before it — so the lead-volume figures, the
+    // daily chart and the pill label all track the selected range (previously the
+    // page re-imposed a fixed current-month window and ignored the range).
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const currName = monthNames[currMonth];
-    const prevName = monthNames[prevMonth];
+    const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const parseISO = (s: string) => { const [y, m, dd] = s.split('-').map(Number); return new Date(y, (m || 1) - 1, dd || 1); };
+    const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const fmtShort = (iso: string) => { const d = parseISO(iso); return `${monthNames[d.getMonth()]} ${d.getDate()}`; };
 
-    const currentLeads = searchFiltered.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
-    // Prior period drawn from the date-UNFILTERED base so a selected range never zeroes it out.
-    const previousLeads = baseSearch.filter(l => l.dt.startsWith(prevMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+    const maxDate = filteredLeads.reduce((max, l) => l.dt > max ? l.dt : max, '2000-01-01');
+    const minDate = filteredLeads.reduce((min, l) => l.dt < min ? l.dt : min, maxDate);
+    const hasDateRange = !!(filters.from || filters.to);
+
+    let currName: string, prevName: string, currDay: number;
+    let pillLabel: string, compareLabel: string;
+    let currentLeads: any[], previousLeads: any[];
+    let chartData: any[];
+
+    if (hasDateRange) {
+      // ---- RANGE MODE: current = selected [from,to]; prev = equal window before.
+      let curStartISO = filters.from || minDate;
+      let curEndISO = filters.to || maxDate;
+      if (curStartISO > curEndISO) { const t = curStartISO; curStartISO = curEndISO; curEndISO = t; }
+      const cs = parseISO(curStartISO), ce = parseISO(curEndISO);
+      const spanDays = Math.max(1, Math.round((ce.getTime() - cs.getTime()) / 86400000) + 1);
+      const pe = addDays(cs, -1), ps = addDays(pe, -(spanDays - 1));
+      const prevStartISO = isoOf(ps), prevEndISO = isoOf(pe);
+
+      currName = monthNames[ce.getMonth()];
+      prevName = monthNames[pe.getMonth()];
+      currDay = ce.getDate();
+      pillLabel = `${fmtShort(curStartISO)} – ${fmtShort(curEndISO)}`;
+      compareLabel = `${fmtShort(prevStartISO)}–${fmtShort(prevEndISO)}`;
+
+      currentLeads = searchFiltered.filter(l => l.dt >= curStartISO && l.dt <= curEndISO);
+      // Prior period from the date-UNFILTERED base so a selected range never zeroes it out.
+      previousLeads = baseSearch.filter(l => l.dt >= prevStartISO && l.dt <= prevEndISO);
+
+      const rows: any[] = [];
+      const curById: Record<string, any> = {};
+      const prevByDate: Record<string, any> = {};
+      for (let i = 0; i < spanDays; i++) {
+        const cIso = isoOf(addDays(cs, i));
+        const pIso = isoOf(addDays(ps, i));
+        const row: any = isBrandSearch
+          ? { day: i + 1, date: cIso, spark: 0, olive: 0, open: 0 }
+          : { day: i + 1, date: cIso, prevDate: pIso, curr: 0, prev: 0 };
+        rows.push(row);
+        curById[cIso] = row;
+        if (!isBrandSearch) prevByDate[pIso] = row;
+      }
+      if (isBrandSearch) {
+        filteredLeads.filter(l => l.dt >= curStartISO && l.dt <= curEndISO).forEach(l => {
+          const row = curById[l.dt];
+          const bk = brandKey(l.brand);
+          if (row && bk && row[bk] !== undefined) row[bk]++;
+        });
+      } else {
+        currentLeads.forEach(l => { const row = curById[l.dt]; if (row) row.curr++; });
+        previousLeads.forEach(l => { const row = prevByDate[l.dt]; if (row) row.prev++; });
+      }
+      chartData = rows;
+    } else {
+      // ---- DEFAULT MODE: month-to-date vs the prior month (unchanged behaviour).
+      const currDate = new Date(maxDate);
+      const currYear = currDate.getFullYear();
+      const currMonth = currDate.getMonth();
+      currDay = currDate.getDate();
+      const prevMonthDate = new Date(currYear, currMonth - 1, currDay);
+      const prevMonth = prevMonthDate.getMonth();
+      const prevYear = prevMonthDate.getFullYear();
+
+      const currMonthPrefix = `${currYear}-${String(currMonth + 1).padStart(2, '0')}`;
+      const prevMonthPrefix = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
+      currName = monthNames[currMonth];
+      prevName = monthNames[prevMonth];
+      pillLabel = `${currName} 1-${currDay}`;
+      compareLabel = `${prevName} 1-${currDay}`;
+
+      currentLeads = searchFiltered.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+      // Prior period drawn from the date-UNFILTERED base so a selected range never zeroes it out.
+      previousLeads = baseSearch.filter(l => l.dt.startsWith(prevMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+
+      const dailyMap: Record<number, any> = {};
+      for (let i = 1; i <= currDay; i++) {
+        if (isBrandSearch) dailyMap[i] = { day: i, spark: 0, open: 0, olive: 0 };
+        else dailyMap[i] = { day: i, curr: 0, prev: 0 };
+      }
+      if (isBrandSearch) {
+        const currentLeadsAll = filteredLeads.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
+        currentLeadsAll.forEach(l => {
+          const d = parseInt(l.dt.split('-')[2]);
+          const brand = brandKey(l.brand);
+          if (dailyMap[d] && brand && dailyMap[d][brand] !== undefined) dailyMap[d][brand]++;
+        });
+      } else {
+        currentLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].curr++; });
+        previousLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].prev++; });
+      }
+      chartData = Object.values(dailyMap).sort((a, b) => a.day - b.day);
+    }
+
     const currRates = calculateRates(currentLeads);
     const prevRates = calculateRates(previousLeads);
 
-    const dailyMap: Record<number, any> = {};
-    for (let i = 1; i <= currDay; i++) {
-      if (isBrandSearch) dailyMap[i] = { day: i, spark: 0, open: 0, olive: 0 };
-      else dailyMap[i] = { day: i, curr: 0, prev: 0 };
-    }
-
-    if (isBrandSearch) {
-      const currentLeadsAll = filteredLeads.filter(l => l.dt.startsWith(currMonthPrefix) && parseInt(l.dt.split('-')[2]) <= currDay);
-      currentLeadsAll.forEach(l => {
-        const d = parseInt(l.dt.split('-')[2]);
-        const brand = brandKey(l.brand);
-        if (dailyMap[d] && brand && dailyMap[d][brand] !== undefined) dailyMap[d][brand]++;
-      });
-    } else {
-      currentLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].curr++; });
-      previousLeads.forEach(l => { const d = parseInt(l.dt.split('-')[2]); if (dailyMap[d]) dailyMap[d].prev++; });
-    }
-    const chartData = Object.values(dailyMap).sort((a, b) => a.day - b.day);
-
     const baseData = {
       isEmpty: false, isPersonSearch, isLocationSearch, isBrandSearch,
-      currName, prevName, currDay,
+      currName, prevName, currDay, pillLabel, compareLabel, rangeMode: hasDateRange,
       currTotal: currentLeads.length, prevTotal: previousLeads.length,
       currActive: currRates.active, prevActive: prevRates.active,
       chartData, zoomStats: { outreach: 0, connects: 0, recordings: 0, connectRate: 0 }
@@ -290,10 +358,10 @@ export default function Reporting() {
     const prefix = searchQuery ? `${searchQuery}: ` : '';
     const volDiff = rd.currTotal - rd.prevTotal;
     const volPct = rd.prevTotal ? (volDiff / rd.prevTotal) * 100 : 0;
-    b.push({ tone: volDiff >= 0 ? 'up' : 'down', text: `${prefix}MTD lead volume ${volDiff >= 0 ? 'up' : 'down'} ${Math.abs(volPct).toFixed(0)}% vs last month (${rd.currTotal.toLocaleString()} leads).` });
+    b.push({ tone: volDiff >= 0 ? 'up' : 'down', text: `${prefix}${rd.rangeMode ? 'Selected-range' : 'MTD'} lead volume ${volDiff >= 0 ? 'up' : 'down'} ${Math.abs(volPct).toFixed(0)}% vs ${rd.rangeMode ? 'the prior period' : 'last month'} (${rd.currTotal.toLocaleString()} leads).` });
     const actDiff = rd.currActive - rd.prevActive;
     const actPct = rd.prevActive ? (actDiff / rd.prevActive) * 100 : 0;
-    b.push({ tone: actDiff >= 0 ? 'up' : 'down', text: `Active deals ${actDiff >= 0 ? 'up' : 'down'} ${Math.abs(actPct).toFixed(0)}% month-over-month (${rd.currActive.toLocaleString()} active).` });
+    b.push({ tone: actDiff >= 0 ? 'up' : 'down', text: `Active deals ${actDiff >= 0 ? 'up' : 'down'} ${Math.abs(actPct).toFixed(0)}% ${rd.rangeMode ? 'vs the prior period' : 'month-over-month'} (${rd.currActive.toLocaleString()} active).` });
     if (rd.zoomStats) b.push({ tone: rd.zoomStats.connectRate >= 30 ? 'up' : 'warn', text: `Connect rate at ${rd.zoomStats.connectRate.toFixed(0)}% across ${rd.zoomStats.outreach.toLocaleString()} outreach attempts.` });
     if (rd.isPersonSearch && rd.globalRank) b.push({ tone: 'info', text: `${searchQuery} ranks #${rd.globalRank} of ${rd.totalBDs} on the balanced leaderboard.` });
     else if (rd.isLocationSearch && rd.localLeaderboard?.length) b.push({ tone: 'info', text: `Top local performer: ${rd.localLeaderboard[0].owner}.` });
@@ -302,7 +370,7 @@ export default function Reporting() {
 
   if (isLoading || !reportData) return null;
 
-  const { isEmpty, isBrandSearch, isPersonSearch, isLocationSearch, currName, prevName, currDay, currTotal, prevTotal, currActive, prevActive, chartData, zoomStats, personRec, globalRank, radarData, localLeaderboard, statusCounts, brandCounts, bandData } = reportData as any;
+  const { isEmpty, isBrandSearch, isPersonSearch, isLocationSearch, currName, prevName, currDay, pillLabel, compareLabel, rangeMode, currTotal, prevTotal, currActive, prevActive, chartData, zoomStats, personRec, globalRank, radarData, localLeaderboard, statusCounts, brandCounts, bandData } = reportData as any;
 
   const renderComparisonCard = (title: string, currVal: number, prevVal: number, format: (v: number) => string) => {
     const diff = currVal - prevVal;
@@ -326,7 +394,7 @@ export default function Reporting() {
             {diff > 0 ? '+' : ''}{format(diff)}
           </div>
           <span className="text-xs font-medium text-text-secondary">
-            {diff > 0 ? '+' : ''}{pct.toFixed(1)}% compared to {prevName} 1-{currDay}
+            {diff > 0 ? '+' : ''}{pct.toFixed(1)}% compared to {compareLabel}
           </span>
         </div>
       </div>
@@ -393,7 +461,7 @@ export default function Reporting() {
           >
             <CalendarDays className="w-4 h-4 text-brand-purple-300" />
             <span className="text-sm font-semibold text-brand-purple-100">
-              {filters.from || filters.to ? 'Window' : 'MTD'}: {currName || "Curr"} 1-{currDay}
+              {rangeMode ? 'Range' : 'MTD'}: {pillLabel || `${currName || "Curr"} 1-${currDay}`}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-brand-purple-300" />
           </button>
@@ -430,8 +498,8 @@ export default function Reporting() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {renderComparisonCard(isBrandSearch ? `Lead Volume (${searchQuery.toUpperCase()})` : "Total Lead Volume (MTD)", currTotal!, prevTotal!, v => Math.round(v).toLocaleString())}
-            {renderComparisonCard(isBrandSearch ? `Active Deals (${searchQuery.toUpperCase()})` : "Total Active Deals (MTD)", currActive!, prevActive!, v => Math.round(v).toLocaleString())}
+            {renderComparisonCard(isBrandSearch ? `Lead Volume (${searchQuery.toUpperCase()})` : (rangeMode ? "Total Lead Volume (Range)" : "Total Lead Volume (MTD)"), currTotal!, prevTotal!, v => Math.round(v).toLocaleString())}
+            {renderComparisonCard(isBrandSearch ? `Active Deals (${searchQuery.toUpperCase()})` : (rangeMode ? "Total Active Deals (Range)" : "Total Active Deals (MTD)"), currActive!, prevActive!, v => Math.round(v).toLocaleString())}
 
             {/* Zoom Stats Card (Shared between Person and Macro view) */}
             <div className="glass-card p-6 flex flex-col justify-between col-span-1 lg:col-span-2 border-brand-purple-500/30">
