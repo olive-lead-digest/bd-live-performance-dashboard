@@ -9,6 +9,11 @@ export interface Lead {
   prop: string;
   cluster: string;
   ci: boolean;
+  /** Lead source (e.g. "Meta Campaigns-Direct"). Present in the live feed;
+   *  optional so an older feed never breaks the build. */
+  source?: string | null;
+  /** Reason the lead was dropped ('' when still open). */
+  dropReason?: string | null;
 }
 
 export interface BD {
