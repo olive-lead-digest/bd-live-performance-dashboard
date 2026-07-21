@@ -406,7 +406,7 @@ export default function Reporting() {
       <header className="mb-6 flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
-            Growth & Reporting
+            Trends
             {searchQuery && (
               <span className="text-brand-pink-400 text-sm font-semibold bg-brand-pink-500/10 px-2.5 py-1 rounded-md border border-brand-pink-500/20 uppercase tracking-wider">
                 {searchQuery}
@@ -414,7 +414,7 @@ export default function Reporting() {
             )}
           </h1>
           <p className="text-text-secondary text-sm mt-1">
-            {searchQuery ? `Showing filtered analytics for "${searchQuery}".` : "Deep Business Development Analytics & Volume Pacing."}
+            {searchQuery ? `Showing filtered trends for "${searchQuery}".` : "How lead volume, conversion and signings are moving over time."}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
