@@ -79,10 +79,11 @@ export default function DealsPage() {
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = Array.isArray(deals.funnel) ? deals.funnel : [];
   const byBrand: Record<string, any> = deals.byBrand || {};
   const dealRecords: any[] = Array.isArray(deals.records) ? deals.records : [];
-  // Collected-by-brand comes from the feed's real, schedule-based collections
-  // (fees.allTime.collectedByBrand). Contracted-by-brand is summed from the
-  // per-deal records (real Ta_Fee_Contracted on MA-signed deals). Under an active
-  // filter the feed map is absent, so we degrade to the record-level collected.
+  // Collected-by-brand comes from the feed's TA_fee_collected split
+  // (fees.allTime.collectedByBrand — the Zoho Analytics basis). Contracted-by-brand
+  // is summed from the per-deal records (Ta_Fee_Contracted on MA+LOI-signed deals).
+  // Under an active filter the feed map is absent, so we degrade to the
+  // record-level collected (same TA_fee_collected basis).
   const collectedByBrand: Record<string, number> =
     (deals.fees?.allTime?.collectedByBrand || deals.fees?.collectedByBrand || {}) as Record<string, number>;
   const hasCollectedByBrand = Object.keys(collectedByBrand).length > 0;
@@ -386,17 +387,17 @@ export default function DealsPage() {
           <div className="p-4 rounded-xl bg-black/20 border border-brand-pink-500/30">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] uppercase tracking-widest font-bold text-brand-pink-400">Current FY ({fyLabel})</span>
-              {feesFy?.deals != null && (
-                <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy.deals} signed</span>
+              {(feesFy?.contractedSignings ?? feesFy?.deals) != null && (
+                <span className="text-[10px] uppercase tracking-wider text-text-secondary">{feesFy?.contractedSignings ?? feesFy?.deals} signed</span>
               )}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <RevStat label="Contracted (FY)" value={inr(feesFy?.contracted)} tooltip="Ta_Fee_Contracted on deals signed this fiscal year — MA-signed (by MA date) plus LOI-signed (by LOI date)." />
-              <RevStat label="Cash received this FY" value={inr(feesFy?.collected)} accent="#34d399" tooltip="Cash actually received during this FY, windowed by actual payment date." />
-              <RevStat label="Receivable (FY)" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn tooltip="Receivable (FY) = Contracted this FY − cash received this FY." />
+              <RevStat label="Collected (FY)" value={inr(feesFy?.collected)} accent="#34d399" tooltip="TA fee collected recorded on each deal, summed over the deals contracted this FY (matches the Zoho brand dashboards)." />
+              <RevStat label="Receivable (FY)" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn tooltip="Receivable (FY) = Contracted (FY) − Collected (FY)." />
             </div>
             <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
-              Contracted is attributed to the MA/LOI signing date; &ldquo;Cash received this FY&rdquo; is windowed by actual payment date.
+              Contracted is attributed to the MA/LOI signing date; Collected is the TA fee collected recorded on each deal over the same FY window (matches the Zoho brand dashboards); Receivable = Contracted − Collected.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
@@ -411,9 +412,9 @@ export default function DealsPage() {
         <div className="mb-6 text-[10px] text-text-secondary italic leading-snug space-y-0.5">
           {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
-            <div>{fees.undatedMASigned} MA deals have no MA-date, so Current-FY figures exclude them.</div>
+            <div>{fees.undatedMASigned} MA deals have no MA-date; Current-FY signing counts exclude them (FY fees follow the brand-specific contracted date).</div>
           )}
-          <div>Contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals (attributed to the MA/LOI signing date); Collected = real cash received (sum of TA-Schedule actuals); Receivable = Contracted − Collected.</div>
+          <div>Contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals (attributed to the MA/LOI signing date); Collected = TA fee collected recorded on each deal (matches the Zoho brand dashboards); Receivable = Contracted − Collected.</div>
         </div>
 
         <div className="overflow-x-auto">

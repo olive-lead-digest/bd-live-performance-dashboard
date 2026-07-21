@@ -139,6 +139,7 @@ function aggregate(filtered: DealRecord[], fallback: any) {
     keysAll = 0,
     keysFy = 0,
     fySigned = 0,
+    fyContractedSignings = 0,
     undated = 0;
   const stageCounts: Record<string, number> = {};
   const dropCounts: Record<string, number> = {};
@@ -183,10 +184,17 @@ function aggregate(filtered: DealRecord[], fallback: any) {
       else if (fyStart && r.maDate >= fyStart) {
         fySigned += 1;
         keysFy += keys;
-        feesFy.contracted += c;
-        feesFy.collected += cl;
         feesFy.collectedActual += ca;
         feesFy.pending += pd;
+      }
+      // FY contracted/collected follow the brand-specific CONTRACTED date
+      // (signingDate: Spark by its LOI date incl. Spark MAs; Olive/Open by
+      // MA date) so the filtered view mirrors the pipeline's fy block.
+      const sdWon = r.signingDate || r.maDate || null;
+      if (fyStart && sdWon && sdWon >= fyStart) {
+        feesFy.contracted += c;
+        feesFy.collected += cl;
+        fyContractedSignings += 1;
       }
       if (brand === 'Olive') portfolio.oliveMA += 1;
       else if (brand === 'Spark') portfolio.sparkMA += 1;
@@ -213,10 +221,17 @@ function aggregate(filtered: DealRecord[], fallback: any) {
         // split, and the FY total when signed this FY (by the LOI signing date),
         // mirroring the pipeline so filtered contracted spans MA + LOI signed.
         const cLoi = Number(r.feeContracted) || 0;
+        const clLoi = Number(r.feeCollected) || 0;
         feesAll.contracted += cLoi;
+        feesAll.collected += clLoi; // headline Collected (TA_fee_collected) spans the same MA+LOI book
         byBrand[brand].feeContracted += cLoi;
+        byBrand[brand].feeCollected += clLoi;
         const sd = r.signingDate || r.expectedDate || null;
-        if (fyStart && sd && sd >= fyStart) feesFy.contracted += cLoi;
+        if (fyStart && sd && sd >= fyStart) {
+          feesFy.contracted += cLoi;
+          feesFy.collected += clLoi;
+          fyContractedSignings += 1;
+        }
       }
       const b = PROB_LEVELS.includes(String(r.signingProbability)) ? String(r.signingProbability) : 'Unspecified';
       prob[b].count += 1;
@@ -246,6 +261,8 @@ function aggregate(filtered: DealRecord[], fallback: any) {
   const feesFyBlock: any = feeBlock(feesFy);
   if (fyStart) feesFyBlock.fyStart = fyStart;
   feesFyBlock.deals = fySigned;
+  feesFyBlock.signedDeals = fySigned;
+  feesFyBlock.contractedSignings = fyContractedSignings;
   const feesAllBlock = feeBlock(feesAll);
 
   const byBrandRounded: Record<string, any> = {};

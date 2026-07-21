@@ -264,7 +264,7 @@ export function PortfolioFiscalCard() {
                 deal&apos;s signing (MA) date.
               </>
             ) : (
-              <>Collections are real cash received, windowed by actual payment date (TA-Schedule).</>
+              <>Collections here are period cash received per the TA payment schedule (payment-date basis; incomplete). The headline Collected is the TA fee collected recorded on each deal (matches the Zoho brand dashboards); Receivable = Contracted − Collected.</>
             )}
             {asOf ? <span className="text-text-secondary"> As of {asOf}.</span> : null}
           </p>

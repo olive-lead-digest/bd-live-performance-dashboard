@@ -156,9 +156,9 @@ export function DealsOverview() {
               <span className="text-[10px] uppercase tracking-widest font-bold text-brand-pink-400">
                 Current FY ({fyLabel})
               </span>
-              {feesFy?.deals != null && (
+              {(feesFy?.contractedSignings ?? feesFy?.deals) != null && (
                 <span className="text-[9px] uppercase tracking-wider text-text-secondary">
-                  {feesFy.deals} signed
+                  {feesFy?.contractedSignings ?? feesFy?.deals} signed
                 </span>
               )}
             </div>
@@ -167,18 +167,18 @@ export function DealsOverview() {
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Contracted (FY)</span>
                 <span className="text-lg sm:text-xl font-black text-white tracking-tight">{inr(feesFy?.contracted)}</span>
               </div>
-              <div title="Cash actually received during this FY, windowed by actual payment date.">
-                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Cash received this FY</span>
+              <div title="TA fee collected recorded on each deal, summed over the deals contracted this FY (matches the Zoho brand dashboards).">
+                <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Collected (FY)</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">{inr(feesFy?.collected)}</span>
-                <span className="block text-[9px] text-text-secondary mt-0.5">by actual payment date</span>
+                <span className="block text-[9px] text-text-secondary mt-0.5">matches Zoho brand dashboards</span>
               </div>
-              <div title="Receivable (FY) = Contracted this FY − cash received this FY.">
+              <div title="Receivable (FY) = Contracted (FY) − Collected (FY).">
                 <span className="block text-[10px] uppercase tracking-widest font-bold text-text-secondary mb-0.5">Receivable (FY)</span>
                 <span className="text-lg sm:text-xl font-black text-amber-400 tracking-tight">{inr(receivable(feesFy?.contracted, feesFy?.collected))}</span>
               </div>
             </div>
             <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
-              Contracted is attributed to the MA/LOI signing date; cash received this FY is windowed by actual payment date.
+              Contracted is attributed to the MA/LOI signing date; Collected is the TA fee collected recorded on each deal over the same FY window (matches the Zoho brand dashboards); Receivable = Contracted − Collected.
             </p>
           </div>
 
@@ -220,7 +220,7 @@ export function DealsOverview() {
         <div className="mt-2 text-[10px] text-text-secondary italic leading-snug space-y-0.5">
           {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
-            <div>{fees.undatedMASigned} MA deals have no MA-date, so FY figures exclude them.</div>
+            <div>{fees.undatedMASigned} MA deals have no MA-date; FY signing counts exclude them (FY fees follow the brand-specific contracted date).</div>
           )}
           <div>Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide, so we show a derived receivable instead).</div>
           <div>Real booked fees from Zoho Deals — as of {deals.generated} UTC</div>
