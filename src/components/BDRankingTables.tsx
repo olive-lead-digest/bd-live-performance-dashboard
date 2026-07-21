@@ -5,6 +5,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Trophy, Map, Users } from 'lucide-react';
 import { num } from '@/lib/format';
 import { CsvButton } from '@/components/CsvButton';
+import { NotAffectedBadge } from '@/components/DataBadges';
 
 interface BDRank {
   bd?: string;
@@ -50,27 +51,57 @@ export function BDRankingTables() {
   const { data, filters } = useDashboard();
   const ranking = data?.deals?.ranking;
 
+  // The ranking rows are published per BD / per region against FISCAL-YEAR
+  // targets. Region and BD(owner) filters can be honoured honestly by selecting
+  // rows. A DATE range cannot: "achievement vs FY target" is not a windowed
+  // quantity, and prorating the target would fabricate a number. Same for brand
+  // (points are published aggregated across brands) and the lead-only dims.
+  // Those are surfaced with an exemption badge instead of silently ignoring.
+  const rowFilterDims = useMemo(() => {
+    const dims: string[] = [];
+    if (filters.from || filters.to) dims.push('date');
+    if (filters.brand.size) dims.push('brand');
+    if (filters.state.size) dims.push('state');
+    if (filters.city.size) dims.push('city');
+    if (filters.cluster.size) dims.push('cluster');
+    if (filters.status.size) dims.push('lead-status');
+    if (filters.prop.size) dims.push('property-type');
+    return dims;
+  }, [filters]);
+
+  const keepBd = useMemo(() => {
+    const reg = filters.region, own = filters.owner;
+    return (r: BDRank) =>
+      (!reg.size || !!(r.region && reg.has(r.region))) &&
+      (!own.size || !!(r.bd && own.has(r.bd)));
+  }, [filters.region, filters.owner]);
+
+  const keepRegion = useMemo(() => {
+    const reg = filters.region;
+    return (r: RegionRank) => !reg.size || !!(r.region && reg.has(r.region));
+  }, [filters.region]);
+
   const bds = useMemo<BDRank[]>(() => {
     const list = ranking?.bds;
     if (!Array.isArray(list)) return [];
-    return [...list].sort((a: BDRank, b: BDRank) => (a.rank ?? 999) - (b.rank ?? 999));
-  }, [ranking]);
+    return [...list].filter(keepBd).sort((a: BDRank, b: BDRank) => (a.rank ?? 999) - (b.rank ?? 999));
+  }, [ranking, keepBd]);
 
   const regions = useMemo<RegionRank[]>(() => {
     const list = ranking?.regions;
     if (!Array.isArray(list)) return [];
-    return [...list].sort((a: RegionRank, b: RegionRank) => (a.rank ?? 999) - (b.rank ?? 999));
-  }, [ranking]);
+    return [...list].filter(keepRegion).sort((a: RegionRank, b: RegionRank) => (a.rank ?? 999) - (b.rank ?? 999));
+  }, [ranking, keepRegion]);
 
   // Region heads — listed separately, no individual BD rank (they are excluded
   // from the BD ranking). Deterministic order: achievement desc, then name.
   const regionHeads = useMemo<BDRank[]>(() => {
     const list = ranking?.regionHeads;
     if (!Array.isArray(list)) return [];
-    return [...list].sort(
+    return [...list].filter(keepBd).sort(
       (a: BDRank, b: BDRank) => (b.achievementPct ?? 0) - (a.achievementPct ?? 0) || String(a.bd).localeCompare(String(b.bd))
     );
-  }, [ranking]);
+  }, [ranking, keepBd]);
 
   if (!ranking || (bds.length === 0 && regions.length === 0 && regionHeads.length === 0)) return null;
 
@@ -87,6 +118,10 @@ export function BDRankingTables() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
               <Trophy className="w-4 h-4 text-brand-pink-400" /> BD Ranking (points-based)
             </h2>
+            <NotAffectedBadge
+              dims={rowFilterDims}
+              title="BD Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range or split by brand. Region and BD filters ARE applied."
+            />
             <CsvButton
               base="bd-ranking"
               filters={filters}
@@ -145,6 +180,7 @@ export function BDRankingTables() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
               <Map className="w-4 h-4 text-brand-purple-400" /> Region Ranking
             </h2>
+            <NotAffectedBadge dims={rowFilterDims} title="Region Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range." />
             <CsvButton
               base="region-ranking"
               filters={filters}
@@ -202,6 +238,7 @@ export function BDRankingTables() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
               <Users className="w-4 h-4 text-brand-purple-400" /> Region Heads
             </h2>
+            <NotAffectedBadge dims={rowFilterDims} title="Region-head standings are fiscal-year-to-date against fiscal-year targets, so they cannot be windowed to a date range." />
             <CsvButton
               base="region-heads"
               filters={filters}

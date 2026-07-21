@@ -77,13 +77,32 @@ export function anyFilterActive(filters: Filters): boolean {
   );
 }
 
+/**
+ * The date a deal record sits on for global date-range filtering.
+ *
+ * Must match the CONTRACTED-date rule the pipeline already uses, otherwise a
+ * filtered view contradicts the unfiltered FY figures:
+ *   Spark        -> LOI signing date (Expected_Actual_LOI_Date || Expected_LOI_Date
+ *                   || MA_Date) — for Spark MAs too; precomputed as `signingDate`.
+ *   Olive / Open -> MA_Date (no LOI stage), also precomputed as `signingDate`.
+ * Signed (won) and LOI-signed records are therefore windowed by `signingDate`;
+ * still-open and dropped records fall back to their expected date. Previously
+ * this keyed off maDate/expectedDate, so a date-filtered contracted/collected
+ * total disagreed with the same deals' unfiltered FY contribution.
+ */
+export function recordDate(rec: DealRecord): string | null {
+  if (rec.stageType === 'won') return rec.signingDate || rec.maDate || null;
+  if (rec.stage === STAGE_LOI) return rec.signingDate || rec.expectedDate || null;
+  return rec.expectedDate || rec.signingDate || rec.maDate || null;
+}
+
 function passes(rec: DealRecord, filters: Filters): boolean {
   if (filters.brand.size && !filters.brand.has(normBrand(rec.brand))) return false;
   if (filters.region.size && !(rec.region && filters.region.has(rec.region))) return false;
   if (filters.state.size && !(rec.state && filters.state.has(rec.state))) return false;
   if (filters.owner.size && !(rec.owner && filters.owner.has(rec.owner))) return false;
   if (filters.from || filters.to) {
-    const d = rec.stageType === 'won' ? rec.maDate : rec.expectedDate;
+    const d = recordDate(rec);
     if (!d) return false; // undated deals cannot be placed on the timeline
     if (filters.from && d < filters.from) return false;
     if (filters.to && d > filters.to) return false;
@@ -352,7 +371,7 @@ export function computeDealsRuntime(deals: any, filters: Filters): DealsRuntime 
   const filterActive = honoured || exemptDims.length > 0;
   const dateCaption =
     filters.from || filters.to
-      ? 'Date range filters signed deals by MA date and open deals by expected date; undated deals are excluded while a date filter is active.'
+      ? 'Date range filters contracted deals by their signing date (Spark by its LOI date, Olive/Open Hotels by MA date) and still-open deals by expected date; undated deals are excluded while a date filter is active.'
       : '';
 
   if (!deals) return { deals: null, recomputed: false, exemptDims, filterActive: false, dateCaption };
