@@ -10,7 +10,6 @@ import clsx from 'clsx';
 import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck, ChevronDown } from 'lucide-react';
 import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
-import { CsvButton } from '@/components/CsvButton';
 
 export default function Reporting() {
   const { filteredLeads, data, isLoading, filters } = useDashboard();
@@ -465,25 +464,6 @@ export default function Reporting() {
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-brand-purple-300" />
           </button>
-          {chartData && chartData.length > 0 && (
-            <CsvButton
-              base={searchQuery ? `analytics-${searchQuery}` : 'analytics-daily-volume'}
-              filters={filters}
-              columns={isBrandSearch
-                ? [
-                    { key: 'day', label: 'Day' },
-                    { key: 'spark', label: 'Spark' },
-                    { key: 'olive', label: 'Olive' },
-                    { key: 'open', label: 'Open Hotels' },
-                  ]
-                : [
-                    { key: 'day', label: 'Day' },
-                    { key: 'curr', label: currName },
-                    { key: 'prev', label: prevName },
-                  ]}
-              rows={chartData}
-            />
-          )}
         </div>
       </header>
 
