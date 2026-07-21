@@ -151,6 +151,17 @@ function periodBlock(wonRecs: DealRecord[], startISO: string | null, monthPrefix
 /** Recompute the full deals object from filtered records. */
 function aggregate(filtered: DealRecord[], fallback: any) {
   const fyStart: string | null = fallback?.fees?.fy?.fyStart || fallback?.ytd?.fyStart || null;
+  // "Open Pipeline" = the open deals in active negotiation. The feed publishes it
+  // as inProgress{count,stages}; because aggregate() never rebuilt it, the raw
+  // feed value survived the `{...deals}` spread and the Open Pipeline KPI kept
+  // showing the ORG-WIDE count (371) next to a header reading "Filtered · 24
+  // deals". Recompute it from the filtered records using the feed's own stage
+  // list so the KPI moves with every other figure on the page.
+  const negStages: string[] =
+    Array.isArray(fallback?.inProgress?.stages) && fallback.inProgress.stages.length
+      ? fallback.inProgress.stages
+      : [STAGE_BA, STAGE_UN];
+  let inProgressCount = 0;
 
   let signed = 0,
     active = 0,
@@ -233,6 +244,7 @@ function aggregate(filtered: DealRecord[], fallback: any) {
       active += 1;
       const st = r.stage && CANON_ORDER.includes(r.stage) ? r.stage : STAGE_BA;
       stageCounts[st] = (stageCounts[st] || 0) + 1;
+      if (negStages.includes(st)) inProgressCount += 1;
       if (r.stage === STAGE_LOI) {
         portfolio.sparkLOI += 1;
         // LOI Signed is a CONTRACTED milestone (Spark's signing event): its
@@ -324,6 +336,7 @@ function aggregate(filtered: DealRecord[], fallback: any) {
       keysContractedFY: keysFy,
     },
     funnel,
+    inProgress: { ...(fallback?.inProgress || {}), stages: negStages, count: inProgressCount },
     fees: {
       contracted: feesAllBlock.contracted,
       collected: feesAllBlock.collected,
