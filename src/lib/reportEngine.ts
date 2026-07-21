@@ -554,8 +554,10 @@ export function selectRows(data: any, dsId: ReportDatasetId, rf: ReportFilterSta
 
 // Separators that cannot occur inside a real dimension value, so a path like
 // ['North', 'Olive'] can never collide with a value literally called 'NorthOlive'.
-const SEP = ''; // joins the parts of a row/column path
-const AXIS = ''; // joins the row key to the column key
+// Built with fromCharCode (not an escape sequence or a raw control byte) so the
+// source stays plain ASCII and byte-stable through any transport.
+const SEP = String.fromCharCode(1); // joins the parts of a row/column path
+const AXIS = String.fromCharCode(2); // joins the row key to the column key
 
 export interface PivotCell {
   text: string;
