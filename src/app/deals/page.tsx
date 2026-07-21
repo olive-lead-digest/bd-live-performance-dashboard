@@ -17,7 +17,6 @@ import { useUrlTab } from '@/lib/useUrlTab';
 import { TabBar } from '@/components/TabBar';
 import { useDrill, DrillColumn } from '@/components/DrillDrawer';
 import Pipeline from '@/app/pipeline/page';
-import { CsvButton } from '@/components/CsvButton';
 import { EmptyState } from '@/components/EmptyState';
 
 // Receivable = Contracted − Collected (P1-1); Zoho's Pending_TA_fee is empty.
@@ -142,14 +141,12 @@ export default function DealsPage() {
     { key: 'value', label: 'Fee (₹)', align: 'right', format: (r) => inr(r.feeContracted) },
     { key: 'date', label: 'Date', align: 'right', format: (r) => shortDate(r.stageType === 'won' ? r.maDate : r.expectedDate) },
   ];
-  const slug = (s: string) => 'deals-' + s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const drill = (title: string, rows: any[]) =>
     openDrill({
       title,
       subtitle: `${rows.length.toLocaleString('en-IN')} deal${rows.length !== 1 ? 's' : ''}`,
       columns: DEAL_COLUMNS,
       rows,
-      csvFilename: slug(title),
     });
   const wonRecs = drillRecords.filter((r) => r.stageType === 'won');
   const recsForFunnel = (f: any) => {
@@ -201,27 +198,6 @@ export default function DealsPage() {
         </div>
       ) : (
       <>
-      {/* P2-3(1) — export the CURRENT (filtered) deal rows to CSV */}
-      <div className="flex items-center justify-end relative z-10 -mb-1">
-        <CsvButton
-          base="deals"
-          filters={filters}
-          label="CSV · Deals"
-          columns={[
-            { key: 'name', label: 'Deal / Property', format: (r: any) => r.name || '(unnamed)' },
-            { key: 'owner', label: 'BD', format: (r: any) => r.owner || 'Unassigned' },
-            { key: 'stage', label: 'Stage', format: (r: any) => r.stage || (r.stageType === 'won' ? 'MA Signed' : r.stageType === 'dropped' ? 'Dropped' : 'Open') },
-            { key: 'stageType', label: 'Stage Type' },
-            { key: 'brand', label: 'Brand' },
-            { key: 'feeContracted', label: 'Fee Contracted' },
-            { key: 'feeCollected', label: 'Fee Collected' },
-            { key: 'region', label: 'Region' },
-            { key: 'state', label: 'State' },
-            { key: 'date', label: 'Date', format: (r: any) => (r.stageType === 'won' ? r.maDate : r.expectedDate) || '' },
-          ]}
-          rows={drillRecords}
-        />
-      </div>
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 relative z-10">
         <KpiCard title="Total Deals" value={(totals.deals ?? 0).toLocaleString('en-IN')} icon={Layers} color="#a470d6" onClick={() => drill('Total Deals', drillRecords)} />
@@ -383,22 +359,6 @@ export default function DealsPage() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
             <IndianRupee className="w-4 h-4 text-emerald-400" /> Deal Revenue (TA Fees)
           </h2>
-          <CsvButton
-            base="deals-by-brand"
-            filters={filters}
-            columns={[
-              { key: 'brand', label: 'Brand' },
-              { key: 'deals', label: 'Deals' },
-              { key: 'signed', label: 'Signed' },
-              { key: 'contracted', label: 'Contracted' },
-              { key: 'collected', label: 'Collected' },
-              { key: 'receivable', label: 'Receivable' },
-            ]}
-            rows={brandNames.map((b) => {
-              const bf = brandFee(b);
-              return { brand: b, deals: byBrand[b]?.deals ?? 0, signed: byBrand[b]?.signed ?? 0, contracted: Math.round(bf.contracted), collected: Math.round(bf.collected), receivable: Math.round(bf.receivable) };
-            })}
-          />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
           <div className="p-4 rounded-xl bg-black/20 border border-brand-pink-500/30">

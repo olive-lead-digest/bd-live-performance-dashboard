@@ -2,13 +2,13 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import clsx from 'clsx';
-import { X, Download } from 'lucide-react';
-import { toCsv as sharedToCsv } from '@/lib/csv';
+import { X } from 'lucide-react';
 import { useDialog } from '@/lib/useDialog';
 
 // P2-4 — one reusable right-side drill-down drawer (styled like the Geography
-// city dossier). Any aggregate can open it with (title, columns, rows, csv name)
-// to list the underlying records + export that exact slice to CSV.
+// city dossier). Any aggregate can open it with (title, columns, rows) to list
+// the underlying records. It carries NO export control: every download in the
+// app now lives in the Report Builder page (/reports).
 export interface DrillColumn {
   key: string;
   label: string;
@@ -21,7 +21,6 @@ export interface DrillPayload {
   subtitle?: string;
   columns: DrillColumn[];
   rows: any[];
-  csvFilename: string;
 }
 
 interface Ctx {
@@ -42,33 +41,15 @@ function cell(col: DrillColumn, row: any): string {
   return v == null ? '' : String(v);
 }
 
-// P2-3(1) — delegate to the single shared CSV implementation in lib/csv.ts.
-function toCsv(p: DrillPayload): string {
-  return sharedToCsv(p.columns, p.rows);
-}
-
 export function DrillProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<DrillPayload | null>(null);
   const openDrill = useCallback((p: DrillPayload) => setPayload(p), []);
   const close = () => setPayload(null);
 
-  const download = () => {
-    if (!payload) return;
-    const blob = new Blob([toCsv(payload)], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (payload.csvFilename || 'export') + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <DrillContext.Provider value={{ openDrill }}>
       {children}
-      {payload && <DrillPanel payload={payload} onClose={close} onDownload={download} />}
+      {payload && <DrillPanel payload={payload} onClose={close} />}
     </DrillContext.Provider>
   );
 }
@@ -80,11 +61,9 @@ export function DrillProvider({ children }: { children: ReactNode }) {
 function DrillPanel({
   payload,
   onClose,
-  onDownload,
 }: {
   payload: DrillPayload;
   onClose: () => void;
-  onDownload: () => void;
 }) {
   const dialogRef = useDialog<HTMLDivElement>(onClose);
   return (
@@ -106,14 +85,6 @@ function DrillPanel({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onDownload}
-              disabled={!payload.rows.length}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-pink-500/15 border border-brand-pink-500/40 text-brand-pink-300 text-[11px] font-bold uppercase tracking-wider hover:bg-brand-pink-500/25 transition-colors disabled:opacity-40 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
-            >
-              <Download className="w-3.5 h-3.5" /> CSV
-            </button>
             <button
               type="button"
               onClick={onClose}

@@ -9,7 +9,6 @@ import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity,
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
 import { compactNum } from '@/lib/format';
-import { CsvButton } from '@/components/CsvButton';
 import { useDrill } from '@/components/DrillDrawer';
 
 const geoUrl = "/world.json";
@@ -175,7 +174,7 @@ export default function Geography() {
 
   // P2-7 — unmapped = leads with no known-city mapping. This is Geography's real
   // headline (a large share of leads carry no usable city), so it is promoted to
-  // a first-class card with a drill-down + CSV that feeds the Zoho hygiene queue.
+  // a first-class card with a drill-down into the Zoho hygiene queue.
   const unmappedLeads = useMemo(
     () => searchFiltered.filter(l => !l.city || l.city === 'Other' || !CITY_DATA[l.city]),
     [searchFiltered]
@@ -199,8 +198,8 @@ export default function Geography() {
     return { N, M, U, T, G, mPct: p(M), uPct: p(U), tPct: p(T), gPct: p(G) };
   }, [searchFiltered, unmappedLeads]);
 
-  // Shared column shape for the unmapped-leads export + drill (P1-3), so the
-  // one-click CSV and the drawer list are identical.
+  // Column shape for the unmapped-leads drill list (P1-3). Exporting this slice
+  // now lives in the Report Builder (/reports), not on this card.
   const UNMAPPED_COLUMNS = [
     { key: 'name', label: 'BD', format: (r: any) => r.owner || 'Unassigned' },
     { key: 'region', label: 'Region', format: (r: any) => r.region || 'Unknown' },
@@ -229,7 +228,6 @@ export default function Geography() {
       subtitle: `${unmapped.toLocaleString()} lead${unmapped === 1 ? '' : 's'} (${unmappedPct.toFixed(1)}%) with no mapped city`,
       columns: UNMAPPED_COLUMNS,
       rows: unmappedLeads,
-      csvFilename: 'geography-unmapped-leads',
     });
 
   const getHealthColor = (activeRate: number) => {
@@ -311,7 +309,7 @@ export default function Geography() {
       <LeadsAsOfStamp className="mb-4" />
 
       {/* P2-7 / P1-3 — Unmapped leads: Geography's real headline, a first-class
-          card with a ONE-CLICK CSV export plus a drill-down (Zoho hygiene queue). */}
+          card with a drill-down into the Zoho hygiene queue. */}
       {unmapped > 0 && (
         <div className="w-full glass-panel p-4 sm:p-5 mb-4 border border-amber-500/30 bg-amber-500/[0.04] flex items-center gap-4 relative z-10">
           <span className="w-11 h-11 shrink-0 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center">
@@ -323,20 +321,11 @@ export default function Geography() {
               {unmapped.toLocaleString()} <span className="text-base font-bold text-amber-400">({unmappedPct.toFixed(1)}%)</span>
             </div>
             <p className="text-xs text-text-secondary mt-1">
-              No known city mapping. Use <span className="text-amber-300 font-semibold">Export CSV</span> for the Zoho hygiene queue, or <span className="text-amber-300 font-semibold">View list</span> to browse them.
+              No known city mapping — the Zoho hygiene queue. Use <span className="text-amber-300 font-semibold">View list</span> to browse them.
             </p>
           </button>
           <div className="flex items-center gap-2 shrink-0">
-            <CsvButton
-              base="geography-unmapped-leads"
-              filters={filters}
-              label="Export CSV"
-              title={`Export all ${unmapped.toLocaleString()} unmapped leads to CSV`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/25 transition-colors disabled:opacity-40"
-              columns={UNMAPPED_COLUMNS}
-              rows={unmappedLeads}
-            />
-            <button onClick={openUnmapped} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/25 transition-colors">
+            <button onClick={openUnmapped} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider hover:bg-amber-500/25 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
               View list <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -594,7 +583,7 @@ export default function Geography() {
         </div>
 
         {/* Right Panel: City Dossier OR Top Nodes */}
-        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 flex flex-col min-h-[420px] sm:min-h-[500px] max-h-[600px] overflow-y-auto no-scrollbar">
+        <div className="glass-panel p-4 sm:p-6 xl:col-span-1 flex flex-col min-h-[420px] sm:min-h-[500px] max-h-[600px] overflow-hidden">
           {selectedCity && dossierData ? (
             <div className="flex flex-col h-full animate-in fade-in zoom-in duration-300">
               <div className="flex items-center justify-between mb-6">
@@ -625,12 +614,12 @@ export default function Geography() {
                 Top Local BDs
               </h3>
 
-              <div className="flex flex-col gap-3 flex-1">
+              <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1">
                 {dossierData.leaderboard.length === 0 && (
                   <p className="text-sm text-text-secondary italic">No active BDs mapped in this city.</p>
                 )}
                 {dossierData.leaderboard.map((bd, i) => (
-                  <div key={bd.owner} className="flex items-center justify-between p-3 bg-surface/30 rounded-lg border border-border-subtle hover:border-brand-pink-500/30 transition-colors">
+                  <div key={bd.owner} className="shrink-0 flex items-center justify-between p-3 bg-surface/30 rounded-lg border border-border-subtle hover:border-brand-pink-500/30 transition-colors">
                      <div className="flex items-center gap-3">
                         <span className="text-lg font-black text-text-secondary w-4 text-right">#{i+1}</span>
                         <div>
@@ -649,21 +638,7 @@ export default function Geography() {
           ) : (
             <div className="flex flex-col h-full animate-in fade-in duration-300">
                <div className="flex items-center justify-between mb-6">
-                 <div className="flex items-center gap-2">
-                   <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Top Data Nodes</h2>
-                   <CsvButton
-                     base="geography-cities"
-                     filters={filters}
-                     columns={[
-                       { key: 'name', label: 'City' },
-                       { key: 'state', label: 'State' },
-                       { key: 'leads', label: 'Leads' },
-                       { key: 'activeCount', label: 'Active leads' },
-                       { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
-                     ]}
-                     rows={cityData}
-                   />
-                 </div>
+                 <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Top Data Nodes</h2>
                  {unmapped > 0 && (
                    <button
                      onClick={openUnmapped}
@@ -680,7 +655,9 @@ export default function Geography() {
                   <p className="text-sm text-brand-purple-200">Select a city node on the map — or tap any city in the list below — to view its detailed Performance Dossier.</p>
                </div>
 
-               <div className="flex flex-col gap-2 flex-1 overflow-y-auto no-scrollbar pr-2">
+               {/* min-h-0 lets `flex-1 + overflow-y-auto` actually resolve inside a
+                   column flex parent, so this list is the one thing that scrolls. */}
+               <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2">
                  {cityData.slice(0, 10).map((c) => {
                    const health = getHealthColor(c.active);
                    return (
@@ -689,34 +666,40 @@ export default function Geography() {
                        type="button"
                        onClick={() => handleCityClick(c.name, c.coords)}
                        aria-label={`Open ${c.name} performance dossier — ${c.leads.toLocaleString('en-IN')} leads, ${c.active.toFixed(1)}% active`}
-                       className="flex flex-col gap-1.5 p-3 rounded-lg border border-transparent hover:border-brand-pink-500/30 hover:bg-brand-pink-500/10 transition-colors text-left group relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
+                       /* shrink-0: the row keeps its natural height. Without it the
+                          rows (overflow-hidden, for the watermark) shrink below their
+                          content and slice the city name / lead count in half. */
+                       className="shrink-0 flex flex-col gap-2 p-3 rounded-lg border border-transparent hover:border-brand-pink-500/30 hover:bg-brand-pink-500/10 transition-colors text-left group relative overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
                      >
-                       <div className="absolute top-0 right-0 p-1 opacity-10 group-hover:opacity-20 transition-opacity">
-                         <span className="text-4xl font-black italic">{c.state}</span>
-                       </div>
-                       
-                       <div className="flex items-center justify-between text-sm w-full relative z-10">
-                         <div className="flex items-center gap-2">
-                           <span className="text-white font-medium group-hover:text-brand-pink-400 transition-colors">{c.name}</span>
-                           <span className="text-[9px] uppercase font-bold text-brand-purple-400 bg-brand-purple-900/30 px-1.5 py-0.5 rounded border border-brand-purple-500/30">{c.state}</span>
-                         </div>
-                         <span className="text-white font-bold">{c.leads.toLocaleString('en-IN')} leads</span>
-                       </div>
-                       <div className="w-full h-1.5 bg-surface rounded-full overflow-hidden relative z-10 mt-1">
-                         <div 
-                           className={clsx("h-full rounded-full transition-colors", health.bg.replace('/10', ''), "shadow-[0_0_8px_rgba(255,255,255,0.2)]")}
+                       <span
+                         aria-hidden="true"
+                         className="absolute top-0 right-0 p-1 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none select-none text-3xl font-black italic leading-none"
+                       >
+                         {c.state}
+                       </span>
+
+                       <span className="flex items-center justify-between gap-3 text-sm w-full relative z-10 leading-6">
+                         <span className="flex items-center gap-2 min-w-0">
+                           <span className="text-white font-medium truncate group-hover:text-brand-pink-400 transition-colors">{c.name}</span>
+                           <span className="shrink-0 text-[9px] uppercase font-bold text-brand-purple-400 bg-brand-purple-900/30 px-1.5 py-0.5 rounded border border-brand-purple-500/30">{c.state}</span>
+                         </span>
+                         <span className="shrink-0 text-white font-bold tabular-nums">{c.leads.toLocaleString('en-IN')} leads</span>
+                       </span>
+                       <span className="block w-full h-1.5 bg-surface rounded-full overflow-hidden relative z-10">
+                         <span
+                           className="block h-full rounded-full transition-colors shadow-[0_0_8px_rgba(255,255,255,0.2)]"
                            style={{ width: `${(c.leads / maxLeads) * 100}%`, backgroundColor: health.fill }}
                          />
-                       </div>
-                       <div className="flex justify-between text-[10px] text-text-secondary uppercase tracking-wider w-full mt-1 relative z-10">
+                       </span>
+                       <span className="flex justify-between gap-3 text-[10px] text-text-secondary uppercase tracking-wider w-full relative z-10 leading-5">
                          <span>Leads</span>
-                         <span className={clsx("font-bold", health.text)}>{c.active.toFixed(1)}% Active</span>
-                       </div>
+                         <span className={clsx("font-bold whitespace-nowrap", health.text)}>{c.active.toFixed(1)}% Active</span>
+                       </span>
                      </button>
                    );
                  })}
                  {cityData.length === 0 && (
-                   <div className="text-sm text-text-secondary text-center py-8">No valid city nodes found.</div>
+                   <div className="shrink-0 text-sm text-text-secondary text-center py-8">No valid city nodes found.</div>
                  )}
                </div>
             </div>
@@ -732,16 +715,6 @@ export default function Geography() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-2">
               <MapPin className="w-4 h-4 text-brand-pink-400" /> By State (mapped cities)
             </h2>
-            <CsvButton
-              base="geography-by-state"
-              filters={filters}
-              columns={[
-                { key: 'state', label: 'State' },
-                { key: 'leads', label: 'Leads' },
-                { key: 'activeCount', label: 'Active leads' },
-              ]}
-              rows={stateData}
-            />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[420px]">
