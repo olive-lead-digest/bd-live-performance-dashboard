@@ -29,6 +29,30 @@ export function DealsExemptBadge({ className = '' }: { className?: string }) {
   );
 }
 
+/**
+ * Generic exemption badge for a module that genuinely cannot honour some active
+ * filter dimension (e.g. the BD Ranking is defined against FISCAL-YEAR targets,
+ * so a date range cannot be applied to it without inventing a prorated target).
+ * A module must never look filtered while showing unfiltered data.
+ */
+export function NotAffectedBadge({ dims, title, className = '' }: { dims: string[]; title?: string; className?: string }) {
+  if (!dims.length) return null;
+  const list = dims.join(', ');
+  return (
+    <span
+      className={
+        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/10 ' +
+        'text-amber-300 text-[9px] font-bold uppercase tracking-widest ' +
+        className
+      }
+      title={title || `This module is not affected by the active ${list} filter.`}
+    >
+      <Info className="w-3 h-3" />
+      Not affected by {list} filter
+    </span>
+  );
+}
+
 /** True when the deal side should visually dim (an exempt-only situation). */
 export function useDealsExempt() {
   const { dealsRuntime } = useDashboard();

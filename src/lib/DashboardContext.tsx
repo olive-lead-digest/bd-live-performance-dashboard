@@ -8,6 +8,13 @@ import { computeDealsRuntime, DealsRuntime } from './dealsRuntime';
 export interface Filters {
   from: string;
   to: string;
+  /** Label of the duration preset the user explicitly chose ('' = custom range
+   *  or none). Tracked by IDENTITY, not by range equality: on 21 Jul 2026
+   *  "This month" and "This quarter" resolve to the SAME range (1 Jul -> today),
+   *  and every January "This month"/"This quarter"/"This year" collide, so
+   *  range-matching lit up two chips at once. Deliberately NOT serialised to the
+   *  URL — a hydrated link range-matches the FIRST matching preset instead. */
+  presetLabel: string;
   region: Set<string>;
   state: Set<string>;
   city: Set<string>;
@@ -40,7 +47,7 @@ function filtersToQuery(f: Filters): string {
 
 function queryToFilters(search: string): Filters {
   const next: Filters = {
-    from: '', to: '',
+    from: '', to: '', presetLabel: '',
     region: new Set(), state: new Set(), city: new Set(), cluster: new Set(),
     brand: new Set(), status: new Set(), prop: new Set(), owner: new Set(),
   };
@@ -98,7 +105,9 @@ interface DashboardContextType {
    *  once per page load — powers the "Leads data as of …" stamps (P0-3). */
   leadsAsOf: string | null;
   setFilter: (key: keyof Filters, value: string, clear?: boolean) => void;
-  setDateRange: (from: string, to: string) => void;
+  /** `presetLabel` names the preset chip that produced this range. Omit it (as
+   *  the custom date inputs do) to clear the preset highlight. */
+  setDateRange: (from: string, to: string, presetLabel?: string) => void;
   clearFilters: () => void;
   isLoading: boolean;
   error: string | null;
@@ -107,6 +116,7 @@ interface DashboardContextType {
 const defaultFilters: Filters = {
   from: '',
   to: '',
+  presetLabel: '',
   region: new Set(),
   state: new Set(),
   city: new Set(),
@@ -192,9 +202,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const setDateRange = (from: string, to: string) => {
+  const setDateRange = (from: string, to: string, presetLabel = '') => {
     setFilters(prev => {
-      const next = { ...prev, from, to };
+      const next = { ...prev, from, to, presetLabel };
       writeUrl(next);
       return next;
     });

@@ -14,7 +14,7 @@ const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
  * Rates are computed over that source's own total (l).
  */
 export function LeadsBySourceCard() {
-  const { data } = useDashboard();
+  const { data, dealsRuntime } = useDashboard();
 
   const rows = useMemo(() => {
     const src = data?.leadsBySource;
@@ -39,7 +39,7 @@ export function LeadsBySourceCard() {
   // clearly-labelled total: Deals.Lead_Source is null/"NA" for most dropped deals
   // (and uses different labels than the Leads module), so attributing them to a
   // lead source would fabricate data. Per-source drop counts stay lead-stage only.
-  const dealDrops = Number(data?.deals?.totals?.dropped) || 0;
+  const dealDrops = Number(dealsRuntime.deals?.totals?.dropped) || 0;
 
   return (
     <div className="glass-panel p-4 sm:p-6 flex flex-col">

@@ -80,6 +80,16 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     return arr;
   }, [data]);
 
+  // Highlight the chip the user actually CHOSE. Falls back to range-matching
+  // only when there is no explicit choice (e.g. filters hydrated from a pasted
+  // URL) — and then to the FIRST match only, so two presets sharing a range can
+  // never both light up.
+  const activePresetLabel = useMemo(() => {
+    if (filters.presetLabel) return filters.presetLabel;
+    const hit = presets.find(p => p.from === filters.from && p.to === filters.to);
+    return hit ? hit.label : '';
+  }, [filters.presetLabel, filters.from, filters.to, presets]);
+
   if (!isOpen) return null;
 
   return (
@@ -108,12 +118,12 @@ export function FilterDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Duration</span>
             <div className="flex flex-wrap gap-2">
               {presets.map(p => {
-                const isActive = filters.from === p.from && filters.to === p.to;
+                const isActive = p.label === activePresetLabel;
                 return (
                   <button
                     key={p.label}
                     type="button"
-                    onClick={() => setDateRange(p.from, p.to)}
+                    onClick={() => setDateRange(p.from, p.to, p.label)}
                     aria-pressed={isActive}
                     className={clsx(
                       "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel",
