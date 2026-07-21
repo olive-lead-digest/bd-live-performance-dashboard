@@ -42,17 +42,28 @@ export const MAX_CELLS = 20000;
 /** PDF is a snapshot, not a data dump — cap it and say so. */
 export const PDF_ROW_CAP = 2000;
 
+// Plain-English wording: a first-time user picks "Total", never "Sum", and
+// never has to know what an "aggregation" is. The ids are unchanged, so every
+// saved config, template and export keeps working.
 export const AGGS: { id: AggId; label: string; numericOnly: boolean }[] = [
-  { id: 'count', label: 'Count', numericOnly: false },
-  { id: 'countDistinct', label: 'Count (distinct)', numericOnly: false },
-  { id: 'sum', label: 'Sum', numericOnly: true },
+  { id: 'count', label: 'Count — how many', numericOnly: false },
+  { id: 'countDistinct', label: 'Count unique values', numericOnly: false },
+  { id: 'sum', label: 'Total — add them up', numericOnly: true },
   { id: 'avg', label: 'Average', numericOnly: true },
-  { id: 'min', label: 'Min', numericOnly: true },
-  { id: 'max', label: 'Max', numericOnly: true },
+  { id: 'min', label: 'Lowest', numericOnly: true },
+  { id: 'max', label: 'Highest', numericOnly: true },
 ];
 
+/** Short form used inside a column heading, e.g. "Total of TA fee contracted". */
 export const AGG_LABEL: Record<AggId, string> = {
-  count: 'Count', countDistinct: 'Distinct', sum: 'Sum', avg: 'Avg', min: 'Min', max: 'Max',
+  count: 'Count', countDistinct: 'Unique', sum: 'Total', avg: 'Average', min: 'Lowest', max: 'Highest',
+};
+
+/** Field-group headings in business English — no "dimension" / "measure". */
+export const FIELD_GROUP_LABEL: Record<PivotField['group'], string> = {
+  Dimensions: 'Categories',
+  Dates: 'Dates',
+  Measures: 'Numbers',
 };
 
 /* ------------------------------------------------------------------ */
@@ -125,6 +136,14 @@ export interface DatasetDef {
   dims: ReportDimKey[];
   /** Whether a date range applies at all. */
   dateDim: boolean;
+  /** Human name of the date the range filters on, e.g. "Signed date". */
+  dateLabel: string;
+  /**
+   * ONE plain-language sentence saying what the numbers actually count. This is
+   * surfaced verbatim under the table so a non-technical reader is never left
+   * guessing what is in (or out of) the figure they are looking at.
+   */
+  basis: string;
   /** Org-wide aggregates only — no row-level records exist in the feed. */
   summaryOnly?: boolean;
   note?: string;
@@ -140,7 +159,7 @@ export const DIM_LABEL: Record<ReportDimKey, string> = {
   brand: 'Brand',
   status: 'Lead status',
   stage: 'Deal stage',
-  owner: 'BD / owner',
+  owner: 'BD',
   region: 'Region',
   state: 'State',
   city: 'City',
@@ -155,14 +174,14 @@ const RECORDS_FIELD: PivotField = {
 const LEAD_FIELDS: PivotField[] = [
   { key: 'brand', label: 'Brand', group: 'Dimensions', get: (r) => r.brand },
   { key: 'status', label: 'Lead status', group: 'Dimensions', get: (r) => r.status || '(unassigned)' },
-  { key: 'owner', label: 'BD / owner', group: 'Dimensions', get: (r) => r.owner },
+  { key: 'owner', label: 'BD', group: 'Dimensions', get: (r) => r.owner },
   { key: 'source', label: 'Lead source', group: 'Dimensions', get: (r) => r.source },
   { key: 'region', label: 'Region', group: 'Dimensions', get: (r) => r.region },
   { key: 'state', label: 'State', group: 'Dimensions', get: (r) => r.state },
   { key: 'city', label: 'City', group: 'Dimensions', get: (r) => r.city },
   { key: 'cluster', label: 'Cluster', group: 'Dimensions', get: (r) => r.cluster },
   { key: 'dropReason', label: 'Drop reason', group: 'Dimensions', get: (r) => r.dropReason },
-  { key: 'ci', label: 'Contact initiated', group: 'Dimensions', get: (r) => yesNo(r.ci) },
+  { key: 'ci', label: 'Was the lead contacted?', group: 'Dimensions', get: (r) => yesNo(r.ci) },
   { key: 'dt', label: 'Enquiry date', group: 'Dates', get: (r) => r.dt },
   { key: 'dtMonth', label: 'Enquiry month', group: 'Dates', get: (r) => monthOf(r.dt) },
   { key: 'dtQuarter', label: 'Enquiry quarter', group: 'Dates', get: (r) => quarterOf(r.dt) },
@@ -186,18 +205,18 @@ const signedFee = (r: any, key: string): number | null =>
 const DEAL_FIELDS: PivotField[] = [
   { key: 'brand', label: 'Brand', group: 'Dimensions', get: (r) => normBrand(r.brand) },
   { key: 'stage', label: 'Deal stage', group: 'Dimensions', get: (r) => r.stage },
-  { key: 'stageType', label: 'Stage type', group: 'Dimensions', get: (r) => r.stageType },
-  { key: 'owner', label: 'BD / owner', group: 'Dimensions', get: (r) => r.owner },
+  { key: 'stageType', label: 'Outcome (won / open / dropped)', group: 'Dimensions', get: (r) => r.stageType },
+  { key: 'owner', label: 'BD', group: 'Dimensions', get: (r) => r.owner },
   { key: 'region', label: 'Region', group: 'Dimensions', get: (r) => r.region },
   { key: 'state', label: 'State', group: 'Dimensions', get: (r) => r.state },
   { key: 'signingProbability', label: 'Signing probability', group: 'Dimensions', get: (r) => r.signingProbability },
   { key: 'propertyType', label: 'Property type', group: 'Dimensions', get: (r) => r.propertyType },
   { key: 'landStatus', label: 'Land status', group: 'Dimensions', get: (r) => r.landStatus },
   { key: 'name', label: 'Deal name', group: 'Dimensions', get: (r) => r.name },
-  { key: 'contractedDate', label: 'Contracted / expected date', group: 'Dates', get: (r) => recordDate(r as DealRecord) },
-  { key: 'contractedMonth', label: 'Contracted month', group: 'Dates', get: (r) => monthOf(recordDate(r as DealRecord)) },
-  { key: 'contractedQuarter', label: 'Contracted quarter', group: 'Dates', get: (r) => quarterOf(recordDate(r as DealRecord)) },
-  { key: 'contractedFy', label: 'Contracted FY', group: 'Dates', get: (r) => fyOf(recordDate(r as DealRecord)) },
+  { key: 'contractedDate', label: 'Signed date', group: 'Dates', get: (r) => recordDate(r as DealRecord) },
+  { key: 'contractedMonth', label: 'Signed month', group: 'Dates', get: (r) => monthOf(recordDate(r as DealRecord)) },
+  { key: 'contractedQuarter', label: 'Signed quarter', group: 'Dates', get: (r) => quarterOf(recordDate(r as DealRecord)) },
+  { key: 'contractedFy', label: 'Signed financial year', group: 'Dates', get: (r) => fyOf(recordDate(r as DealRecord)) },
   { key: 'maMonth', label: 'MA-signed month', group: 'Dates', get: (r) => monthOf(r.maDate) },
   { key: 'keys', label: 'Keys', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.keys) || 0 },
   { key: 'feeContracted', label: 'TA fee contracted', group: 'Measures', numeric: true, format: 'inr', get: (r) => signedFee(r, 'feeContracted') },
@@ -210,8 +229,8 @@ const BD_FIELDS: PivotField[] = [
   { key: 'bd', label: 'BD', group: 'Dimensions', get: (r) => r.bd },
   { key: 'region', label: 'Region', group: 'Dimensions', get: (r) => r.region },
   { key: 'regionHead', label: 'Region head', group: 'Dimensions', get: (r) => r.regionHead },
-  { key: 'ytdTarget', label: 'YTD target', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.ytdTarget) || 0 },
-  { key: 'ytdAchievement', label: 'YTD achieved', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.ytdAchievement) || 0 },
+  { key: 'ytdTarget', label: 'Target this year', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.ytdTarget) || 0 },
+  { key: 'ytdAchievement', label: 'Achieved this year', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.ytdAchievement) || 0 },
   { key: 'achievementPct', label: 'Achievement %', group: 'Measures', numeric: true, format: 'pct', get: (r) => Number(r.achievementPct) || 0 },
   { key: 'signed', label: 'MA signed (all-time)', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.signed) || 0 },
   { key: 'feeContracted', label: 'TA fee contracted (all-time)', group: 'Measures', numeric: true, format: 'inr', get: (r) => Number(r.feeContracted) || 0 },
@@ -230,9 +249,12 @@ export const DATASETS: DatasetDef[] = [
   {
     id: 'leads',
     label: 'Leads',
-    blurb: 'One row per lead enquiry',
+    blurb: 'Every enquiry that came in',
     dims: ['brand', 'status', 'owner', 'source', 'region', 'state', 'city', 'cluster'],
     dateDim: true,
+    dateLabel: 'Enquiry date',
+    basis:
+      'Every enquiry counts as one lead, including ones that were later dropped. A date range filters on the date the enquiry came in.',
     note: 'Date range filters leads on their enquiry date (dt).',
     fields: LEAD_FIELDS,
     defaults: {
@@ -257,10 +279,13 @@ export const DATASETS: DatasetDef[] = [
   },
   {
     id: 'deals',
-    label: 'Deals',
-    blurb: 'One row per deal record',
+    label: 'Deals & signings',
+    blurb: 'Every hotel deal — signed or still in progress',
     dims: ['brand', 'stage', 'owner', 'region', 'state'],
     dateDim: true,
+    dateLabel: 'Signed date',
+    basis:
+      'Money shown is the TA fee on signed deals only (MA Signed, plus LOI Signed for Spark). Deals still in the pipeline are counted as deals but add ₹0 to any money total. Dates use the signing date for signed deals and the expected date for the rest.',
     note:
       'Date range uses the contracted-date rule: won deals by signing date (Spark by its LOI date, Olive/Open by MA date), LOI Signed by its LOI date, open & dropped by expected date. Undated deals are excluded while a date filter is active.',
     fields: DEAL_FIELDS,
@@ -293,10 +318,13 @@ export const DATASETS: DatasetDef[] = [
   },
   {
     id: 'bd',
-    label: 'BD Performance',
-    blurb: 'One row per BD — targets vs achievement',
+    label: 'BD performance',
+    blurb: 'Each BD against their yearly target',
     dims: ['owner', 'region'],
     dateDim: false,
+    dateLabel: '',
+    basis:
+      'Targets and achievement are published as year-to-date totals for each BD, so a date range does not apply here.',
     note: 'BD performance is published as YTD aggregates, so a date range does not apply.',
     fields: BD_FIELDS,
     defaults: {
@@ -323,9 +351,12 @@ export const DATASETS: DatasetDef[] = [
   {
     id: 'proposals',
     label: 'Proposals',
-    blurb: 'Summary only — org-wide aggregates',
+    blurb: 'Company-wide proposal totals only',
     dims: [],
     dateDim: false,
+    dateLabel: '',
+    basis:
+      'These are company-wide proposal totals published by the feed. There are no individual proposal rows, so filters and date ranges do not apply.',
     summaryOnly: true,
     note:
       'The proposals feed publishes org-wide aggregates ONLY — there are no per-proposal records, so this dataset pivots the published summary and filters do not apply.',
@@ -1047,19 +1078,19 @@ export function buildFilterSummary(inp: SummaryInput): [string, string][] {
   const { def, rf, cfg, result, rawRowCount, asOf, presetLabel, kind } = inp;
   const out: [string, string][] = [];
   const fieldLabel = (k: string) => fieldByKey(def, k)?.label || k;
-  out.push(['Report', `${def.label} — ${kind === 'raw' ? 'raw filtered rows' : 'pivot table'}${def.summaryOnly ? ' (summary only)' : ''}`]);
+  out.push(['Report', `${def.label} — ${kind === 'raw' ? 'the underlying rows' : 'the report as shown'}${def.summaryOnly ? ' (summary only)' : ''}`]);
   out.push(['Generated', new Date().toLocaleString('en-IN')]);
   out.push(['Data as of', String(asOf)]);
   out.push(['Rows matching filters', rawRowCount.toLocaleString('en-IN')]);
   if (kind === 'pivot') {
-    out.push(['Pivot rows', cfg.rows.map(fieldLabel).join(' › ') || '(none)']);
-    out.push(['Pivot columns', cfg.cols.map(fieldLabel).join(' › ') || '(none)']);
+    out.push(['Grouped by', cfg.rows.map(fieldLabel).join(' › ') || '(nothing)']);
+    out.push(['Split by', cfg.cols.map(fieldLabel).join(' › ') || '(nothing)']);
     out.push([
-      'Pivot values',
-      cfg.values.map((v) => valueLabel(v, fieldByKey(def, v.field))).join(', ') || '(none)',
+      'Showing',
+      cfg.values.map((v) => valueLabel(v, fieldByKey(def, v.field))).join(', ') || '(nothing)',
     ]);
     out.push([
-      'Pivot size',
+      'Table size',
       `${result.bodyRows.toLocaleString('en-IN')} body row${result.bodyRows === 1 ? '' : 's'} × ${result.colGroups} column group${result.colGroups === 1 ? '' : 's'} (+ totals)`,
     ]);
   }
@@ -1073,7 +1104,8 @@ export function buildFilterSummary(inp: SummaryInput): [string, string][] {
   });
   result.warnings.forEach((w, i) => out.push([`Note ${i + 1}`, w]));
   if (def.summaryOnly) out.push(['Note', 'Org-wide aggregates only — the feed carries no per-proposal rows.']);
-  if (def.note) out.push(['Basis', def.note]);
+  out.push(['What is counted', def.basis]);
+  if (def.note) out.push(['Technical basis', def.note]);
   return out;
 }
 
@@ -1211,90 +1243,246 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
 }
 
 /* ==================================================================
- * Quick-start templates — one click to a useful pivot
+ * Templates — the way a first-time user gets a real report.
+ *
+ * Each one is phrased as the QUESTION it answers, in the words a BD or a
+ * finance lead would actually use. One click applies the dataset, the layout
+ * and any filters the question implies, and the page renders a finished
+ * chart + table. Nobody has to understand Rows / Columns / Values to start.
  * ================================================================== */
 
 export interface ReportTemplate {
   id: string;
+  /** The plain-English QUESTION this report answers — the card headline. */
   label: string;
+  /** One line describing what you will see. */
   blurb: string;
   dataset: ReportDatasetId;
   config: PivotConfig;
-  /** Filters the template needs; applied on top of a cleared filter state. */
+  /** false = keep the natural A->Z order (used by the month-over-month report). */
+  sortByTotal?: boolean;
+  /** Filters the question implies; applied on top of a cleared filter state. */
   filters?: (rf: ReportFilterState, ctx: { fyStart: string; latest: string }) => ReportFilterState;
 }
 
+/**
+ * The report rendered on arrival, so the page is NEVER a blank canvas. It is
+ * deliberately unfiltered, so its money total is the whole contracted book and
+ * ties to the dashboard headline.
+ */
+export const DEFAULT_TEMPLATE_ID = 'money-by-bd';
+
 export const TEMPLATES: ReportTemplate[] = [
   {
-    id: 'signings-bd-month',
-    label: 'Signings by BD by month',
-    blurb: 'MA-signed deals · BD × month',
+    id: 'money-by-bd',
+    label: 'How much business has each BD signed?',
+    blurb: 'Total TA fee contracted, one row per BD.',
     dataset: 'deals',
     config: {
       rows: ['owner'],
-      cols: ['contractedMonth'],
-      values: [{ id: 't1', field: '__records', agg: 'count', label: 'Signings' }],
+      cols: [],
+      values: [{ id: 't1', field: 'feeContracted', agg: 'sum', label: 'TA fee contracted' }],
     },
-    filters: (rf) => ({ ...rf, stage: new Set(['MA Signed']) }),
   },
   {
-    id: 'ta-brand-region',
-    label: 'TA contracted by brand by region',
-    blurb: 'Deals · region × brand, Sum of TA fee',
+    id: 'hotels-by-bd',
+    label: 'How many hotels has each BD signed?',
+    blurb: 'Count of signed hotels, one row per BD.',
     dataset: 'deals',
     config: {
-      rows: ['region'],
-      cols: ['brand'],
-      values: [{ id: 't1', field: 'feeContracted', agg: 'sum', label: '' }],
+      rows: ['owner'],
+      cols: [],
+      values: [{ id: 't1', field: '__records', agg: 'count', label: 'Hotels signed' }],
     },
     filters: (rf) => ({ ...rf, stage: new Set(['MA Signed', 'LOI Signed']) }),
   },
   {
-    id: 'leads-source-region',
-    label: 'Leads by source by region',
-    blurb: 'Leads · source × region, Count',
+    id: 'leads-by-source',
+    label: 'Where are our leads coming from?',
+    blurb: 'Number of enquiries by the channel they arrived through.',
     dataset: 'leads',
     config: {
       rows: ['source'],
-      cols: ['region'],
+      cols: [],
       values: [{ id: 't1', field: '__records', agg: 'count', label: 'Leads' }],
     },
   },
   {
-    id: 'lead-status-bd',
-    label: 'Lead status by BD',
-    blurb: 'Leads · BD × status, Count',
-    dataset: 'leads',
-    config: {
-      rows: ['owner'],
-      cols: ['status'],
-      values: [{ id: 't1', field: '__records', agg: 'count', label: 'Leads' }],
-    },
-  },
-  {
-    id: 'collections-brand-fy',
-    label: 'Collections by brand (FY)',
-    blurb: 'Deals · brand, Sum of TA collected this FY',
+    id: 'collected-by-brand',
+    label: 'How much money have we collected, by brand?',
+    blurb: 'TA fee actually received, next to what was contracted.',
     dataset: 'deals',
     config: {
       rows: ['brand'],
       cols: [],
       values: [
-        { id: 't1', field: 'feeCollected', agg: 'sum', label: '' },
-        { id: 't2', field: '__records', agg: 'count', label: 'Deals' },
+        { id: 't1', field: 'feeCollected', agg: 'sum', label: 'TA fee collected' },
+        { id: 't2', field: 'feeContracted', agg: 'sum', label: 'TA fee contracted' },
       ],
     },
-    filters: (rf, ctx) => ({ ...rf, from: ctx.fyStart, to: ctx.latest, presetLabel: '' }),
   },
   {
-    id: 'pipeline-stage-region',
-    label: 'Pipeline by stage by region',
-    blurb: 'Deals · stage × region, Count + keys',
+    id: 'signings-by-month',
+    label: 'How are signings trending month by month?',
+    blurb: 'Hotels signed in each month, oldest first.',
+    dataset: 'deals',
+    sortByTotal: false,
+    config: {
+      rows: ['contractedMonth'],
+      cols: [],
+      values: [{ id: 't1', field: '__records', agg: 'count', label: 'Hotels signed' }],
+    },
+    filters: (rf) => ({ ...rf, stage: new Set(['MA Signed', 'LOI Signed']) }),
+  },
+  {
+    id: 'pipeline-by-stage',
+    label: 'What is sitting in our pipeline right now?',
+    blurb: 'Every deal grouped by the stage it has reached.',
     dataset: 'deals',
     config: {
       rows: ['stage'],
-      cols: ['region'],
+      cols: [],
       values: [{ id: 't1', field: '__records', agg: 'count', label: 'Deals' }],
     },
   },
+  {
+    id: 'money-by-bd-brand',
+    label: 'Which brands is each BD signing?',
+    blurb: 'TA fee contracted, one row per BD and one column per brand.',
+    dataset: 'deals',
+    config: {
+      rows: ['owner'],
+      cols: ['brand'],
+      values: [{ id: 't1', field: 'feeContracted', agg: 'sum', label: 'TA fee contracted' }],
+    },
+  },
+  {
+    id: 'leads-by-region-brand',
+    label: 'Which regions bring in the most leads?',
+    blurb: 'Lead count by region, split by brand.',
+    dataset: 'leads',
+    config: {
+      rows: ['region'],
+      cols: ['brand'],
+      values: [{ id: 't1', field: '__records', agg: 'count', label: 'Leads' }],
+    },
+  },
+  {
+    id: 'bd-vs-target',
+    label: 'How is each BD tracking against target?',
+    blurb: "This year's target next to what has actually been achieved.",
+    dataset: 'bd',
+    config: {
+      rows: ['bd'],
+      cols: [],
+      values: [
+        { id: 't1', field: 'ytdTarget', agg: 'sum', label: 'Target' },
+        { id: 't2', field: 'ytdAchievement', agg: 'sum', label: 'Achieved' },
+      ],
+    },
+  },
 ];
+
+export const templateById = (id: string | null): ReportTemplate | undefined =>
+  TEMPLATES.find((t) => t.id === id);
+
+/* ==================================================================
+ * Chart model
+ *
+ * "Show, don't just tabulate." The bars are read STRAIGHT OUT of the pivot
+ * matrix that renders the table, so the chart and the table are the same
+ * numbers by construction and can never drift apart.
+ *
+ * A chart is only offered when it genuinely helps:
+ *   one Group by + no Split by            -> bars, one series per number shown
+ *   one Group by + one Split by, 1 number -> stacked bars, one series per split
+ * anything else (no grouping, nested grouping, too many series) falls back to
+ * the table alone rather than drawing something unreadable.
+ * ================================================================== */
+
+export const MAX_CHART_BARS = 14;
+export const MAX_CHART_SERIES = 8;
+
+export interface ChartSeriesDef {
+  key: string;
+  name: string;
+}
+
+export interface ChartModel {
+  data: Record<string, string | number | null>[];
+  series: ChartSeriesDef[];
+  stacked: boolean;
+  /** Bars actually drawn. */
+  shown: number;
+  /** Groups the table has, so the UI can say "top 14 of 32". */
+  total: number;
+  /** Formatting for the axis + tooltip. */
+  format: FieldFormat;
+  /** Human label for what the bars measure. */
+  measureLabel: string;
+}
+
+export function buildChartModel(
+  result: PivotResult,
+  cfg: PivotConfig,
+  def: DatasetDef,
+  sortedByTotal: boolean
+): ChartModel | null {
+  const matrix = result.matrix;
+  if (!matrix) return null;
+  if (cfg.rows.length !== 1) return null;
+  if (cfg.cols.length > 1) return null;
+  if (cfg.values.length === 0) return null;
+  // Stacking two different measures on one bar would be meaningless.
+  if (cfg.cols.length === 1 && cfg.values.length !== 1) return null;
+
+  const headerLast = matrix.header[matrix.header.length - 1];
+  if (!headerLast) return null;
+
+  // One header cell per value column, in the same order as the body cells.
+  const cols: { idx: number; name: string }[] = [];
+  headerLast.slice(matrix.labelCols).forEach((c, i) => {
+    if (!c.totalCol) cols.push({ idx: i, name: c.text || `Series ${i + 1}` });
+  });
+  if (!cols.length || cols.length > MAX_CHART_SERIES) return null;
+
+  const points: Record<string, string | number | null>[] = [];
+  for (let i = 0; i < matrix.body.length; i++) {
+    if (matrix.meta[i].kind !== 'data') continue;
+    const row = matrix.body[i];
+    const point: Record<string, string | number | null> = { name: row[0]?.text || BLANK };
+    let any = false;
+    cols.forEach((c, ci) => {
+      const cell = row[matrix.labelCols + c.idx];
+      const v = cell && typeof cell.v === 'number' && Number.isFinite(cell.v) ? cell.v : null;
+      point[`s${ci}`] = v;
+      if (v) any = true;
+    });
+    if (any) points.push(point);
+  }
+  if (!points.length) return null;
+
+  // Sorted by total -> the biggest are already first. Natural order (months)
+  // -> show the MOST RECENT window instead of the oldest.
+  const data =
+    points.length <= MAX_CHART_BARS
+      ? points
+      : sortedByTotal
+        ? points.slice(0, MAX_CHART_BARS)
+        : points.slice(-MAX_CHART_BARS);
+
+  const spec0 = cfg.values[0];
+  const field0 = fieldByKey(def, spec0.field);
+  const format: FieldFormat =
+    spec0.agg === 'count' || spec0.agg === 'countDistinct' ? 'num' : field0?.format || 'num';
+
+  return {
+    data,
+    series: cols.map((c, ci) => ({ key: `s${ci}`, name: c.name })),
+    stacked: cfg.cols.length === 1,
+    shown: data.length,
+    total: points.length,
+    format,
+    measureLabel: valueLabel(spec0, field0),
+  };
+}
