@@ -25,13 +25,13 @@ const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
  * data are omitted, and all divisions are guarded against zero / null.
  */
 function useComputedInsights(): InsightCategory[] {
-  const { data, filteredLeads } = useDashboard();
+  const { data, filteredLeads, dealsRuntime } = useDashboard();
 
   return useMemo(() => {
     if (!data || !filteredLeads.length) return [];
     const total = filteredLeads.length;
     const rates = calculateRates(filteredLeads);
-    const deals = data.deals || null;
+    const deals = dealsRuntime.deals || null;
     const cats: InsightCategory[] = [];
 
     // ===== Signings & Revenue (only when the deals feed is present) =====
@@ -262,7 +262,7 @@ function useComputedInsights(): InsightCategory[] {
     }
 
     return cats;
-  }, [data, filteredLeads]);
+  }, [data, filteredLeads, dealsRuntime]);
 }
 
 export function InsightsDropdown() {

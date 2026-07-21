@@ -151,7 +151,12 @@ function buildSheets(data: any): { sheets: Sheet[]; asOf: string } {
 }
 
 export function DownloadReport({ compact = false }: { compact?: boolean }) {
-  const { data, filters } = useDashboard();
+  const { data, filters, dealsRuntime, filteredLeads } = useDashboard();
+  // Export what is on screen: the filtered leads and the recomputed (filtered)
+  // deal aggregates, not the raw unfiltered feed.
+  const reportData: any = data
+    ? { ...data, leads: filteredLeads, deals: dealsRuntime.deals ?? (data as any).deals }
+    : data;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'excel' | 'pdf' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -172,7 +177,7 @@ export function DownloadReport({ compact = false }: { compact?: boolean }) {
     setBusy('excel');
     try {
       const XLSX = await import('xlsx');
-      const { sheets } = buildSheets(data);
+      const { sheets } = buildSheets(reportData);
       const wb = XLSX.utils.book_new();
       sheets.forEach((s) => {
         const ws = XLSX.utils.aoa_to_sheet([s.header, ...s.rows]);
@@ -192,7 +197,7 @@ export function DownloadReport({ compact = false }: { compact?: boolean }) {
     try {
       const { jsPDF } = await import('jspdf');
       const autoTable = (await import('jspdf-autotable')).default;
-      const { sheets, asOf } = buildSheets(data);
+      const { sheets, asOf } = buildSheets(reportData);
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
       const pink: [number, number, number] = [218, 26, 132];
 
