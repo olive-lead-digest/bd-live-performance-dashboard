@@ -87,10 +87,18 @@ export function Sidebar({
           />
         </span>
         {/* The wordmark already carries "olive", so the old duplicate
-            "Olive Hospitality" text label is gone; only the qualifier remains. */}
+            "Olive Hospitality" text label is gone; only the qualifier remains.
+
+            It is `hidden` on the narrow rail, not merely opacity-0: a laid-out
+            `whitespace-nowrap` label is a flex item with min-width:auto, so it
+            made this header's content wider than the 64px rail, and
+            `justify-center` then centred the OVERFLOW - which pushed the
+            wordmark to x=-30px, clean off the rail. Out of flow, the mark
+            centres at x=16 like every nav icon. */}
         <span
           className={clsx(
-            'ml-2.5 text-text-secondary font-semibold uppercase text-[10px] tracking-[0.2em]',
+            'hidden group-hover:inline ml-2.5 text-text-secondary font-semibold uppercase text-[10px] tracking-[0.2em]',
+            !collapsed && 'xl:inline',
             labelCls
           )}
         >
