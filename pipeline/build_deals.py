@@ -68,8 +68,12 @@ CANON_FUNNEL_ORDER = [STAGE_BUSINESS_APPROVAL, STAGE_UNDER_NEGOTIATION, STAGE_LO
 #   the SECONDARY `cashReceivedBySchedule`: real payment dates, yet populated on only
 #   ~57 deals, so it undercounts badly and is never the headline. Actual_Amount_Total
 #   is the Zoho rollup of that subform and decides which deals need the GET.
+# KEYS (21 Jul 2026): the org migrated the room count to a NUMBER field labelled
+#   "Keys." (api_name Keys1); the legacy free-text Keys column stopped resolving in
+#   COQL/REST the same morning. _keys_raw() reads Keys1 first with legacy Keys as
+#   fallback -- same parse rules, so the metric definition is unchanged.
 DEAL_FIELDS = (
-    "Deal_Name,Stage,Signing_Probability,Keys,No_of_keys,Brand,Property_Type,Land_Status,Owner,"
+    "Deal_Name,Stage,Signing_Probability,Keys,Keys1,No_of_keys,Brand,Property_Type,Land_Status,Owner,"
     "Region,State,MA_Date,Expected_Actual_LOI_Date,Expected_LOI_Date,Expected_MA_Date,Closing_Date,"
     "Expected_Actual_TA_fee_contracted,Ta_Fee_Contracted,TA_fee_collected,Actual_Amount_Total,Pending_TA_fee"
 )
@@ -128,11 +132,18 @@ def parse_keys(v):
     return n if 0 < n <= 5000 else None           # guard against stray phone/id digits
 
 
+def _keys_raw(r):
+    """Room-count source value: the numeric "Keys." field (api_name Keys1 -- the
+    21 Jul 2026 migration target), falling back to the legacy free-text Keys."""
+    v = r.get("Keys1")
+    return v if v is not None else r.get("Keys")
+
+
 def keys_of(r):
     """Return (keys_int, unparsed). keys_int is 0 when unusable. `unparsed` is True
     ONLY when a NON-EMPTY Keys value (e.g. a range like '30-35') fails to parse as a
     single clean integer -- a blank/None Keys is treated as missing, not unparsed."""
-    raw = r.get("Keys")
+    raw = _keys_raw(r)
     n = parse_keys(raw)
     if n is not None:
         return n, False
@@ -419,7 +430,7 @@ def build_upcoming(records, today, horizon_days=20):
             "brand": norm_brand(r.get("Brand")),
             "bd": _owner_name(r) or "Unassigned",
             "region": _region_name(r),
-            "keys": parse_keys(r.get("Keys")) or 0,   # Keys field only; range/blank -> 0
+            "keys": parse_keys(_keys_raw(r)) or 0,   # Keys. (Keys1) / legacy Keys; range/blank -> 0
             "expectedDate": d.isoformat(),
             "type": typ,
             "taFee": round(fee, 2),
