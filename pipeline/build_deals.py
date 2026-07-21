@@ -10,7 +10,8 @@ Output shape (consumed by src/app/deals/page.tsx):
      keysContracted,keysContractedFY,keysUnparsed},
    "portfolio", "mtd", "ytd", "upcoming", "ranking", "dateBasis",
    "funnel":[{stage,count,type[,note]}],
-   "fees":{contracted,collected,pending,collectedActual,allTime,fy,collectedBasis,undatedMASigned},
+   "fees":{contracted,collected,receivable,pending,collectedActual,allTime,fy,
+           collectedBasis,cashReceivedBySchedule,dealsWithSchedule,undatedMASigned},
    "byBrand", "propertyType", "signingProbability", "closers":[]}
 
 Canonical Zoho Deals field API names (verified via getFields on the live org):
@@ -59,10 +60,14 @@ CANON_FUNNEL_ORDER = [STAGE_BUSINESS_APPROVAL, STAGE_UNDER_NEGOTIATION, STAGE_LO
 #   Expected_MA_Date   -> expected MA signing date (used for upcoming pipeline)
 # Region is a lookup whose .name is the org region (North / South 1 (KA) /
 #   South 2 (AP & TG) / South 3 (TN & KL) / East / West) -- matches bd_org.json.
-# COLLECTIONS (analyst D2): the REAL received amount + payment date come from the
-#   TA_Schedule subform (Actual_Amount + Actual_Date), fetched per-deal in fetch_deals()
-#   because subforms return ONLY on single-record GETs. Actual_Amount_Total is the
-#   Zoho rollup of that subform and is used to decide which deals need the GET.
+# COLLECTIONS: the HEADLINE `collected` is the flat Deals field **TA_fee_collected**
+#   -- the basis the client's Zoho Analytics brand dashboards use (Spark LOI Signed
+#   1,94,22,500 and Spark MA Signed 3,02,04,102 tie to their tiles exactly). The
+#   TA_Schedule subform (Actual_Amount + Actual_Date) is still fetched per-deal in
+#   fetch_deals() -- subforms return ONLY on single-record GETs -- but is reported as
+#   the SECONDARY `cashReceivedBySchedule`: real payment dates, yet populated on only
+#   ~57 deals, so it undercounts badly and is never the headline. Actual_Amount_Total
+#   is the Zoho rollup of that subform and decides which deals need the GET.
 DEAL_FIELDS = (
     "Deal_Name,Stage,Signing_Probability,Keys,No_of_keys,Brand,Property_Type,Land_Status,Owner,"
     "Region,State,MA_Date,Expected_Actual_LOI_Date,Expected_LOI_Date,Expected_MA_Date,Closing_Date,"
@@ -358,7 +363,7 @@ def _signings_in(records, start, end=None):
 
 
 def _collections_in(records, start, end=None):
-    """analyst D2 — REAL collections in [start, end] from the TA_Schedule subform:
+    """SECONDARY — cash received in [start, end] from the TA_Schedule subform:
     sum Actual_Amount over rows whose Actual_Date is in the window (NOT signing date).
     Exact (approx=False) because there is now a real per-payment date."""
     amt = 0.0
@@ -547,18 +552,27 @@ def build_deals(records, generated=None, today=None):
     # LOI-signed deals (LOI Signed is Spark's signing milestone), attributed to the
     # MA/LOI signing date; collectedActual=Actual_Amount_Total (Zoho rollup, ref),
     # pending=Pending_TA_fee (MA-signed).
-    # analyst D2 — the real `collected` now comes from the TA_Schedule subform
-    # (sum Actual_Amount), NOT the flat TA_fee_collected field, which is kept for QA.
-    fees_all = {"contracted": 0.0, "collectedFlatLegacy": 0.0, "collectedActual": 0.0, "pending": 0.0}
-    fees_fy = {"contracted": 0.0, "collectedFlatLegacy": 0.0, "collectedActual": 0.0, "pending": 0.0}
-    collected_all = 0.0                      # sum TA_Schedule.Actual_Amount (all deals, all-time)
-    collected_by_brand = defaultdict(float)  # all-time collected by brand
-    collected_by_region = defaultdict(float) # all-time collected by region
+    # COLLECTED (headline) = the flat Deals field TA_fee_collected, summed over the SAME
+    # contracted book (MA-signed any brand + LOI-signed). This is the basis the client's
+    # Zoho Analytics brand dashboards use, so dashboard and Analytics agree. The
+    # TA_Schedule subform sum is kept alongside as `cashReceivedBySchedule` (attributed
+    # to real payment dates but populated on only ~57 deals) and is NEVER the headline.
+    fees_all = {"contracted": 0.0, "collected": 0.0, "collectedFlatLegacy": 0.0,
+                "collectedActual": 0.0, "pending": 0.0}
+    fees_fy = {"contracted": 0.0, "collected": 0.0, "collectedFlatLegacy": 0.0,
+               "collectedActual": 0.0, "pending": 0.0}
+    collected_by_brand = defaultdict(float)  # all-time collected by brand (TA_fee_collected)
+    collected_by_region = defaultdict(float) # all-time collected by region (TA_fee_collected)
+    fy_collected_by_brand = defaultdict(float)   # FY collected by brand (brand-specific date)
+    fy_collected_by_region = defaultdict(float)  # FY collected by region (brand-specific date)
     contracted_by_brand = defaultdict(float) # all-time contracted by brand (MA+LOI signed)
     contracted_by_region = defaultdict(float)# all-time contracted by region (MA+LOI signed)
     fy_contracted_by_brand = defaultdict(float)  # FY contracted by brand (brand-specific date)
     fy_contracted_by_region = defaultdict(float) # FY contracted by region (brand-specific date)
     fy_contracted_signings = 0               # MA+LOI signings attributed to the current FY
+    cash_sched_all = 0.0                     # sum TA_Schedule.Actual_Amount (secondary, incomplete)
+    cash_sched_by_brand = defaultdict(float)
+    cash_sched_by_region = defaultdict(float)
     sched_deals = 0                          # deals that had >=1 TA_Schedule row
     sched_rows = 0                           # total TA_Schedule rows seen
     sign_prob = {k: {"count": 0, "keys": 0} for k in PROB_LEVELS + ["Unspecified"]}
@@ -589,15 +603,17 @@ def build_deals(records, generated=None, today=None):
         region = _deal_region(r)                         # analyst R1 (owner -> org region)
         land_status[norm_land_status(r.get("Land_Status"))] += 1   # analyst D1
 
-        # analyst D2 — real collections from the TA_Schedule subform (any stage).
+        # SECONDARY metric — cash from the TA_Schedule subform (any stage), attributed to
+        # the real payment date. Populated on only ~57 deals, so it is published as
+        # `cashReceivedBySchedule` and never as the headline Collected.
         sch = _sched(r)
         if sch:
             sched_deals += 1
         for (amt, sd) in sch:
             sched_rows += 1
-            collected_all += amt
-            collected_by_brand[brand] += amt
-            collected_by_region[region] += amt
+            cash_sched_all += amt
+            cash_sched_by_brand[brand] += amt
+            cash_sched_by_region[region] += amt
 
         if is_won:
             signed += 1
@@ -607,15 +623,18 @@ def build_deals(records, generated=None, today=None):
             stage_counts[STAGE_MA] += 1
             by_brand[brand]["signed"] += 1
             c  = _num(r.get("Ta_Fee_Contracted"))
-            cl = _num(r.get("TA_fee_collected"))       # flat legacy field (QA/ref only)
+            cl = _num(r.get("TA_fee_collected"))       # HEADLINE collected (Analytics basis)
             ca = _num(r.get(COLLECTED_FIELD))          # Actual_Amount_Total (Zoho rollup)
             pd = _num(r.get("Pending_TA_fee"))
             fees_all["contracted"] += c
+            fees_all["collected"] += cl
             fees_all["collectedFlatLegacy"] += cl
             fees_all["collectedActual"] += ca
             fees_all["pending"] += pd
             contracted_by_brand[brand] += c            # contracted book (MA portion)
             contracted_by_region[region] += c
+            collected_by_brand[brand] += cl            # collected book (MA portion)
+            collected_by_region[region] += cl
             d = _pdate(r.get("MA_Date"))
             if d is None:
                 undated_ma += 1
@@ -631,9 +650,12 @@ def build_deals(records, generated=None, today=None):
             sd_ma = _signing_date(r, canon)
             if sd_ma is not None and sd_ma >= fs:
                 fees_fy["contracted"] += c
+                fees_fy["collected"] += cl              # SAME window as FY contracted
                 fy_contracted_signings += 1
                 fy_contracted_by_brand[brand] += c
                 fy_contracted_by_region[region] += c
+                fy_collected_by_brand[brand] += cl
+                fy_collected_by_region[region] += cl
             fee_c = _num(r.get("Expected_Actual_TA_fee_contracted")) or c
             if owner and owner.strip().lower() not in CLOSER_EXCLUDE:
                 closers[owner]["signed"] += 1
@@ -654,15 +676,22 @@ def build_deals(records, generated=None, today=None):
             # `fees.contracted` spans MA-signed + LOI-signed deals (not MA only).
             if canon == STAGE_LOI:
                 c_loi = _num(r.get("Ta_Fee_Contracted"))
+                cl_loi = _num(r.get("TA_fee_collected"))   # headline collected (same book)
                 fees_all["contracted"] += c_loi
+                fees_all["collected"] += cl_loi
                 contracted_by_brand[brand] += c_loi
                 contracted_by_region[region] += c_loi
+                collected_by_brand[brand] += cl_loi
+                collected_by_region[region] += cl_loi
                 sd_loi = _signing_date(r, canon)
                 if sd_loi is not None and sd_loi >= fs:
                     fees_fy["contracted"] += c_loi
+                    fees_fy["collected"] += cl_loi
                     fy_contracted_signings += 1
                     fy_contracted_by_brand[brand] += c_loi
                     fy_contracted_by_region[region] += c_loi
+                    fy_collected_by_brand[brand] += cl_loi
+                    fy_collected_by_region[region] += cl_loi
             # analyst D3 — a Spark deal's fee counts at LOI Signed (its win milestone),
             # so LOI-signed Spark deals credit their closer just like an MA signing.
             if canon == STAGE_LOI and brand == "Spark" and owner and owner.strip().lower() not in CLOSER_EXCLUDE:
@@ -717,33 +746,41 @@ def build_deals(records, generated=None, today=None):
     def _fees_block(f):
         return {
             "contracted": round(f["contracted"], 2),
+            "collected": round(f["collected"], 2),
             "collectedActual": round(f["collectedActual"], 2),
             "collectedFlatLegacy": round(f["collectedFlatLegacy"], 2),
             "pending": round(f["pending"], 2),
         }
 
-    # analyst D2 — all-time collected = sum of TA_Schedule Actual_Amount across deals.
+    # All-time collected = sum of the Deals field TA_fee_collected over the contracted
+    # book (MA-signed any brand + LOI-signed) — the Zoho Analytics basis.
     fees_all_block = _fees_block(fees_all)
-    fees_all_block["collected"] = round(collected_all, 2)
-    fees_all_block["receivable"] = round(fees_all["contracted"] - collected_all, 2)
+    fees_all_block["receivable"] = round(fees_all["contracted"] - fees_all["collected"], 2)
     fees_all_block["collectedByBrand"] = {k: round(v, 2) for k, v in collected_by_brand.items()}
     fees_all_block["collectedByRegion"] = {k: round(v, 2) for k, v in collected_by_region.items()}
     fees_all_block["contractedByBrand"] = {k: round(v, 2) for k, v in contracted_by_brand.items()}
     fees_all_block["contractedByRegion"] = {k: round(v, 2) for k, v in contracted_by_region.items()}
+    # SECONDARY (not the headline): cash matched to a real payment date via TA_Schedule.
+    fees_all_block["cashReceivedBySchedule"] = round(cash_sched_all, 2)
+    fees_all_block["cashReceivedByScheduleByBrand"] = {k: round(v, 2) for k, v in cash_sched_by_brand.items()}
+    fees_all_block["cashReceivedByScheduleByRegion"] = {k: round(v, 2) for k, v in cash_sched_by_region.items()}
 
-    # FY collected is windowed by REAL payment date (Actual_Date >= FY start), NOT signing.
-    ytd_col = _collections_in(records, fs)
+    # FY collected uses the SAME window as FY contracted: the brand-specific contracted
+    # date (Spark -> LOI date, Olive/Open -> MA_Date), so receivable closes arithmetically.
+    ytd_col = _collections_in(records, fs)   # secondary: TA_Schedule cash by payment date
     fees_fy_block = _fees_block(fees_fy)
     fees_fy_block["fyStart"] = fs.isoformat()
     fees_fy_block["signedDeals"] = fy_signed
-    fees_fy_block["collected"] = ytd_col["amount"]
     fees_fy_block["contractedSignings"] = fy_contracted_signings   # MA + LOI signed this FY
-    # receivable = contracted (MA+LOI signed this FY) - cash collected this FY.
-    fees_fy_block["receivable"] = round(fees_fy["contracted"] - ytd_col["amount"], 2)
-    fees_fy_block["collectedByBrand"] = ytd_col["byBrand"]
-    fees_fy_block["collectedByRegion"] = ytd_col["byRegion"]
+    # receivable = contracted (MA+LOI signed this FY) - collected on those same deals.
+    fees_fy_block["receivable"] = round(fees_fy["contracted"] - fees_fy["collected"], 2)
+    fees_fy_block["collectedByBrand"] = {k: round(v, 2) for k, v in fy_collected_by_brand.items()}
+    fees_fy_block["collectedByRegion"] = {k: round(v, 2) for k, v in fy_collected_by_region.items()}
     fees_fy_block["contractedByBrand"] = {k: round(v, 2) for k, v in fy_contracted_by_brand.items()}
     fees_fy_block["contractedByRegion"] = {k: round(v, 2) for k, v in fy_contracted_by_region.items()}
+    fees_fy_block["cashReceivedBySchedule"] = ytd_col["amount"]
+    fees_fy_block["cashReceivedByScheduleByBrand"] = ytd_col["byBrand"]
+    fees_fy_block["cashReceivedByScheduleByRegion"] = ytd_col["byRegion"]
 
     mtd_start = today.replace(day=1)
     return {
@@ -766,7 +803,11 @@ def build_deals(records, generated=None, today=None):
                       "contracted": ("Contracted attributed to the LOI signing date for Spark "
                                      "and the MA signing date for Olive/Open; FY = signed this "
                                      "FY on that basis."),
-                      "collections": "TA_Schedule.Actual_Date (real per-payment date)",
+                      "collected": ("TA_fee_collected recorded on each Deal (Zoho Analytics "
+                                    "basis); FY windows use the contracted date: LOI signing "
+                                    "date for Spark, MA signing date for Olive/Open."),
+                      "collections": ("mtd/ytd collections + fees.cashReceivedBySchedule use "
+                                      "TA_Schedule.Actual_Date (real per-payment date, incomplete)"),
                       "region": "BD owner -> bd_org region, State fallback"},
         "funnel": funnel,
         # analyst D4 — the active/in-progress bucket is Business Approval Received +
@@ -780,18 +821,26 @@ def build_deals(records, generated=None, today=None):
         "fees": {
             # Back-compat top-level (all-time).
             "contracted": fees_all_block["contracted"],
-            "collected": fees_all_block["collected"],          # TA_Schedule Actual_Amount
+            "collected": fees_all_block["collected"],          # TA_fee_collected (Analytics basis)
             "receivable": fees_all_block["receivable"],        # contracted - collected
             "pending": fees_all_block["pending"],
             "collectedActual": fees_all_block["collectedActual"],
             "allTime": fees_all_block,
             "fy": fees_fy_block,
-            "collectedBasis": ("collected = sum TA_Schedule.Actual_Amount (real cash received); "
-                               "receivable = contracted - collected; fy.collected + mtd/ytd "
-                               "collections are windowed by Actual_Date (real payment date); "
-                               "contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals, "
-                               "attributed to a brand-specific date (Spark: LOI date incl. for "
-                               "Spark MA; Olive/Open: MA_Date); FY = contracted this FY by it."),
+            "collectedBasis": ("Collected = the TA fee collected recorded on each Deal (matches "
+                               "the Zoho Analytics brand dashboards). Receivable = Contracted - "
+                               "Collected. FY windows use the contracted date: LOI signing date "
+                               "for Spark, MA signing date for Olive/Open."),
+            "contractedBasis": ("contracted = Ta_Fee_Contracted on MA-signed (any brand) + LOI-signed "
+                                "deals, attributed to a brand-specific date (Spark: LOI date, incl. "
+                                "for Spark MA; Olive/Open: MA_Date); FY = contracted this FY by it."),
+            # SECONDARY, not the headline: cash matched to a real payment date via the
+            # TA_Schedule subform. Populated on only ~57 deals, so it undercounts badly.
+            "cashReceivedBySchedule": fees_all_block["cashReceivedBySchedule"],
+            "cashReceivedByScheduleNote": ("Secondary metric: cash matched to a real payment date via "
+                                           "the TA_Schedule subform. Attributed by payment date and "
+                                           "INCOMPLETE (only the deals with a schedule carry it), so "
+                                           "it is not the headline Collected."),
             "dealsWithSchedule": sched_deals,
             "scheduleRows": sched_rows,
             "undatedMASigned": undated_ma,
