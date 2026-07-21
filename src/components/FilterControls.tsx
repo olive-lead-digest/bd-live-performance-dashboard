@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { ChevronDown, Search } from 'lucide-react';
 
 // Shared, accessible filter primitives used by BOTH the global FilterDrawer
-// (grouped sections) and the ReportBuilder (its own independent filter state).
+// (grouped sections) and the /reports pivot page (its own independent filter state).
 // Keeping them here means the two surfaces cannot drift apart in behaviour,
 // keyboard handling or styling.
 

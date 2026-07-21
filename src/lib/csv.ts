@@ -30,9 +30,21 @@ export function toCsv(columns: CsvColumn[], rows: any[]): string {
   return body ? head + '\n' + body : head;
 }
 
-/** Trigger a client-side download of the given rows as a .csv file. */
-export function downloadCsv(filename: string, columns: CsvColumn[], rows: any[]): void {
-  const csv = toCsv(columns, rows);
+/**
+ * Build a CSV string from a raw matrix of cells.
+ *
+ * The pivot export (lib/reportEngine) has MULTI-LEVEL headers and therefore no
+ * single column list, so it cannot go through toCsv(). It still uses this
+ * module's one escape/quote implementation rather than rolling its own.
+ */
+export function matrixToCsv(rows: (string | number | null | undefined)[][]): string {
+  return (rows || [])
+    .map((r) => (r || []).map((c) => escapeCell(c == null ? '' : String(c))).join(','))
+    .join('\n');
+}
+
+/** Trigger a client-side download of an already-built CSV string. */
+export function downloadCsvText(filename: string, csv: string): void {
   // Prepend a UTF-8 BOM so Excel renders the rupee sign and other non-ASCII.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -43,6 +55,11 @@ export function downloadCsv(filename: string, columns: CsvColumn[], rows: any[])
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Trigger a client-side download of the given rows as a .csv file. */
+export function downloadCsv(filename: string, columns: CsvColumn[], rows: any[]): void {
+  downloadCsvText(filename, toCsv(columns, rows));
 }
 
 const FILTER_KEYS = ['brand', 'region', 'state', 'city', 'cluster', 'status', 'prop', 'owner'] as const;

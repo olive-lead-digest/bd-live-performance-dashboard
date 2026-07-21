@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, ChevronRight,
+  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Table2, ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
 
-// R-0 — 6 primary destinations. The standalone Directory section was removed
+// R-0 — 7 primary destinations. Reports is the pivot-table report builder that
+// replaced the old "Create report" modal (the ContextBar control now NAVIGATES
+// here instead of opening a dialog — there is exactly one report tool).
+// The standalone Directory section was removed
 // (its /directory route now permanently redirects to Overview — see
 // next.config redirects); the BD roster still ships inside the downloadable
 // report. Deals & Pipeline is one Handshake item.
@@ -18,6 +21,7 @@ const NAV_ITEMS = [
   { name: 'Portfolio & Fiscal', href: '/portfolio', icon: TrendingUp },
   { name: 'Geography', href: '/geography', icon: Map },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Reports', href: '/reports', icon: Table2 },
 ];
 
 export function Sidebar({

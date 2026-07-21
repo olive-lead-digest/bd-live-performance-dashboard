@@ -1,7 +1,7 @@
 'use client';
 
 // Shared duration presets. Extracted verbatim from FilterDrawer so the global
-// filter drawer and the ReportBuilder offer the EXACT same preset set (and the
+// filter drawer and the /reports page offer the EXACT same preset set (and the
 // same "relative to the latest date present in the data" semantics) — a preset
 // must never mean two different ranges in two different places.
 
