@@ -763,11 +763,9 @@ def build_deals(records, generated=None, today=None):
         "upcoming": build_upcoming(records, today, 20),
         "ranking": build_ranking(records, today),
         "dateBasis": {"signings": "MA_Date", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
-                      "contracted": ("Contracted attributed to a BRAND-SPECIFIC signing date: "
-                                     "Spark uses the LOI date (Expected_Actual_LOI_Date, else "
-                                     "Expected_LOI_Date, else MA_Date) for BOTH LOI-signed and "
-                                     "MA-signed Spark deals; Olive/Open use MA_Date. "
-                                     "FY = contracted this FY by that brand-specific date."),
+                      "contracted": ("Contracted attributed to the LOI signing date for Spark "
+                                     "and the MA signing date for Olive/Open; FY = signed this "
+                                     "FY on that basis."),
                       "collections": "TA_Schedule.Actual_Date (real per-payment date)",
                       "region": "BD owner -> bd_org region, State fallback"},
         "funnel": funnel,
