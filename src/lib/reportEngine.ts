@@ -171,6 +171,18 @@ const LEAD_FIELDS: PivotField[] = [
   RECORDS_FIELD,
 ];
 
+// A deal only has a CONTRACTED / COLLECTED TA fee once it is signed. The whole
+// dashboard defines the contracted book as MA-Signed (won) + LOI-Signed, and the
+// headline TA-contracted / TA-collected figures sum ONLY those. So the pivot's
+// monetary measures return null for unsigned deals: Sum ties EXACTLY to the
+// dashboard headline (₹13,57,11,765 contracted, ₹6,07,45,602 collected), while
+// Average / Min / Max consider only the deals that actually carry a contracted fee.
+// (Keys are real at every stage, so keys is NOT scoped.) The raw-row export keeps
+// each deal's faithful per-record feed value — that dump is the underlying data.
+const dealSigned = (r: any): boolean => r?.stageType === 'won' || r?.stage === 'LOI Signed';
+const signedFee = (r: any, key: string): number | null =>
+  dealSigned(r) ? Number(r[key]) || 0 : null;
+
 const DEAL_FIELDS: PivotField[] = [
   { key: 'brand', label: 'Brand', group: 'Dimensions', get: (r) => normBrand(r.brand) },
   { key: 'stage', label: 'Deal stage', group: 'Dimensions', get: (r) => r.stage },
@@ -188,9 +200,9 @@ const DEAL_FIELDS: PivotField[] = [
   { key: 'contractedFy', label: 'Contracted FY', group: 'Dates', get: (r) => fyOf(recordDate(r as DealRecord)) },
   { key: 'maMonth', label: 'MA-signed month', group: 'Dates', get: (r) => monthOf(r.maDate) },
   { key: 'keys', label: 'Keys', group: 'Measures', numeric: true, format: 'num', get: (r) => Number(r.keys) || 0 },
-  { key: 'feeContracted', label: 'TA fee contracted', group: 'Measures', numeric: true, format: 'inr', get: (r) => Number(r.feeContracted) || 0 },
-  { key: 'feeCollected', label: 'TA fee collected', group: 'Measures', numeric: true, format: 'inr', get: (r) => Number(r.feeCollected) || 0 },
-  { key: 'feePending', label: 'TA fee pending', group: 'Measures', numeric: true, format: 'inr', get: (r) => Number(r.feePending) || 0 },
+  { key: 'feeContracted', label: 'TA fee contracted', group: 'Measures', numeric: true, format: 'inr', get: (r) => signedFee(r, 'feeContracted') },
+  { key: 'feeCollected', label: 'TA fee collected', group: 'Measures', numeric: true, format: 'inr', get: (r) => signedFee(r, 'feeCollected') },
+  { key: 'feePending', label: 'TA fee pending', group: 'Measures', numeric: true, format: 'inr', get: (r) => signedFee(r, 'feePending') },
   RECORDS_FIELD,
 ];
 
