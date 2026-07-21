@@ -9,12 +9,11 @@ import { X, Star, AlertTriangle, CheckCircle2, TrendingUp, Sparkles, Filter as F
 import clsx from 'clsx';
 import type { LeaderboardRec } from '@/lib/types';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
-import { CsvButton } from '@/components/CsvButton';
 
 type SortOption = 'score' | 'signings' | 'volume' | 'active';
 
 export default function Leaderboard() {
-  const { data, filteredLeads, dealsRuntime, isLoading, filters } = useDashboard();
+  const { data, filteredLeads, dealsRuntime, isLoading } = useDashboard();
   const [selectedRep, setSelectedRep] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('score');
   // P2-3 — rep detail drawer gets dialog semantics: focus trap, ESC, focus
@@ -132,25 +131,6 @@ export default function Leaderboard() {
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Performance Leaderboard</h1>
           <p className="text-text-secondary text-sm mt-1">Balanced scoring across quality, conversion, and volume.</p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-        <CsvButton
-          base="leaderboard"
-          filters={filters}
-          columns={[
-            { key: 'owner', label: 'BD Rep' },
-            { key: 'band', label: 'Band', format: (r: any) => r.band || '' },
-            { key: 'score', label: 'Score', format: (r: any) => (r.bps ? r.bps.score.toFixed(1) : '') },
-            { key: 'signings', label: 'Signings', format: (r: any) => (r.signings ?? 0).toString() },
-            { key: 'n', label: 'Leads' },
-            { key: 'active', label: 'Active %', format: (r: any) => (r.active != null ? r.active.toFixed(1) : '') },
-            { key: 'activeCI', label: 'Active % 95% CI', format: (r: any) => (r.n >= 10 && r.activeCI ? `${r.activeCI[0].toFixed(1)}-${r.activeCI[1].toFixed(1)}` : '') },
-            { key: 'drop', label: 'Drop %', format: (r: any) => (r.drop != null ? r.drop.toFixed(1) : '') },
-            { key: 'dropCI', label: 'Drop % 95% CI', format: (r: any) => (r.n >= 10 && r.dropCI ? `${r.dropCI[0].toFixed(1)}-${r.dropCI[1].toFixed(1)}` : '') },
-            { key: 'contact', label: 'Contact %', format: (r: any) => (r.contact != null ? r.contact.toFixed(1) : '') },
-            { key: 'qa', label: 'QA Rating', format: (r: any) => (r.reviewed && r.q ? r.q.overall.toFixed(1) : '') },
-          ]}
-          rows={leaderboard}
-        />
         <div className="flex items-center gap-2 bg-surface p-1.5 rounded-lg border border-border-subtle shrink-0">
           <FilterIcon className="w-4 h-4 text-text-secondary ml-2" />
           <span className="text-xs font-bold text-text-secondary uppercase mr-1">Sort:</span>
@@ -171,14 +151,13 @@ export default function Leaderboard() {
             </button>
           ))}
         </div>
-        </div>
       </header>
 
       <ExecSummary bullets={summaryBullets} />
 
       {/* P1-9 — legend: the small range under Active%/Drop% is a 95% confidence
           interval, not a separate count. Documented on-screen so the paired
-          "13% / 11-17" reads unambiguously; the CSV carries the same CI columns. */}
+          "13% / 11-17" reads unambiguously. */}
       <div className="glass-card px-4 py-3 mb-6 text-[11px] text-text-secondary leading-relaxed">
         <span className="font-bold text-white uppercase tracking-widest text-[10px]">Legend</span>
         <span className="ml-2">
