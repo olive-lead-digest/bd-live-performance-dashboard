@@ -147,7 +147,7 @@ export default function Overview() {
       <header className="mb-2 flex flex-col sm:flex-row sm:items-start justify-between gap-3 relative z-40">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
-            Business Development Dashboard
+            Overview
             <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(218,26,132,0.3)]">Executive View</span>
           </h1>
           <p className="text-text-secondary text-sm mt-1 font-medium">Real-time pipeline health, signings, and rep performance.</p>
