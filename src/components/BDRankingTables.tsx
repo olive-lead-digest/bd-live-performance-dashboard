@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Trophy, Map, Users } from 'lucide-react';
 import { num } from '@/lib/format';
-import { CsvButton } from '@/components/CsvButton';
 import { NotAffectedBadge } from '@/components/DataBadges';
 
 interface BDRank {
@@ -122,20 +121,6 @@ export function BDRankingTables() {
               dims={rowFilterDims}
               title="BD Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range or split by brand. Region and BD filters ARE applied."
             />
-            <CsvButton
-              base="bd-ranking"
-              filters={filters}
-              columns={[
-                { key: 'rank', label: 'Rank' },
-                { key: 'region', label: 'Region' },
-                { key: 'regionHead', label: 'Region Head' },
-                { key: 'bd', label: 'BD' },
-                { key: 'ytdTarget', label: 'YTD Target' },
-                { key: 'ytdAchievement', label: 'YTD Achieved' },
-                { key: 'achievementPct', label: 'Achievement %' },
-              ]}
-              rows={bds}
-            />
           </div>
           <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">{rule}</p>
           <div className="overflow-x-auto">
@@ -181,20 +166,6 @@ export function BDRankingTables() {
               <Map className="w-4 h-4 text-brand-purple-400" /> Region Ranking
             </h2>
             <NotAffectedBadge dims={rowFilterDims} title="Region Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range." />
-            <CsvButton
-              base="region-ranking"
-              filters={filters}
-              columns={[
-                { key: 'rank', label: 'Rank' },
-                { key: 'region', label: 'Region' },
-                { key: 'regionHead', label: 'Region Head' },
-                { key: 'bds', label: 'BDs' },
-                { key: 'ytdTarget', label: 'YTD Target' },
-                { key: 'ytdAchievement', label: 'YTD Achieved' },
-                { key: 'achievementPct', label: 'Achievement %' },
-              ]}
-              rows={regions}
-            />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
@@ -239,18 +210,6 @@ export function BDRankingTables() {
               <Users className="w-4 h-4 text-brand-purple-400" /> Region Heads
             </h2>
             <NotAffectedBadge dims={rowFilterDims} title="Region-head standings are fiscal-year-to-date against fiscal-year targets, so they cannot be windowed to a date range." />
-            <CsvButton
-              base="region-heads"
-              filters={filters}
-              columns={[
-                { key: 'regionHead', label: 'Region Head' },
-                { key: 'region', label: 'Region' },
-                { key: 'ytdTarget', label: 'YTD Target' },
-                { key: 'ytdAchievement', label: 'YTD Achieved' },
-                { key: 'achievementPct', label: 'Achievement %' },
-              ]}
-              rows={regionHeads.map((r) => ({ ...r, regionHead: r.bd }))}
-            />
           </div>
           <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">
             Region heads are shown separately and carry no individual BD rank — they are excluded from the BD ranking above.

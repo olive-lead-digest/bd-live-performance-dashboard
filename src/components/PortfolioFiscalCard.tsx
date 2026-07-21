@@ -5,7 +5,6 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Building2, Handshake, IndianRupee } from 'lucide-react';
 import { inr, num, brandColor } from '@/lib/format';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
-import { CsvButton } from '@/components/CsvButton';
 
 type Split = Record<string, number>;
 
@@ -61,7 +60,7 @@ function SplitBars({
 }
 
 export function PortfolioFiscalCard() {
-  const { dealsRuntime, filters } = useDashboard();
+  const { dealsRuntime } = useDashboard();
   const deals = dealsRuntime.deals;
   const exempt = useDealsExempt();
   const [period, setPeriod] = useState<'mtd' | 'ytd'>('ytd');
@@ -71,31 +70,6 @@ export function PortfolioFiscalCard() {
   const ytd = deals?.ytd as FiscalPeriod | undefined;
 
   const active: FiscalPeriod | undefined = period === 'mtd' ? mtd : ytd;
-
-  // P1-2 — the "Signed Portfolio" CSV must export the underlying signed-portfolio
-  // DEALS, not the 4-tile KPI summary. Rows = every MA-signed deal (stageType
-  // 'won') plus Spark LOIs (stage 'LOI Signed'). Filter-aware: prefer the
-  // recomputed filtered records when a global filter is active.
-  const signedRecords: any[] = Array.isArray((deals as any)?._filteredRecords)
-    ? (deals as any)._filteredRecords
-    : Array.isArray((deals as any)?.records)
-    ? (deals as any).records
-    : [];
-  const signedPortfolioRows = useMemo(
-    () =>
-      signedRecords
-        .filter((r) => r.stageType === 'won' || r.stage === 'LOI Signed')
-        .map((r) => ({
-          deal: r.name || '(unnamed)',
-          brand: r.brand || '—',
-          bd: r.owner || 'Unassigned',
-          region: r.region || '—',
-          keys: r.keys ?? '',
-          fee: Math.round(Number(r.feeContracted) || 0),
-          date: (r.stageType === 'won' ? r.maDate : r.expectedDate) || '',
-        })),
-    [signedRecords]
-  );
 
   const asOf = useMemo(() => {
     const p: any = period === 'mtd' ? mtd : ytd;
@@ -113,25 +87,7 @@ export function PortfolioFiscalCard() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
               <Building2 className="w-4 h-4 text-brand-pink-400" /> Signed Portfolio
             </h2>
-            <div className="flex items-center gap-2">
-              <DealsExemptBadge />
-              <CsvButton
-                base="portfolio-signed"
-                filters={filters}
-                label="CSV · Signed portfolio"
-                title={`Export ${signedPortfolioRows.length} signed-portfolio deals (MA-signed + Spark LOI)`}
-                columns={[
-                  { key: 'deal', label: 'Deal / Property' },
-                  { key: 'brand', label: 'Brand' },
-                  { key: 'bd', label: 'BD' },
-                  { key: 'region', label: 'Region' },
-                  { key: 'keys', label: 'Keys' },
-                  { key: 'fee', label: 'Fee (₹)' },
-                  { key: 'date', label: 'Date' },
-                ]}
-                rows={signedPortfolioRows}
-              />
-            </div>
+            <DealsExemptBadge />
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {PORTFOLIO_TILES.map((t) => (
@@ -166,20 +122,6 @@ export function PortfolioFiscalCard() {
               <Handshake className="w-4 h-4 text-brand-pink-400" /> Signings &amp; Collections
             </h2>
             <DealsExemptBadge />
-            <CsvButton
-              base={`portfolio-${period}`}
-              filters={filters}
-              columns={[
-                { key: 'dimension', label: 'Dimension' },
-                { key: 'group', label: 'Group' },
-                { key: 'signings', label: 'Signings' },
-                { key: 'collections', label: 'Collections' },
-              ]}
-              rows={[
-                ...Object.entries(active.signings?.byRegion || {}).map(([k, v]) => ({ dimension: 'Region', group: k, signings: v, collections: (active.collections?.byRegion || {})[k] ?? '' })),
-                ...Object.entries(active.signings?.byBrand || {}).map(([k, v]) => ({ dimension: 'Brand', group: k, signings: v, collections: (active.collections?.byBrand || {})[k] ?? '' })),
-              ]}
-            />
             <div className="flex bg-black/40 p-1 rounded-lg border border-border-subtle/50">
               {(['mtd', 'ytd'] as const).map((p) => (
                 <button
