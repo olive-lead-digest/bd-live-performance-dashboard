@@ -54,17 +54,47 @@ export function Sidebar({
         collapsed ? 'w-16 hover:w-64' : 'w-16 hover:w-64 xl:w-64'
       )}
     >
+      {/* Brand lockup — the white "olive" wordmark (public/sitelogo-white.svg,
+          native 94x32). The asset is a single white fill, so it sits directly on
+          the dark rail with no plate behind it.
+
+          Collapsed / narrow rail (64px): the wordmark cannot fit, so the window
+          is clamped to 32px and clips to the spoke mark on the left of the
+          artwork (the glyphs start at x=32.2 in the 94-unit viewBox, so the crop
+          lands cleanly between the mark and the "l"). The image itself is always
+          rendered at its native 94x32 — it is never squashed, so the aspect
+          ratio is exact in both states and nothing overflows the rail. */}
       <div
         className={clsx(
           'flex h-16 shrink-0 items-center w-full relative justify-center group-hover:justify-start group-hover:px-6',
           !collapsed && 'xl:justify-start xl:px-6'
         )}
       >
-        <span className="w-10 h-10 shrink-0 rounded-lg bg-white/95 flex items-center justify-center p-1 shadow-[0_0_12px_rgba(255,255,255,0.15)]">
-          <img src="/olive-spoke-pink.svg" alt="Olive Hospitality" className="w-full h-full object-contain" />
+        <span
+          className={clsx(
+            'relative block h-8 shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            'w-8 group-hover:w-[94px]',
+            !collapsed && 'xl:w-[94px]'
+          )}
+        >
+          <img
+            src="/sitelogo-white.svg"
+            alt="Olive Hospitality"
+            width={94}
+            height={32}
+            className="block h-8 w-[94px] max-w-none select-none"
+            draggable={false}
+          />
         </span>
-        <span className={clsx('ml-3 text-white font-bold tracking-wide text-sm', labelCls)}>
-          Olive Hospitality
+        {/* The wordmark already carries "olive", so the old duplicate
+            "Olive Hospitality" text label is gone; only the qualifier remains. */}
+        <span
+          className={clsx(
+            'ml-2.5 text-text-secondary font-semibold uppercase text-[10px] tracking-[0.2em]',
+            labelCls
+          )}
+        >
+          Hospitality
         </span>
       </div>
 

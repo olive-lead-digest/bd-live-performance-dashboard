@@ -2,10 +2,12 @@
 
 import type { Filters } from './DashboardContext';
 
-// P2-3(1) — ONE shared CSV implementation for the whole app. Every per-table
-// "CSV" button (see components/CsvButton.tsx) and DrillDrawer reuse this, so
-// there is a single escape/quote/BOM implementation and a consistent,
-// filter-aware filename scheme (e.g. deals_spark_2026-07-09.csv).
+// P2-3(1) — ONE shared CSV implementation for the whole app. Exporting now lives
+// exclusively in the Report Builder page (/reports); the per-table "CSV" buttons
+// and the header download control were removed. lib/reportEngine builds every
+// export on top of this module, so there is still a single escape/quote/BOM
+// implementation and a consistent, filter-aware filename scheme
+// (e.g. deals_spark_2026-07-09.csv).
 
 export interface CsvColumn<T = any> {
   key: string;

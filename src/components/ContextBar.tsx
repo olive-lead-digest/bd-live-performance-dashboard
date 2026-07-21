@@ -3,7 +3,6 @@
 import { Filter, X, Building2 } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
-import { DownloadReport } from './DownloadReport';
 import { LeadsAsOfStamp } from './DataBadges';
 
 const BRANDS = ['All', 'Olive', 'Spark', 'Open Hotels'];
@@ -107,13 +106,10 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
         )}
       </div>
 
+      {/* Exporting lives in ONE place: the Report Builder page (/reports).
+          The header carries no download/export control, and no dashboard card
+          carries a per-table CSV button — Report Builder covers every slice. */}
       <LeadsAsOfStamp className="hidden lg:block shrink-0 not-italic whitespace-nowrap" />
-      <div className="w-[1px] h-6 bg-border-subtle shrink-0" />
-      {/* The header used to carry a create-report control on EVERY page. It was
-          removed: Report Builder is a first-class sidebar destination now, so a
-          second entry point in the toolbar was pure duplication. The page-level
-          download control stays — it exports the page you are actually on. */}
-      <DownloadReport compact />
     </div>
   );
 }
