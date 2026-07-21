@@ -4,6 +4,7 @@ import { Filter, X, Building2 } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
 import { DownloadReport } from './DownloadReport';
+import { ReportBuilderButton } from './ReportBuilder';
 import { LeadsAsOfStamp } from './DataBadges';
 
 const BRANDS = ['All', 'Olive', 'Spark', 'Open Hotels'];
@@ -109,6 +110,8 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
 
       <LeadsAsOfStamp className="hidden lg:block shrink-0 not-italic whitespace-nowrap" />
       <div className="w-[1px] h-6 bg-border-subtle shrink-0" />
+      {/* Report builder — app-wide entry point, sits next to the quick download. */}
+      <ReportBuilderButton compact />
       <DownloadReport compact />
     </div>
   );
