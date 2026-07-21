@@ -6,8 +6,13 @@ import {
   Plus, X, ArrowUp, ArrowDown, GripVertical, Search, Rows3, Columns3, Sigma, Filter, Check,
 } from 'lucide-react';
 import {
-  AGGS, AGG_LABEL, aggsFor, valueLabel,
-  type AggId, type DatasetDef, type PivotField, type PivotMatrix, type ValueSpec, type ZoneId,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, ResponsiveContainer,
+} from 'recharts';
+import { inr, num } from '@/lib/format';
+import {
+  AGGS, AGG_LABEL, FIELD_GROUP_LABEL, aggsFor, valueLabel,
+  type AggId, type ChartModel, type DatasetDef, type PivotField, type PivotMatrix, type ValueSpec,
+  type ZoneId,
 } from '@/lib/reportEngine';
 
 /* ==================================================================
@@ -20,11 +25,40 @@ import {
  * Drag-and-drop is an accelerator, never the only way to do something.
  * ================================================================== */
 
-export const ZONE_META: Record<ZoneId, { label: string; hint: string; Icon: typeof Rows3 }> = {
-  rows: { label: 'Rows', hint: 'Group the table down the side', Icon: Rows3 },
-  cols: { label: 'Columns', hint: 'Spread the table across the top', Icon: Columns3 },
-  values: { label: 'Values', hint: 'The numbers in the cells', Icon: Sigma },
-  filters: { label: 'Filters', hint: 'Narrow the whole report', Icon: Filter },
+/**
+ * Business English, not spreadsheet English. "Rows / Columns / Values" mean
+ * nothing to someone who has never built a pivot table; "Group by / Split by /
+ * Show me" describe the same three ideas in the words people already use.
+ * Every zone carries one line of helper text explaining it in business terms.
+ */
+export const ZONE_META: Record<
+  ZoneId,
+  { label: string; hint: string; help: string; Icon: typeof Rows3 }
+> = {
+  rows: {
+    label: 'Group by',
+    hint: 'one row for each value',
+    help: 'You get one row for each value — for example one row per BD.',
+    Icon: Rows3,
+  },
+  cols: {
+    label: 'Split by',
+    hint: 'break each row into side-by-side columns',
+    help: 'Breaks every row into side-by-side columns — for example one column per brand.',
+    Icon: Columns3,
+  },
+  values: {
+    label: 'Show me',
+    hint: 'the number that fills each cell',
+    help: 'The number in each cell. Pick Count to see how many, or Total to add up money.',
+    Icon: Sigma,
+  },
+  filters: {
+    label: 'Narrow it down',
+    hint: 'limit the report to certain values',
+    help: 'Limit the whole report — for example only Spark, or only the South region.',
+    Icon: Filter,
+  },
 };
 
 export interface DragPayload {
@@ -71,8 +105,8 @@ export function FieldList({
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search fields…"
-          aria-label="Search available fields"
+          placeholder="Search for a field…"
+          aria-label="Search for a field to add"
           className="w-full bg-surface border border-border-subtle rounded-lg pl-8 pr-2.5 py-2 min-h-[40px] text-xs text-white placeholder:text-text-secondary/70 focus:outline-none focus:border-brand-purple-400 focus-visible:ring-2 focus-visible:ring-brand-purple-400"
         />
       </div>
@@ -81,7 +115,9 @@ export function FieldList({
         {groups.length === 0 && <p className="text-[11px] text-text-secondary italic">No field matches “{q}”.</p>}
         {groups.map(({ group, fields }) => (
           <div key={group} className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">{group}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
+              {FIELD_GROUP_LABEL[group]}
+            </span>
             {fields.map((f) => {
               const used = usage[f.key] || [];
               const menuOpen = openMenu === f.key;
@@ -108,7 +144,7 @@ export function FieldList({
                       onClick={() => setOpenMenu(menuOpen ? null : f.key)}
                       aria-expanded={menuOpen}
                       aria-haspopup="menu"
-                      aria-label={`Add ${f.label} to a zone`}
+                      aria-label={`Use ${f.label} in this report`}
                       className="shrink-0 w-10 h-10 flex items-center justify-center rounded-md text-text-secondary hover:text-white hover:bg-brand-pink-500/20 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
                     >
                       <Plus className="w-4 h-4" />
@@ -136,7 +172,7 @@ export function FieldList({
                             const I = ZONE_META[z].Icon;
                             return <I aria-hidden="true" className="w-3.5 h-3.5 shrink-0" />;
                           })()}
-                          Add to {ZONE_META[z].label}
+                          Add to “{ZONE_META[z].label}”
                         </button>
                       ))}
                       <button
@@ -262,8 +298,12 @@ export function Zone({
         {addMenu}
       </div>
 
+      <p className="text-[10px] text-text-secondary leading-snug px-0.5">{meta.help}</p>
+
       {items.length === 0 ? (
-        <p className="text-[10px] text-text-secondary italic px-1 py-2">Drop a field here, or use “+ Add”. {meta.hint}.</p>
+        <p className="text-[10px] text-text-secondary italic px-1 py-2">
+          Nothing here yet — press “+ Add”, or drag a field across, to {meta.hint}.
+        </p>
       ) : (
         <ul className="flex flex-col gap-1.5 list-none m-0 p-0">
           {items.map((it, i) => {
@@ -319,7 +359,7 @@ export function Zone({
                 {it.spec && onAggChange && onLabelChange && (
                   <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
                     <label className="sr-only" htmlFor={`agg-${it.spec.id}`}>
-                      Aggregation for {field?.label || it.key}
+                      How to combine {field?.label || it.key}
                     </label>
                     <select
                       id={`agg-${it.spec.id}`}
@@ -334,7 +374,7 @@ export function Zone({
                       ))}
                     </select>
                     <label className="sr-only" htmlFor={`lbl-${it.spec.id}`}>
-                      Column label for {field?.label || it.key}
+                      Heading to show for {field?.label || it.key}
                     </label>
                     <input
                       id={`lbl-${it.spec.id}`}
@@ -397,7 +437,7 @@ export function ZoneAddMenu({
               className="px-2.5 min-h-[40px] rounded-lg text-[11px] text-text-secondary hover:text-white hover:bg-surface transition-colors text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
             >
               {f.label}
-              <span className="ml-1 text-[9px] text-text-secondary/70">{f.group}</span>
+              <span className="ml-1 text-[9px] text-text-secondary/70">{FIELD_GROUP_LABEL[f.group]}</span>
             </button>
           ))}
           <button
@@ -481,9 +521,13 @@ export function PivotTableView({ matrix, caption }: { matrix: PivotMatrix; capti
                         </Tag>
                       );
                     }
+                    // Money is shown compactly (Rs 13.57Cr). Hovering reveals the
+                    // exact figure, so nobody has to export just to read it.
+                    const exact = typeof c.v === 'number' ? c.v.toLocaleString('en-IN') : undefined;
                     return (
                       <td
                         key={ci}
+                        title={exact}
                         className={clsx(
                           'px-2.5 py-1.5 text-right tabular-nums whitespace-nowrap border-b border-border-subtle/50',
                           c.totalCol ? 'text-brand-pink-200 font-semibold' : 'text-white/90'
@@ -500,6 +544,97 @@ export function PivotTableView({ matrix, caption }: { matrix: PivotMatrix; capti
         </table>
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* The chart                                                           */
+/*                                                                     */
+/* Bars are read straight out of the same pivot matrix that renders the */
+/* table, so the picture and the numbers can never disagree.            */
+/* ------------------------------------------------------------------ */
+
+const SERIES_COLORS = [
+  '#da1a84', // brand pink
+  '#a470d6', // light purple
+  '#34d399', // emerald
+  '#fbbf24', // amber
+  '#38bdf8', // sky
+  '#fb7185', // rose
+  '#502875', // brand purple
+  '#94a3b8', // slate
+];
+
+const axisFmt = (format: ChartModel['format']) => (v: number) =>
+  format === 'inr' ? inr(v) : format === 'pct' ? `${v}%` : num(v);
+
+export function ReportChart({ model }: { model: ChartModel }) {
+  const fmt = axisFmt(model.format);
+  const multi = model.series.length > 1;
+  // Bars need room to breathe; the container grows with the number of bars so
+  // labels never collide, and the whole thing still fits a phone.
+  const height = Math.max(200, model.data.length * (multi && !model.stacked ? 44 : 34) + 56);
+
+  return (
+    <figure className="m-0 flex flex-col gap-1.5 min-w-0">
+      <div className="w-full min-w-0" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={model.data}
+            layout="vertical"
+            margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
+            barCategoryGap="22%"
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={fmt}
+              tick={{ fill: '#9b9aa8', fontSize: 10 }}
+              stroke="rgba(255,255,255,0.15)"
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={132}
+              interval={0}
+              tick={{ fill: '#d7d6e0', fontSize: 10 }}
+              stroke="rgba(255,255,255,0.15)"
+            />
+            <RTooltip
+              cursor={{ fill: 'rgba(218,26,132,0.10)' }}
+              contentStyle={{
+                background: '#17161d',
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 12,
+                fontSize: 11,
+                color: '#fff',
+              }}
+              formatter={(v: unknown, name: unknown) => [
+                typeof v === 'number' ? fmt(v) : '—',
+                typeof name === 'string' ? name : '',
+              ]}
+            />
+            {multi && <Legend wrapperStyle={{ fontSize: 11, color: '#9b9aa8' }} />}
+            {model.series.map((sr, i) => (
+              <Bar
+                key={sr.key}
+                dataKey={sr.key}
+                name={sr.name}
+                stackId={model.stacked ? 'a' : undefined}
+                fill={SERIES_COLORS[i % SERIES_COLORS.length]}
+                radius={model.stacked ? 0 : [0, 4, 4, 0]}
+                isAnimationActive={false}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {model.total > model.shown && (
+        <figcaption className="text-[10px] text-text-secondary">
+          Chart shows {model.shown} of {model.total.toLocaleString('en-IN')} groups. The table below has them all.
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
