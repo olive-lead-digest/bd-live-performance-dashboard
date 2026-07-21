@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { X, FileSpreadsheet, FileText, Table2, Loader2, ClipboardList, Info } from 'lucide-react';
 import { useDashboard, type Filters } from '@/lib/DashboardContext';
@@ -293,6 +294,15 @@ export function ReportBuilder({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [cols, setCols] = useState<string[]>([]);
   const [busy, setBusy] = useState<'csv' | 'excel' | 'pdf' | null>(null);
   const [seeded, setSeeded] = useState(false);
+  // The dialog is PORTALLED to <body>. ContextBar (where the trigger lives) is a
+  // .glass-card, i.e. backdrop-filter: blur(16px) — and a backdrop-filter makes
+  // an element the containing block for its position:fixed descendants. Rendered
+  // in place, `fixed inset-0` therefore resolved against the 56px-tall header
+  // strip instead of the viewport, and the dialog was drawn at top:-444px,
+  // almost entirely off-screen. Portalling to <body> escapes that containing
+  // block. (FilterDrawer is unaffected: AppShell mounts it outside ContextBar.)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const def = useMemo(() => DATASETS.find((d) => d.id === dsId) || DATASETS[0], [dsId]);
 
@@ -561,12 +571,12 @@ export function ReportBuilder({ isOpen, onClose }: { isOpen: boolean; onClose: (
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const previewRows = rows.slice(0, 10);
   const allOn = activeColumns.length === def.columns.length;
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60]" onClick={onClose} />
       <div className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center p-0 sm:p-6 pointer-events-none">
@@ -821,7 +831,8 @@ export function ReportBuilder({ isOpen, onClose }: { isOpen: boolean; onClose: (
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
