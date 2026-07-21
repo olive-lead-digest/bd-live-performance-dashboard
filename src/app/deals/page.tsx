@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import { SigningProbabilityCard } from '@/components/SigningProbabilityCard';
 import { ProposalsStageCard } from '@/components/ProposalsStageCard';
-import { buildFunnelModel } from '@/lib/dealsRuntime';
+import { buildFunnelModel, anyFilterActive } from '@/lib/dealsRuntime';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 import { inr, shortDate } from '@/lib/format';
 import { useUrlTab } from '@/lib/useUrlTab';
@@ -116,8 +116,15 @@ export default function DealsPage() {
   const funnelModel = buildFunnelModel(funnel);
   const convPct = (a?: number | null, b?: number | null) =>
     a != null && b != null && b > 0 ? `${((a / b) * 100).toFixed(1)}%` : null;
-  const propOfLeads = convPct(proposalsCount, leadsCount);
-  const dealsOfProp = convPct(totals.deals, proposalsCount ?? undefined);
+  // The proposals feed publishes ONLY org-wide aggregates (no per-proposal
+  // records), so it cannot be re-filtered. Dividing an UNFILTERED proposal count
+  // by a FILTERED lead count produced impossible conversions - a June range gave
+  // 975 proposals / 764 leads = 127.6%. While any filter is active we suppress
+  // both conversion figures and label the Proposals node as unfiltered, rather
+  // than print a ratio between two different populations.
+  const proposalsUnfiltered = anyFilterActive(filters);
+  const propOfLeads = proposalsUnfiltered ? null : convPct(proposalsCount, leadsCount);
+  const dealsOfProp = proposalsUnfiltered ? null : convPct(totals.deals, proposalsCount ?? undefined);
   const propData = LAND_ORDER.filter((k) => landStatus[k] != null).map((name) => ({ name, value: Number(landStatus[name]) || 0 }));
   const brandNames = Object.keys(byBrand);
   const maxBrandSigned = Math.max(1, ...brandNames.map((b) => Number(byBrand[b]?.signed) || 0));
@@ -269,11 +276,21 @@ export default function DealsPage() {
           <ConvArrow pct={propOfLeads} />
           <span
             className="px-2 py-0.5 rounded border border-brand-pink-500/40 bg-brand-pink-500/10 text-brand-pink-300 flex items-center gap-1.5"
-            title="Proposals awaiting or completing department approvals (Zoho Awaiting_BusinessApproval). Once approved, a deal auto-creates."
+            title={
+              'Proposals awaiting or completing department approvals (Zoho Awaiting_BusinessApproval). Once approved, a deal auto-creates.' +
+              (proposalsUnfiltered
+                ? ' The proposals feed carries org-wide totals only (no per-proposal records), so this count is NOT affected by the active filters and conversion percentages are hidden.'
+                : '')
+            }
           >
             Proposals
             {proposalsCount != null ? (
-              <span className="text-white tabular-nums normal-case">{proposalsCount.toLocaleString('en-IN')}</span>
+              <span className="text-white tabular-nums normal-case">
+                {proposalsCount.toLocaleString('en-IN')}
+                {proposalsUnfiltered && (
+                  <span className="ml-1 text-[9px] uppercase tracking-wider text-amber-300/90 normal-case">(unfiltered)</span>
+                )}
+              </span>
             ) : (
               <span className="text-text-secondary normal-case tracking-normal">&amp; approvals</span>
             )}
