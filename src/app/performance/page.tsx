@@ -26,13 +26,13 @@ export default function PerformancePage() {
 
       <header className="mb-2 relative z-10">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex flex-wrap items-center gap-x-3 gap-y-2">
-          Performance
+          Signings &amp; Revenue
           <span className="px-2 py-0.5 rounded bg-brand-pink-500/20 border border-brand-pink-500/50 text-brand-pink-400 text-[10px] uppercase tracking-widest">
-            Portfolio &amp; Fiscal
+            Zoho CRM
           </span>
         </h1>
         <p className="text-text-secondary text-sm mt-1 font-medium">
-          Signed portfolio, fiscal signings &amp; collections, and high-probability upcoming signings.
+          Hotels signed to date, money contracted and collected this year, and the signings expected next.
         </p>
       </header>
 
@@ -42,7 +42,7 @@ export default function PerformancePage() {
       {!hasAny && (
         <div className="flex flex-col items-center justify-center gap-4 relative z-10 text-center px-6 py-20">
           <TrendingUp className="w-10 h-10 text-brand-purple-400" />
-          <div className="text-text-secondary text-sm">Performance data is loading or unavailable.</div>
+          <div className="text-text-secondary text-sm">Signings &amp; revenue data is loading or unavailable.</div>
         </div>
       )}
     </div>

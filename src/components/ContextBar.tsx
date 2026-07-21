@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Filter, X, Building2, Table2 } from 'lucide-react';
+import { Filter, X, Building2 } from 'lucide-react';
 import { useDashboard } from '@/lib/DashboardContext';
 import clsx from 'clsx';
 import { DownloadReport } from './DownloadReport';
@@ -12,8 +10,6 @@ const BRANDS = ['All', 'Olive', 'Spark', 'Open Hotels'];
 
 export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
   const { filters, setFilter, clearFilters, setDateRange } = useDashboard();
-  const pathname = usePathname();
-  const onReports = pathname === '/reports';
 
   const activeChips: { key: string; label: string; id: string }[] = [];
   
@@ -113,24 +109,10 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
 
       <LeadsAsOfStamp className="hidden lg:block shrink-0 not-italic whitespace-nowrap" />
       <div className="w-[1px] h-6 bg-border-subtle shrink-0" />
-      {/* Report builder — NAVIGATES to the /reports pivot page. It used to open a
-          modal; there is now exactly one report tool, and it is a real page. */}
-      <Link
-        href="/reports"
-        aria-current={onReports ? 'page' : undefined}
-        title="Open the report builder"
-        className={clsx(
-          'flex items-center gap-2 px-2.5 py-1.5 min-h-[38px] rounded-lg border transition-colors group shrink-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel active:scale-95',
-          onReports
-            ? 'bg-brand-pink-500/30 border-brand-pink-500/70'
-            : 'bg-brand-pink-500/15 hover:bg-brand-pink-500/25 border-brand-pink-500/40'
-        )}
-      >
-        <Table2 className="w-4 h-4 text-brand-pink-400" aria-hidden="true" />
-        <span className="text-xs font-semibold text-brand-pink-400 group-hover:text-brand-pink-300 whitespace-nowrap hidden sm:inline">
-          Create report
-        </span>
-      </Link>
+      {/* The header used to carry a create-report control on EVERY page. It was
+          removed: Report Builder is a first-class sidebar destination now, so a
+          second entry point in the toolbar was pure duplication. The page-level
+          download control stays — it exports the page you are actually on. */}
       <DownloadReport compact />
     </div>
   );

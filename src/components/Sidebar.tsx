@@ -7,21 +7,23 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-// R-0 — 7 primary destinations. Reports is the pivot-table report builder that
-// replaced the old "Create report" modal (the ContextBar control now NAVIGATES
-// here instead of opening a dialog — there is exactly one report tool).
-// The standalone Directory section was removed
-// (its /directory route now permanently redirects to Overview — see
-// next.config redirects); the BD roster still ships inside the downloadable
-// report. Deals & Pipeline is one Handshake item.
+// R-0 — 7 primary destinations, named in the words the business uses rather
+// than in dashboard jargon: "Signings & Revenue" not "Portfolio & Fiscal",
+// "Trends" not "Analytics", "Report Builder" not "Reports". The URLs are
+// deliberately unchanged, so every existing link and bookmark still resolves.
+// Report Builder is the ONLY entry point to the report tool — the duplicate
+// control that used to sit in the header toolbar was removed.
+// The standalone Directory section was removed (its /directory route now
+// permanently redirects to Overview — see next.config redirects); the BD roster
+// still ships inside the downloadable report.
 const NAV_ITEMS = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Deals & Pipeline', href: '/deals', icon: Handshake },
-  { name: 'Team', href: '/team', icon: Trophy },
-  { name: 'Portfolio & Fiscal', href: '/portfolio', icon: TrendingUp },
+  { name: 'BD Team', href: '/team', icon: Trophy },
+  { name: 'Signings & Revenue', href: '/portfolio', icon: TrendingUp },
   { name: 'Geography', href: '/geography', icon: Map },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Reports', href: '/reports', icon: Table2 },
+  { name: 'Trends', href: '/analytics', icon: BarChart3 },
+  { name: 'Report Builder', href: '/reports', icon: Table2 },
 ];
 
 export function Sidebar({
