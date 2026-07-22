@@ -5,7 +5,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Trophy, Map, Users } from 'lucide-react';
 import { num } from '@/lib/format';
 import { NotAffectedBadge } from '@/components/DataBadges';
-import { MobileStatCard } from '@/components/MobileStatCard';
+import { MobileStatCard, InfoNote } from '@/components/MobileStatCard';
 
 interface BDRank {
   bd?: string;
@@ -134,7 +134,13 @@ export function BDRankingTables() {
               title="BD Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range or split by brand. Region and BD filters ARE applied."
             />
           </div>
-          <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">{rule}</p>
+          <InfoNote
+            desktopClassName="text-[11px] text-text-secondary mb-4 leading-relaxed"
+            mobileLabel="How ranking is scored"
+            title="Ranking methodology"
+          >
+            {rule}
+          </InfoNote>
 
           {/* Desktop table (unchanged >= md) */}
           <div className="hidden md:block overflow-x-auto">
@@ -273,9 +279,13 @@ export function BDRankingTables() {
             </h2>
             <NotAffectedBadge dims={rowFilterDims} title="Region-head standings are fiscal-year-to-date against fiscal-year targets, so they cannot be windowed to a date range." />
           </div>
-          <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">
+          <InfoNote
+            desktopClassName="text-[11px] text-text-secondary mb-4 leading-relaxed"
+            mobileLabel="About region heads"
+            title="Region heads"
+          >
             Region heads are shown separately and carry no individual BD rank — they are excluded from the BD ranking above.
-          </p>
+          </InfoNote>
 
           {/* Desktop table (unchanged >= md) */}
           <div className="hidden md:block overflow-x-auto">

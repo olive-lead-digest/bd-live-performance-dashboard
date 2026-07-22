@@ -147,35 +147,10 @@ export function HeroAsk() {
     setTimeout(() => { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* noop */ } }, 250);
   };
 
-  // Mobile "Ask AI" entry (bottom nav / deep link). Scrolls the input into view
-  // and focuses it, then strips the one-shot ?ask=1 param so a later refresh
-  // does not re-trigger it. Driven by /?ask=1 on cross-page navigation and by an
-  // olive:ask-focus window event when Ask AI is tapped while already on Overview.
-  const focusAsk = () => {
-    const el = inputRef.current;
-    if (el) { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* noop */ } }
-    setTimeout(() => {
-      if (el) { try { el.focus({ preventScroll: true }); } catch { /* noop */ } }
-      try {
-        const p = new URLSearchParams(window.location.search);
-        if (p.get('ask')) {
-          p.delete('ask');
-          const qs = p.toString();
-          window.history.replaceState(window.history.state, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-        }
-      } catch { /* ignore */ }
-    }, 350);
-  };
-
-  useEffect(() => {
-    let hit = false;
-    try { hit = new URLSearchParams(window.location.search).get('ask') === '1'; } catch { /* ignore */ }
-    if (hit) focusAsk();
-    const onAskFocus = () => focusAsk();
-    window.addEventListener('olive:ask-focus', onAskFocus);
-    return () => window.removeEventListener('olive:ask-focus', onAskFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Ask AI lives on the Overview hero only. The former bottom-nav "Ask AI" item
+  // (and its /?ask=1 deep-link + olive:ask-focus event) were removed in v3, so
+  // there is no cross-page redirect to service here — the input is always
+  // mounted on Overview and focuses normally on tap.
 
   const animate = query.length === 0 && !focused;
 
