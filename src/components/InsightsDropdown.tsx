@@ -305,7 +305,7 @@ export function InsightsDropdown() {
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-[450px] max-w-[calc(100vw-2rem)] glass-panel border border-brand-pink-500/30 shadow-[0_10px_40px_rgba(218,26,132,0.2)] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 flex flex-col max-h-[600px]">
+          <div className="absolute right-0 mt-2 w-[450px] max-w-[calc(100vw-2rem)] max-sm:fixed max-sm:inset-x-3 max-sm:top-16 max-sm:w-auto max-sm:max-w-none glass-panel border border-brand-pink-500/30 shadow-[0_10px_40px_rgba(218,26,132,0.2)] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 flex flex-col max-h-[600px]">
             <div className="p-4 bg-brand-pink-500/10 border-b border-brand-pink-500/20 flex justify-between items-center shrink-0">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-pink-400 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5"/> Strategic Briefings</span>
               <span className="text-[10px] font-bold text-text-secondary bg-surface px-2 py-0.5 rounded-full border border-border-subtle">{totalInsights} from live data</span>

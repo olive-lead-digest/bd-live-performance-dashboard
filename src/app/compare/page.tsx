@@ -324,7 +324,7 @@ export default function Compare() {
       <div className="absolute top-[-100px] left-[20%] w-[800px] h-[400px] bg-brand-purple-500/10 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Header */}
-      <header className="shrink-0 relative z-10 flex items-center justify-between mb-4">
+      <header className="shrink-0 relative z-10 flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-4">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-pink-500/20 to-brand-purple-500/20 border border-brand-purple-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(80,40,117,0.3)]">
             <SplitSquareHorizontal className="w-4 h-4 text-white" />
