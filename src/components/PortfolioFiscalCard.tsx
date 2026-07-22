@@ -14,10 +14,10 @@ interface FiscalPeriod {
 }
 
 const PORTFOLIO_TILES: { key: string; label: string; sub: string; color: string }[] = [
-  { key: 'oliveMA', label: 'Olive', sub: 'MAs signed', color: '#502875' },
-  { key: 'sparkMA', label: 'Spark', sub: 'MAs signed', color: '#da1a84' },
-  { key: 'openMA', label: 'Open Hotels', sub: 'MAs signed', color: '#a470d6' },
-  { key: 'sparkLOI', label: 'Spark', sub: 'LOIs signed', color: '#ec4899' },
+  { key: 'oliveMA', label: 'Olive', sub: 'MA signed', color: '#502875' },
+  { key: 'sparkMA', label: 'Spark', sub: 'MA signed', color: '#da1a84' },
+  { key: 'openMA', label: 'Open Hotels', sub: 'MA signed', color: '#a470d6' },
+  { key: 'sparkLOI', label: 'Spark', sub: 'LOI signed', color: '#ec4899' },
 ];
 
 function SplitBars({

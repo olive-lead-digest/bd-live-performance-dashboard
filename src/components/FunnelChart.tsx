@@ -60,9 +60,9 @@ export function FunnelChart({ leads, deals }: { leads: Lead[]; deals?: any }) {
 
           return (
             <div key={step.label} className="flex flex-col">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 sm:gap-4">
                 {/* Stage label */}
-                <div className="w-24 shrink-0 text-right">
+                <div className="w-20 sm:w-24 shrink-0 text-right">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-text-secondary leading-tight">
                     {step.label}
                   </div>
@@ -82,14 +82,14 @@ export function FunnelChart({ leads, deals }: { leads: Lead[]; deals?: any }) {
                   >
                     {/* glossy top sheen */}
                     <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
-                    <span className="relative text-white text-base font-black tracking-tight z-10 drop-shadow">
+                    <span className="relative text-white text-sm sm:text-base font-black tracking-tight z-10 drop-shadow">
                       {step.value.toLocaleString('en-IN')}
                     </span>
                   </div>
                 </div>
 
                 {/* Advance rate */}
-                <div className="w-20 shrink-0">
+                <div className="w-14 sm:w-20 shrink-0">
                   {advance !== null ? (
                     <span className="text-[11px] font-bold text-emerald-400">
                       {advance.toFixed(1)}%
