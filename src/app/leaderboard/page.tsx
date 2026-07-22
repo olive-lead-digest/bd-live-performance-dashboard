@@ -143,7 +143,7 @@ export default function Leaderboard() {
               className={clsx(
                 // P2-1 — real button hit target: ≥36px tall, pointer cursor,
                 // visible hover / active / focus-visible states.
-                "px-3 py-1.5 min-h-[36px] rounded-md text-xs font-bold transition-all capitalize cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-surface active:scale-95",
+                "px-3 py-1.5 min-h-[44px] md:min-h-[36px] rounded-md text-xs font-bold transition-all capitalize cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-surface active:scale-95",
                 sortBy === opt ? "bg-brand-pink-500 text-white shadow-[0_0_10px_rgba(218,26,132,0.4)]" : "text-text-secondary hover:text-white hover:bg-surface-light"
               )}
             >
@@ -158,7 +158,7 @@ export default function Leaderboard() {
       {/* P1-9 — legend: the small range under Active%/Drop% is a 95% confidence
           interval, not a separate count. Documented on-screen so the paired
           "13% / 11-17" reads unambiguously. */}
-      <div className="glass-card px-4 py-3 mb-6 text-[11px] text-text-secondary leading-relaxed">
+      <div className="hidden md:block glass-card px-4 py-3 mb-6 text-[11px] text-text-secondary leading-relaxed">
         <span className="font-bold text-white uppercase tracking-widest text-[10px]">Legend</span>
         <span className="ml-2">
           <b className="text-white">Score</b> — balanced BD score (quality, conversion, compliance, lead &amp; call volume).

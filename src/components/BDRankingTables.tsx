@@ -5,6 +5,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Trophy, Map, Users } from 'lucide-react';
 import { num } from '@/lib/format';
 import { NotAffectedBadge } from '@/components/DataBadges';
+import { MobileStatCard } from '@/components/MobileStatCard';
 
 interface BDRank {
   bd?: string;
@@ -32,6 +33,8 @@ function pctColor(p?: number) {
   return '#ef4444';
 }
 
+const pctText = (p?: number) => (p == null ? '—' : `${p.toFixed(1)}%`);
+
 function PctBar({ p }: { p?: number }) {
   const v = Math.max(0, Math.min(100, p ?? 0));
   return (
@@ -43,6 +46,15 @@ function PctBar({ p }: { p?: number }) {
         {p == null ? '—' : `${p.toFixed(1)}%`}
       </span>
     </div>
+  );
+}
+
+// Small rank chip reused by every mobile card so the ranking stays legible.
+function RankChip({ n }: { n: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface text-text-secondary text-xs font-bold tabular-nums shrink-0">
+      {n}
+    </span>
   );
 }
 
@@ -123,7 +135,9 @@ export function BDRankingTables() {
             />
           </div>
           <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">{rule}</p>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table (unchanged >= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
@@ -155,6 +169,29 @@ export function BDRankingTables() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile stacked cards (< md) */}
+          <div className="md:hidden flex flex-col gap-3">
+            {bds.map((r, i) => (
+              <MobileStatCard
+                key={`m-${r.bd}-${i}`}
+                badge={<RankChip n={r.rank ?? i + 1} />}
+                title={r.bd || '—'}
+                subtitle={r.region || '—'}
+                headlineLabel="Achieved"
+                headline={pctText(r.achievementPct)}
+                headlineAccent={pctColor(r.achievementPct)}
+                secondary={[
+                  { label: 'YTD Achieved', value: r.ytdAchievement ?? 0 },
+                  { label: 'YTD Target', value: num(r.ytdTarget) },
+                ]}
+                details={[
+                  { label: 'Region Head', value: r.regionHead || '—' },
+                  { label: 'Region', value: r.region || '—' },
+                ]}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -167,7 +204,9 @@ export function BDRankingTables() {
             </h2>
             <NotAffectedBadge dims={rowFilterDims} title="Region Ranking measures fiscal-year-to-date points against fiscal-year targets, so it cannot be windowed to a date range." />
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table (unchanged >= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
@@ -199,6 +238,29 @@ export function BDRankingTables() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile stacked cards (< md) */}
+          <div className="md:hidden flex flex-col gap-3">
+            {regions.map((r, i) => (
+              <MobileStatCard
+                key={`m-${r.region}-${i}`}
+                badge={<RankChip n={r.rank ?? i + 1} />}
+                title={r.region || '—'}
+                subtitle={r.regionHead ? `Head · ${r.regionHead}` : undefined}
+                headlineLabel="Achieved"
+                headline={pctText(r.achievementPct)}
+                headlineAccent={pctColor(r.achievementPct)}
+                secondary={[
+                  { label: 'YTD Achieved', value: r.ytdAchievement ?? 0 },
+                  { label: 'YTD Target', value: num(r.ytdTarget) },
+                  { label: 'BDs', value: r.bds != null ? num(r.bds) : '—' },
+                ]}
+                details={[
+                  { label: 'Region Head', value: r.regionHead || '—' },
+                ]}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -214,7 +276,9 @@ export function BDRankingTables() {
           <p className="text-[11px] text-text-secondary mb-4 leading-relaxed">
             Region heads are shown separately and carry no individual BD rank — they are excluded from the BD ranking above.
           </p>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table (unchanged >= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
@@ -240,6 +304,25 @@ export function BDRankingTables() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile stacked cards (< md) */}
+          <div className="md:hidden flex flex-col gap-3">
+            {regionHeads.map((r, i) => (
+              <MobileStatCard
+                key={`m-${r.bd}-${i}`}
+                title={r.bd || '—'}
+                subtitle="Region Head"
+                headlineLabel="Achieved"
+                headline={pctText(r.achievementPct)}
+                headlineAccent={pctColor(r.achievementPct)}
+                secondary={[
+                  { label: 'YTD Achieved', value: r.ytdAchievement ?? 0 },
+                  { label: 'YTD Target', value: num(r.ytdTarget) },
+                  { label: 'Region', value: r.region || '—' },
+                ]}
+              />
+            ))}
           </div>
         </div>
       )}
