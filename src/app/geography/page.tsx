@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { MapPin, ZoomIn, ZoomOut, RotateCcw, Search, Crosshair, Users, Activity, AlertTriangle, ArrowRight } from 'lucide-react';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
+import { InfoNote } from '@/components/MobileStatCard';
 import { compactNum } from '@/lib/format';
 import { useDrill } from '@/components/DrillDrawer';
 
@@ -349,11 +350,15 @@ export default function Geography() {
               <b className="text-amber-400 tabular-nums">{coverage.G.toLocaleString('en-IN')}</b> ({coverage.gPct.toFixed(1)}%)
             </span>
           </div>
-          <p className="mt-2 text-[10px] text-text-secondary italic leading-snug">
+          <InfoNote
+            desktopClassName="mt-2 text-[10px] text-text-secondary italic leading-snug"
+            mobileLabel="Coverage caveat"
+            title="Coverage reconciliation"
+          >
             City-mapping and region-tagging are different completeness levels: {coverage.tPct.toFixed(0)}% of leads carry a
             region tag but only {coverage.mPct.toFixed(0)}% map to a recognised city. Headline &ldquo;top market&rdquo; claims
             are based on the city-mapped {coverage.mPct.toFixed(0)}% only.
-          </p>
+          </InfoNote>
         </div>
       )}
 
@@ -736,9 +741,13 @@ export default function Geography() {
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-[10px] text-text-secondary italic leading-snug">
+          <InfoNote
+            desktopClassName="mt-3 text-[10px] text-text-secondary italic leading-snug"
+            mobileLabel="About this table"
+            title="State coverage"
+          >
             Aggregated from mapped-city leads only. A geographic state choropleth is a planned follow-up (needs a state-level GeoJSON layer).
-          </p>
+          </InfoNote>
         </div>
       )}
     </div>
