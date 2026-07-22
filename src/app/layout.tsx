@@ -15,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="antialiased min-h-screen">
+      <body className="antialiased min-h-[100dvh]">
         <DashboardProvider>
           <AppShell>{children}</AppShell>
         </DashboardProvider>

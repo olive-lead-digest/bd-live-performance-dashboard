@@ -116,3 +116,39 @@
 .skip-to-content:focus {
   transform: translateY(0);
 }
+
+/* ---------------------------------------------------------------------------
+   P-mobile — mobile-only enhancements (< md / 768px). Every rule here is scoped
+   to small screens or to brand-new mobile-only classes, so desktop (>= 768px)
+   renders exactly as before. --------------------------------------------------
+   ------------------------------------------------------------------------- */
+
+/* Mobile type floor: no sub-12px text on small screens. Raises every
+   text-[9px]/[10px]/[11px] utility and the .text-military label to 12px below
+   md; desktop keeps its original size. Unlayered so it beats Tailwind's layered
+   utilities in the cascade without needing !important. */
+@media (max-width: 767.98px) {
+  .text-\[9px\],
+  .text-\[10px\],
+  .text-\[11px\],
+  .text-military {
+    font-size: 12px;
+    line-height: 1.15rem;
+  }
+}
+
+/* Slide-up sheet + fade for the mobile "More" drawer (no framer-motion). */
+@keyframes olive-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-sheet-up {
+  animation: olive-sheet-up 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes olive-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: olive-fade-in 0.2s ease;
+}
