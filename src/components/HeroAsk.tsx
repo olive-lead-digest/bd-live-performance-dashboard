@@ -137,6 +137,15 @@ export function HeroAsk() {
   const deleting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // M4 — when the mobile virtual keyboard opens, re-centre the focused field so
+  // it (and the answer scrolling above it) stay visible above the keyboard. The
+  // panel is in normal flow (never position:fixed), so nothing is trapped under
+  // the keyboard; the answer area scrolls internally (max-h below).
+  const keepInView = (el: HTMLElement | null) => {
+    if (!el) return;
+    setTimeout(() => { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* noop */ } }, 250);
+  };
+
   const animate = query.length === 0 && !focused;
 
   useEffect(() => {
@@ -256,7 +265,7 @@ export function HeroAsk() {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
+            onFocus={(e) => { setFocused(true); keepInView(e.currentTarget); }}
             onBlur={() => setFocused(false)}
             type="text"
             inputMode="text"
@@ -354,7 +363,7 @@ export function HeroAsk() {
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <div className="max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
+                  <div className="max-h-[60dvh] overflow-y-auto no-scrollbar pr-1">
                     {renderAnswer(answer)}
                   </div>
                   {/* P0-1 (E) — short, non-alarming scope stamp under the
@@ -371,10 +380,11 @@ export function HeroAsk() {
                     <input
                       value={followUp}
                       onChange={(e) => setFollowUp(e.target.value)}
+                      onFocus={(e) => keepInView(e.currentTarget)}
                       type="text"
                       aria-label="Ask a follow-up question"
                       placeholder="Ask a follow-up…"
-                      className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder:text-text-secondary py-1.5 min-w-0"
+                      className="flex-1 bg-transparent border-none outline-none text-base md:text-sm text-white placeholder:text-text-secondary py-1.5 min-w-0"
                     />
                     <button
                       type="submit"
