@@ -148,9 +148,9 @@ export function MobileStatCard({
               )}
             >
               {details.map((d, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 min-w-0">
+                <div key={i} className="flex flex-col gap-0.5 min-w-0">
                   <span className="text-xs text-text-secondary truncate">{d.label}</span>
-                  <span className="text-[13px] font-bold tabular-nums shrink-0" style={{ color: d.accent || '#ffffff' }}>
+                  <span className="text-sm font-bold tabular-nums truncate" style={{ color: d.accent || '#ffffff' }}>
                     {d.value}
                   </span>
                 </div>

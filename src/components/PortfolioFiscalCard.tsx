@@ -96,7 +96,7 @@ export function PortfolioFiscalCard() {
                 className="relative overflow-hidden rounded-xl p-4 border border-border-subtle/60 bg-black/20 flex flex-col gap-1"
               >
                 <div
-                  className="absolute top-0 right-0 w-20 h-20 rounded-full blur-[30px] -mr-6 -mt-6 opacity-25 pointer-events-none"
+                  className="absolute top-0 right-0 w-20 h-20 rounded-full blur-[30px] -mr-6 -mt-6 opacity-25 pointer-events-none hidden md:block"
                   style={{ backgroundColor: t.color }}
                 />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary relative z-10">
@@ -105,7 +105,12 @@ export function PortfolioFiscalCard() {
                 <span className="text-3xl font-black tabular-nums text-white relative z-10">
                   {num(portfolio[t.key] ?? 0)}
                 </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold relative z-10" style={{ color: t.color }}>
+                {/* Colour discipline (P-mobile v2): desktop keeps the brand-coloured
+                    sub-label; mobile mutes it so the four tiles stop competing. */}
+                <span className="hidden md:inline text-[10px] uppercase tracking-wider font-bold relative z-10" style={{ color: t.color }}>
+                  {t.sub}
+                </span>
+                <span className="md:hidden text-[10px] uppercase tracking-wider font-bold relative z-10 text-text-secondary">
                   {t.sub}
                 </span>
               </div>

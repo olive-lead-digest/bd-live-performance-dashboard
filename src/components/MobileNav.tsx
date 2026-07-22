@@ -1,21 +1,23 @@
 'use client';
 
 // ---------------------------------------------------------------------------
-// Mobile bottom navigation (P-mobile M1). Rendered ONLY below `md` (the desktop
-// side-rail is hidden < md and returns unchanged at md+). Four primary
-// destinations as ≥44px touch targets with icon + label + active state
-// (brand-pink), plus a "More" item that opens a slide-up sheet listing the
-// remaining routes and the Filters entry. Sticks to the bottom with
-// safe-area-inset padding; page content reserves room via bottom padding on the
-// scroll container (see AppShell).
+// Mobile bottom navigation (P-mobile M1, extended in v2). Rendered ONLY below
+// `md` (the desktop side-rail is hidden < md and returns unchanged at md+).
+// Five primary destinations as >=44px touch targets with icon + label + active
+// state (brand-pink): Overview, Deals, BD Team, Ask AI, and a "More" item that
+// opens a slide-up sheet listing the remaining routes and the Filters entry.
+// "Ask AI" is a key CTA (brand-pink icon) that routes to the Overview Ask-AI
+// hero and focuses it (/?ask=1 on cross-page, an olive:ask-focus event when
+// already on Overview). Sticks to the bottom with safe-area-inset padding; page
+// content reserves room via bottom padding on the scroll container (AppShell).
 // ---------------------------------------------------------------------------
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Handshake, Trophy, BarChart3,
-  MoreHorizontal, TrendingUp, Map, Table2, Filter, X,
+  LayoutDashboard, Handshake, Trophy, Sparkles,
+  MoreHorizontal, TrendingUp, Map, BarChart3, Table2, Filter, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useDialog } from '@/lib/useDialog';
@@ -24,12 +26,12 @@ const PRIMARY = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Deals', href: '/deals', icon: Handshake },
   { name: 'BD Team', href: '/team', icon: Trophy },
-  { name: 'Trends', href: '/analytics', icon: BarChart3 },
 ];
 
 const MORE = [
   { name: 'Signings & Revenue', href: '/portfolio', icon: TrendingUp },
   { name: 'Geography', href: '/geography', icon: Map },
+  { name: 'Trends', href: '/analytics', icon: BarChart3 },
   { name: 'Report Builder', href: '/reports', icon: Table2 },
 ];
 
@@ -46,6 +48,17 @@ export function MobileNav({ onOpenFilters }: { onOpenFilters: () => void }) {
   useEffect(() => {
     setMoreOpen(false);
   }, [pathname]);
+
+  // Ask AI: route to the Overview Ask-AI hero and focus it. When already on
+  // Overview the input is mounted, so a same-tab event focuses it instantly;
+  // otherwise /?ask=1 is read by HeroAsk on mount after the route change.
+  const askAi = () => {
+    try {
+      window.dispatchEvent(new Event('olive:ask-focus'));
+    } catch {
+      /* ignore — the ?ask=1 param still drives focus on the Overview mount */
+    }
+  };
 
   return (
     <>
@@ -75,6 +88,17 @@ export function MobileNav({ onOpenFilters }: { onOpenFilters: () => void }) {
               </Link>
             );
           })}
+
+          {/* Ask AI — key CTA. Navigates to the Overview hero and focuses it. */}
+          <Link
+            href="/?ask=1"
+            onClick={askAi}
+            aria-label="Ask AI"
+            className="relative flex flex-col items-center justify-center gap-1 min-h-[56px] py-2 select-none transition-colors text-brand-pink-400 active:text-brand-pink-300"
+          >
+            <Sparkles className="w-[22px] h-[22px] shrink-0" />
+            <span className="text-xs font-semibold leading-none text-white">Ask AI</span>
+          </Link>
 
           <button
             type="button"

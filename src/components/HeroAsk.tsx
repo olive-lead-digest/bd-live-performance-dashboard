@@ -136,6 +136,7 @@ export function HeroAsk() {
   const charIdx = useRef(0);
   const deleting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // M4 — when the mobile virtual keyboard opens, re-centre the focused field so
   // it (and the answer scrolling above it) stay visible above the keyboard. The
@@ -145,6 +146,36 @@ export function HeroAsk() {
     if (!el) return;
     setTimeout(() => { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* noop */ } }, 250);
   };
+
+  // Mobile "Ask AI" entry (bottom nav / deep link). Scrolls the input into view
+  // and focuses it, then strips the one-shot ?ask=1 param so a later refresh
+  // does not re-trigger it. Driven by /?ask=1 on cross-page navigation and by an
+  // olive:ask-focus window event when Ask AI is tapped while already on Overview.
+  const focusAsk = () => {
+    const el = inputRef.current;
+    if (el) { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* noop */ } }
+    setTimeout(() => {
+      if (el) { try { el.focus({ preventScroll: true }); } catch { /* noop */ } }
+      try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get('ask')) {
+          p.delete('ask');
+          const qs = p.toString();
+          window.history.replaceState(window.history.state, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+        }
+      } catch { /* ignore */ }
+    }, 350);
+  };
+
+  useEffect(() => {
+    let hit = false;
+    try { hit = new URLSearchParams(window.location.search).get('ask') === '1'; } catch { /* ignore */ }
+    if (hit) focusAsk();
+    const onAskFocus = () => focusAsk();
+    window.addEventListener('olive:ask-focus', onAskFocus);
+    return () => window.removeEventListener('olive:ask-focus', onAskFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const animate = query.length === 0 && !focused;
 
@@ -263,6 +294,7 @@ export function HeroAsk() {
 
         <div className="relative flex-1 min-w-0">
           <input
+            ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onFocus={(e) => { setFocused(true); keepInView(e.currentTarget); }}

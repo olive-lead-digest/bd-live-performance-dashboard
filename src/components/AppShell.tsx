@@ -7,6 +7,7 @@ import { ContextBar } from './ContextBar';
 import { FilterDrawer } from './FilterDrawer';
 import { DrillProvider } from './DrillDrawer';
 import { MobileNav } from './MobileNav';
+import { MobileContextHeader } from './MobileContextHeader';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -65,6 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? 'xl:pl-16' : 'xl:pl-64'
           )}
         >
+          <MobileContextHeader onOpenFilters={() => setIsFiltersOpen(true)} />
           <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
 
           <main id="content" className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8">

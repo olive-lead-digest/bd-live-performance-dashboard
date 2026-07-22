@@ -15,6 +15,7 @@ import { DealsOverview } from '@/components/DealsOverview';
 import { PropertyStatusCard } from '@/components/PropertyStatusCard';
 import { CallingQualityCard } from '@/components/CallingQualityCard';
 import { LeadsAsOfStamp } from '@/components/DataBadges';
+import { SummaryKPIBlock, type SummaryKPI } from '@/components/SummaryKPIBlock';
 
 export default function Overview() {
   const { data, filteredLeads, dealsRuntime, isLoading, error } = useDashboard();
@@ -47,6 +48,30 @@ export default function Overview() {
   // Signings = MA-signed + Spark LOI from the deals feed (the primary KPI).
   const signedCount = Number(dealsRuntime.deals?.totals?.signed ?? 0)
     + Number(dealsRuntime.deals?.portfolio?.sparkLOI ?? 0);
+
+  // Period-aligned prior-period deltas for the mobile SummaryKPIBlock (F-pattern
+  // trend arrows). Mirrors the ExecSummary MoM logic: month-to-date vs the SAME
+  // 1..day window of the previous month, so a partial month never loses to a
+  // full one. Returns null when there is no comparable prior window.
+  const kpiDelta = useMemo(() => {
+    if (!data || !filteredLeads.length) return null;
+    const maxDate = filteredLeads.reduce((mx, l) => (l.dt > mx ? l.dt : mx), '2000-01-01');
+    const [my, mm, md] = maxDate.split('-').map(Number);
+    const curr = `${my}-${String(mm).padStart(2, '0')}`;
+    const prevD = new Date(my, mm - 2, md);
+    const prev = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+    const dayOf = (l: { dt: string }) => parseInt(l.dt.split('-')[2]) || 0;
+    const currLeads = filteredLeads.filter((l) => l.dt.slice(0, 7) === curr && dayOf(l) <= md);
+    const prevLeads = filteredLeads.filter((l) => l.dt.slice(0, 7) === prev && dayOf(l) <= md);
+    if (!prevLeads.length) return null;
+    const cr = calculateRates(currLeads);
+    const pr = calculateRates(prevLeads);
+    return {
+      leads: ((currLeads.length - prevLeads.length) / prevLeads.length) * 100,
+      contact: currLeads.length ? cr.contact - pr.contact : null,
+      drop: currLeads.length ? cr.drop - pr.drop : null,
+    };
+  }, [filteredLeads, data]);
 
   // === Executive intelligence (real lead + signings metrics only) ===
   const exec = useMemo(() => {
@@ -136,8 +161,45 @@ export default function Overview() {
   // P1-2: route through the shared Indian compact formatter (never T/M/B).
   const formatCompact = (n: number) => compactNum(n);
 
+  // Mobile executive KPIs (F-pattern). Same four metrics as the desktop KPI rail,
+  // re-presented with muted tiles + a single semantic delta carrying red/green.
+  const summaryKpis: SummaryKPI[] = [
+    {
+      label: 'Total Leads',
+      value: formatCompact(totalLeads),
+      sub: `${metrics.n.toLocaleString('en-IN')} assigned`,
+      delta: kpiDelta ? kpiDelta.leads : null,
+      deltaLabel: kpiDelta ? `${Math.abs(kpiDelta.leads).toFixed(1)}%` : undefined,
+    },
+    {
+      label: 'Contact Rate',
+      value: metrics.contact.toFixed(1),
+      suffix: '%',
+      delta: kpiDelta ? kpiDelta.contact : null,
+      deltaLabel: kpiDelta && kpiDelta.contact != null ? `${Math.abs(kpiDelta.contact).toFixed(1)}pp` : undefined,
+    },
+    {
+      label: 'Lead Drop Rate',
+      value: metrics.drop.toFixed(1),
+      suffix: '%',
+      lowerIsBetter: true,
+      delta: kpiDelta ? kpiDelta.drop : null,
+      deltaLabel: kpiDelta && kpiDelta.drop != null ? `${Math.abs(kpiDelta.drop).toFixed(1)}pp` : undefined,
+    },
+    {
+      label: 'Signings',
+      value: formatCompact(signedCount),
+      sub: 'MA + Spark LOI',
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6 pb-20 relative">
+      {/* Mobile leads with the executive KPIs (F-pattern). Desktop keeps the
+          existing HeroAsk-first layout and its KPI rail below — both untouched. */}
+      <div className="md:hidden">
+        <SummaryKPIBlock items={summaryKpis} />
+      </div>
       <HeroAsk />
       <DealsOverview />
       {/* Background ambient glows */}
@@ -162,8 +224,8 @@ export default function Overview() {
       {/* Executive Summary */}
       {exec && <ExecSummary bullets={exec.summary as SummaryBullet[]} />}
 
-      {/* KPI Rail — all real lead metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+      {/* KPI Rail — all real lead metrics (desktop; mobile uses SummaryKPIBlock atop) */}
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
         <FinancialCard
           title="Total Leads"
           value={formatCompact(totalLeads)}

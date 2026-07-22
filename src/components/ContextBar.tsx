@@ -35,7 +35,7 @@ export function ContextBar({ onOpenFilters }: { onOpenFilters: () => void }) {
   };
 
   return (
-    <div className="sticky top-0 z-30 w-full glass-card border-x-0 border-t-0 rounded-none h-14 flex items-center px-2 sm:px-6 gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
+    <div className="sticky top-0 z-30 w-full glass-card border-x-0 border-t-0 rounded-none h-14 hidden md:flex items-center px-2 sm:px-6 gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
       <button
         type="button"
         onClick={onOpenFilters}
