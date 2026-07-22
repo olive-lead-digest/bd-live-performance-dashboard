@@ -39,7 +39,7 @@ export function TabBar({
               // P2-1 — the whole control is the hit target (text + padding inside
               // the button); ≥40px tall, ≥11px text, real pointer cursor, and
               // visible hover / active / keyboard-focus states.
-              'flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 min-h-[40px] rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-panel active:scale-[0.97]',
+              'flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 min-h-[44px] md:min-h-[40px] rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-panel active:scale-[0.97]',
               on
                 ? 'bg-brand-pink-500 text-white shadow-[0_0_12px_rgba(218,26,132,0.4)]'
                 : 'text-text-secondary hover:text-white hover:bg-surface/50 active:bg-surface/70'

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useDashboard } from '@/lib/DashboardContext';
 import { Radio } from 'lucide-react';
+import { InfoNote } from '@/components/MobileStatCard';
 
 const num = (n: number) => Math.round(n).toLocaleString('en-IN');
 const pct = (a: number, b: number) => (b > 0 ? (a / b) * 100 : 0);
@@ -86,11 +87,11 @@ export function LeadsBySourceCard() {
         </div>
       )}
 
-      <p className="mt-3 text-[11px] leading-relaxed text-text-secondary">
+      <InfoNote desktopClassName="mt-3 text-[11px] leading-relaxed text-text-secondary">
         Active-rate and drop-rate are computed over each source&apos;s own total leads.
         Drop-rate covers lead-stage drops only; deal-stage drops are totalled separately
         above because dropped deals rarely carry a usable lead source.
-      </p>
+      </InfoNote>
     </div>
   );
 }

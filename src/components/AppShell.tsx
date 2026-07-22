@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar';
 import { ContextBar } from './ContextBar';
 import { FilterDrawer } from './FilterDrawer';
 import { DrillProvider } from './DrillDrawer';
+import { MobileNav } from './MobileNav';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
-      <div className="min-h-screen bg-background text-foreground flex">
+      <div className="min-h-[100dvh] bg-background text-foreground flex">
         <Sidebar
           onOpenFilters={() => setIsFiltersOpen(true)}
           collapsed={collapsed}
@@ -60,18 +61,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div
           className={clsx(
-            'flex-1 flex flex-col min-h-screen overflow-hidden pl-16 transition-[padding] duration-300',
+            'flex-1 flex flex-col min-h-[100dvh] overflow-hidden md:pl-16 transition-[padding] duration-300',
             collapsed ? 'xl:pl-16' : 'xl:pl-64'
           )}
         >
           <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
 
-          <main id="content" className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8">
+          <main id="content" className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8">
             <div className="max-w-[1600px] mx-auto w-full">{children}</div>
           </main>
         </div>
 
         <FilterDrawer isOpen={isFiltersOpen} onClose={() => setIsFiltersOpen(false)} />
+
+        <MobileNav onOpenFilters={() => setIsFiltersOpen(true)} />
       </div>
     </DrillProvider>
   );

@@ -50,7 +50,7 @@ export function Sidebar({
   return (
     <aside
       className={clsx(
-        'fixed left-0 top-0 bottom-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-panel/90 backdrop-blur-2xl border-r border-border-subtle flex flex-col group overflow-hidden shadow-2xl',
+        'fixed left-0 top-0 bottom-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-panel/90 backdrop-blur-2xl border-r border-border-subtle hidden md:flex flex-col group overflow-hidden shadow-2xl',
         collapsed ? 'w-16 hover:w-64' : 'w-16 hover:w-64 xl:w-64'
       )}
     >
