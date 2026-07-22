@@ -54,56 +54,54 @@ export function Sidebar({
         collapsed ? 'w-16 hover:w-64' : 'w-16 hover:w-64 xl:w-64'
       )}
     >
-      {/* Brand lockup — the white "olive" wordmark (public/sitelogo-white.svg,
-          native 94x32). The asset is a single white fill, so it sits directly on
-          the dark rail with no plate behind it.
+      {/* Brand lockup — the white stacked "olive" sunburst wordmark over
+          tracked "HOSPITALITY" (public/olive-lockup-white.svg, viewBox
+          0 0 94 45, a single white fill so it sits directly on the dark rail
+          with no plate behind it).
 
-          Collapsed / narrow rail (64px): the wordmark cannot fit, so the window
-          is clamped to 32px and clips to the spoke mark on the left of the
-          artwork (the glyphs start at x=32.2 in the 94-unit viewBox, so the crop
-          lands cleanly between the mark and the "l"). The image itself is always
-          rendered at its native 94x32 — it is never squashed, so the aspect
-          ratio is exact in both states and nothing overflows the rail. */}
+          Two renderings, swapped by the SAME hover/breakpoint logic that drives
+          the nav labels, so the artwork is never squashed or crop-hacked:
+
+          • Expanded / wide rail (hover, or the >=1280px pinned-open rail): the
+            full lockup at width:85px, height:auto (~41px from the 2.09 ratio),
+            left-aligned inside the header's px-6 padding and vertically centred
+            in the 64px band. max-w-none keeps it at a true 85px.
+
+          • Collapsed / narrow rail (64px): the 85px lockup cannot fit, so we
+            show ONLY the sunburst "O" mark (public/olive-mark-white.svg — the
+            same artwork's first path, tight-cropped to its bounding box), 32px
+            and centred exactly like every nav icon. Because the lockup already
+            carries the full name, the old separate "Hospitality" text label is
+            gone entirely: there is no laid-out hidden label left to widen the
+            header past 64px and push the mark off the rail. */}
       <div
         className={clsx(
           'flex h-16 shrink-0 items-center w-full relative justify-center group-hover:justify-start group-hover:px-6',
           !collapsed && 'xl:justify-start xl:px-6'
         )}
       >
-        <span
+        <img
+          src="/olive-mark-white.svg"
+          alt="Olive Hospitality"
+          width={32}
+          height={32}
           className={clsx(
-            'relative block h-8 shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            'w-8 group-hover:w-[94px]',
-            !collapsed && 'xl:w-[94px]'
+            'block h-8 w-8 shrink-0 select-none group-hover:hidden',
+            !collapsed && 'xl:hidden'
           )}
-        >
-          <img
-            src="/sitelogo-white.svg"
-            alt="Olive Hospitality"
-            width={94}
-            height={32}
-            className="block h-8 w-[94px] max-w-none select-none"
-            draggable={false}
-          />
-        </span>
-        {/* The wordmark already carries "olive", so the old duplicate
-            "Olive Hospitality" text label is gone; only the qualifier remains.
-
-            It is `hidden` on the narrow rail, not merely opacity-0: a laid-out
-            `whitespace-nowrap` label is a flex item with min-width:auto, so it
-            made this header's content wider than the 64px rail, and
-            `justify-center` then centred the OVERFLOW - which pushed the
-            wordmark to x=-30px, clean off the rail. Out of flow, the mark
-            centres at x=16 like every nav icon. */}
-        <span
+          draggable={false}
+        />
+        <img
+          src="/olive-lockup-white.svg"
+          alt="Olive Hospitality"
+          width={85}
+          height={41}
           className={clsx(
-            'hidden group-hover:inline ml-2.5 text-text-secondary font-semibold uppercase text-[10px] tracking-[0.2em]',
-            !collapsed && 'xl:inline',
-            labelCls
+            'hidden h-auto w-[85px] max-w-none shrink-0 select-none group-hover:block',
+            !collapsed && 'xl:block'
           )}
-        >
-          Hospitality
-        </span>
+          draggable={false}
+        />
       </div>
 
       <nav className="flex-1 mt-6 flex flex-col gap-2 px-2">
