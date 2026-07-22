@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import { TrendingUp, TrendingDown, CalendarDays, Search, PhoneCall, Users, PlaySquare, Percent, User, Trophy, AlertTriangle, ShieldCheck, ChevronDown } from 'lucide-react';
 import { calculateRates, buildLeaderboard, brandKey, rosterOwnerSet } from '@/lib/utils';
 import { ExecSummary, SummaryBullet } from '@/components/ExecSummary';
+import { InfoNote } from '@/components/MobileStatCard';
 
 export default function Reporting() {
   const { filteredLeads, data, isLoading, filters } = useDashboard();
@@ -494,7 +495,13 @@ export default function Reporting() {
                   Last 90 days
                 </span>
               </div>
-              <p className="text-[10px] text-text-secondary italic mb-3 border-b border-border-subtle/50 pb-2">Rolling last-90-day Zoom Phone window — a different window from the month-to-date KPIs beside it (no MTD Zoom slice in the feed yet), so don&apos;t read these against the MTD lead counts.</p>
+              <InfoNote
+                desktopClassName="text-[10px] text-text-secondary italic mb-3 border-b border-border-subtle/50 pb-2"
+                mobileLabel="About this window"
+                title="Calling window"
+              >
+                Rolling last-90-day Zoom Phone window — a different window from the month-to-date KPIs beside it (no MTD Zoom slice in the feed yet), so don&apos;t read these against the MTD lead counts.
+              </InfoNote>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 items-center">
                 <div>
                   <p className="text-[10px] text-text-secondary uppercase">Outreach</p>
