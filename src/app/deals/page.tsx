@@ -18,6 +18,7 @@ import { TabBar } from '@/components/TabBar';
 import { useDrill, DrillColumn } from '@/components/DrillDrawer';
 import Pipeline from '@/app/pipeline/page';
 import { EmptyState } from '@/components/EmptyState';
+import { MobileStatCard, InfoNote } from '@/components/MobileStatCard';
 
 // Receivable = Contracted − Collected (P1-1); Zoho's Pending_TA_fee is empty.
 const receivable = (c?: number | null, col?: number | null) =>
@@ -280,14 +281,14 @@ export default function DealsPage() {
           </span>
         </div>
 
-        <p className="text-[10px] text-text-secondary mb-4 italic leading-snug">
+        <InfoNote desktopClassName="text-[10px] text-text-secondary mb-4 italic leading-snug">
           Main path: Business Approval Received → Under Negotiation → MA Signed, each % against its
           true parent cohort. MA Signed % is computed against the {funnelModel.maCohortLabel}. LOI
           Signed is a Spark-only side branch (excluded from the main-path chain). Drop rows are exits,
           not forward conversions. Tap any stage to list the underlying deals. Note: the
           &ldquo;Under Negotiation&rdquo; row here is that single stage only; the &ldquo;Open Pipeline&rdquo;
           KPI above combines it with Business Approval Received, so the two figures differ by design.
-        </p>
+        </InfoNote>
         <div className="flex flex-col gap-3">
           {funnelModel.rows.map((f) => {
             const color = f.kind === 'drop' ? '#6b7280' : typeColor(f.type);
@@ -373,9 +374,9 @@ export default function DealsPage() {
               <RevStat label="Collected (FY)" value={inr(feesFy?.collected)} accent="#34d399" tooltip="TA fee collected recorded on each deal, summed over the deals contracted this FY (matches the Zoho brand dashboards)." />
               <RevStat label="Receivable (FY)" value={inr(receivable(feesFy?.contracted, feesFy?.collected))} accent="#ffb020" warn tooltip="Receivable (FY) = Contracted (FY) − Collected (FY)." />
             </div>
-            <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
+            <InfoNote desktopClassName="mt-2 text-[9px] text-text-secondary italic leading-snug">
               Contracted is attributed to the MA/LOI signing date; Collected is the TA fee collected recorded on each deal over the same FY window (matches the Zoho brand dashboards); Receivable = Contracted − Collected.
-            </p>
+            </InfoNote>
           </div>
           <div className="p-4 rounded-xl bg-black/20 border border-border-subtle/50">
             <div className="text-[11px] uppercase tracking-widest font-bold text-text-secondary mb-3">All-time · contracted book</div>
@@ -394,7 +395,7 @@ export default function DealsPage() {
           <div>Contracted = Ta_Fee_Contracted on MA-signed + LOI-signed deals (attributed to the MA/LOI signing date); Collected = TA fee collected recorded on each deal (matches the Zoho brand dashboards); Receivable = Contracted − Collected.</div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
@@ -460,9 +461,59 @@ export default function DealsPage() {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[10px] text-text-secondary italic leading-snug">
+
+        {/* Mobile stacked cards (< md) */}
+        <div className="md:hidden flex flex-col gap-3">
+          {brandNames.map((b) => {
+            const row = byBrand[b] || {};
+            const bf = brandFee(b);
+            return (
+              <MobileStatCard
+                key={`m-rev-${b}`}
+                badge={<span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: BRAND_COLORS[b] || '#4a4957' }} />}
+                title={b}
+                headlineLabel="Contracted"
+                headline={inr(bf.contracted)}
+                secondary={[
+                  { label: 'Collected', value: inr(bf.collected), accent: '#34d399' },
+                  { label: 'Receivable', value: inr(bf.receivable), accent: '#fbbf24' },
+                  { label: 'Signed', value: (row.signed ?? 0).toLocaleString('en-IN') },
+                ]}
+                details={[{ label: 'Deals', value: (row.deals ?? 0).toLocaleString('en-IN') }]}
+                onOpen={() => drill(`${b} — deals`, drillRecords.filter((r) => brandOf(r) === b))}
+                openLabel="View deals"
+              />
+            );
+          })}
+          {brandNames.length === 0 && (
+            <EmptyState title="No deal revenue to show" message="No deals match the current filters. Try clearing or widening them." icon={IndianRupee} />
+          )}
+          {brandNames.length > 0 && (() => {
+            const tot = brandNames.reduce((a, b) => {
+              const bf = brandFee(b);
+              a.signed += Number(byBrand[b]?.signed) || 0;
+              a.contracted += bf.contracted; a.collected += bf.collected; a.receivable += bf.receivable;
+              return a;
+            }, { signed: 0, contracted: 0, collected: 0, receivable: 0 });
+            return (
+              <div className="glass-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-white">Total</span>
+                  <span className="text-xl font-black text-white tabular-nums">{inr(tot.contracted)}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="flex flex-col"><span className="text-xs uppercase tracking-wider font-bold text-text-secondary">Collected</span><span className="text-sm font-bold text-emerald-400 tabular-nums">{inr(tot.collected)}</span></div>
+                  <div className="flex flex-col"><span className="text-xs uppercase tracking-wider font-bold text-text-secondary">Receivable</span><span className="text-sm font-bold text-amber-400 tabular-nums">{inr(tot.receivable)}</span></div>
+                  <div className="flex flex-col"><span className="text-xs uppercase tracking-wider font-bold text-text-secondary">Signed</span><span className="text-sm font-bold text-white tabular-nums">{tot.signed.toLocaleString('en-IN')}</span></div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        <InfoNote desktopClassName="mt-2 text-[10px] text-text-secondary italic leading-snug">
           Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide). Brand rows sum to the totals above. Tap a brand row to list its deals.
-        </p>
+        </InfoNote>
       </div>
 
       {/* Closer scorecard + property/brand splits */}
@@ -471,10 +522,10 @@ export default function DealsPage() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-brand-pink-400" /> BD Closer Scorecard
           </h2>
-          <p className="text-[10px] text-text-secondary mb-4 italic">
+          <InfoNote desktopClassName="text-[10px] text-text-secondary mb-4 italic">
             Blank / &quot;Unassigned&quot; owners are legacy or house accounts. Tap a BD to list their signed deals.
-          </p>
-          <div className="overflow-x-auto flex-1">
+          </InfoNote>
+          <div className="hidden md:block overflow-x-auto flex-1">
             <table className="w-full text-sm min-w-[420px]">
               <thead>
                 <tr className="text-[10px] uppercase tracking-widest text-text-secondary border-b border-border-subtle">
@@ -507,6 +558,26 @@ export default function DealsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile stacked cards (< md) */}
+          <div className="md:hidden flex flex-col gap-3">
+            {closers.slice(0, 15).map((c, i) => (
+              <MobileStatCard
+                key={`m-closer-${c.bd}-${i}`}
+                badge={<span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface text-text-secondary text-xs font-bold tabular-nums shrink-0">{i + 1}</span>}
+                title={c.bd || 'Unassigned'}
+                headlineLabel="Fee Contracted"
+                headline={inr(c.feeContracted)}
+                headlineAccent="#da1a84"
+                secondary={[{ label: 'Signed', value: (c.signed ?? 0).toLocaleString('en-IN') }]}
+                onOpen={() => drill(`${c.bd || 'Unassigned'} — signed deals`, wonRecs.filter((r) => (r.owner || '') === c.bd))}
+                openLabel="View signed deals"
+              />
+            ))}
+            {closers.length === 0 && (
+              <EmptyState title="No closers to show" message="No signed deals match the current filters. Try clearing or widening them." icon={Users} />
+            )}
           </div>
         </div>
 
