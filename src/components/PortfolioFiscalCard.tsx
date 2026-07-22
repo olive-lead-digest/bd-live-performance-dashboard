@@ -5,6 +5,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Building2, Handshake, IndianRupee } from 'lucide-react';
 import { inr, num, brandColor } from '@/lib/format';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
+import { InfoNote } from '@/components/MobileStatCard';
 
 type Split = Record<string, number>;
 
@@ -203,7 +204,11 @@ export function PortfolioFiscalCard() {
             </div>
           </div>
 
-          <p className="mt-5 text-[11px] leading-relaxed text-text-secondary">
+          <InfoNote
+            desktopClassName="mt-5 text-[11px] leading-relaxed text-text-secondary"
+            mobileLabel="Collections basis"
+            title="Collections basis"
+          >
             {period === 'ytd' ? 'Financial year begins 1 Apr. ' : ''}
             {active.collections?.approx ? (
               <>
@@ -214,7 +219,7 @@ export function PortfolioFiscalCard() {
               <>Collections here are period cash received per the TA payment schedule (payment-date basis; incomplete). The headline Collected is the TA fee collected recorded on each deal (matches the Zoho brand dashboards); Receivable = Contracted − Collected.</>
             )}
             {asOf ? <span className="text-text-secondary"> As of {asOf}.</span> : null}
-          </p>
+          </InfoNote>
         </div>
       )}
     </div>

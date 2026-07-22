@@ -4,6 +4,7 @@ import { useDashboard } from '@/lib/DashboardContext';
 import { Handshake, IndianRupee } from 'lucide-react';
 import { DealsExemptBadge, useDealsExempt } from '@/components/DataBadges';
 import { inr } from '@/lib/format';
+import { InfoNote } from '@/components/MobileStatCard';
 
 // Receivable = Contracted − Collected (P1-1). Zoho's Pending_TA_fee field is
 // unpopulated org-wide, so we DERIVE the receivable so the arithmetic closes.
@@ -177,9 +178,13 @@ export function DealsOverview() {
                 <span className="text-lg sm:text-xl font-black text-amber-400 tracking-tight">{inr(receivable(feesFy?.contracted, feesFy?.collected))}</span>
               </div>
             </div>
-            <p className="mt-2 text-[9px] text-text-secondary italic leading-snug">
+            <InfoNote
+              desktopClassName="mt-2 text-[9px] text-text-secondary italic leading-snug"
+              mobileLabel="How these are counted"
+              title="Fees basis (FY)"
+            >
               Contracted is attributed to the MA/LOI signing date; Collected is the TA fee collected recorded on each deal over the same FY window (matches the Zoho brand dashboards); Receivable = Contracted − Collected.
-            </p>
+            </InfoNote>
           </div>
 
           {/* All-time / contracted book */}
@@ -217,14 +222,18 @@ export function DealsOverview() {
             )}
           </div>
         )}
-        <div className="mt-2 text-[10px] text-text-secondary italic leading-snug space-y-0.5">
+        <InfoNote
+          desktopClassName="mt-2 text-[10px] text-text-secondary italic leading-snug space-y-0.5"
+          mobileLabel="Fees notes & data source"
+          title="Fees notes"
+        >
           {fees?.collectedBasis && <div>{fees.collectedBasis}</div>}
           {fees?.undatedMASigned != null && fees.undatedMASigned > 0 && (
             <div>{fees.undatedMASigned} MA deals have no MA-date; FY signing counts exclude them (FY fees follow the brand-specific contracted date).</div>
           )}
           <div>Receivable = Contracted − Collected (derived; Zoho&apos;s Pending_TA_fee is unpopulated org-wide, so we show a derived receivable instead).</div>
           <div>Real booked fees from Zoho Deals — as of {deals.generated} UTC</div>
-        </div>
+        </InfoNote>
       </div>
     </div>
   );

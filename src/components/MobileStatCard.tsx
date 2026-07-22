@@ -15,8 +15,10 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from 'react';
-import { ChevronDown, ArrowRight, Info } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, ArrowRight, Info, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useDialog } from '@/lib/useDialog';
 
 export interface StatRow {
   label: string;
@@ -90,9 +92,9 @@ export function MobileStatCard({
           <div className="flex items-center gap-2.5 min-w-0">
             {badge}
             <div className="min-w-0">
-              <div className="text-[15px] font-bold text-white leading-tight truncate">{title}</div>
+              <div className="text-[15px] font-bold text-white leading-tight break-words line-clamp-2">{title}</div>
               {subtitle != null && subtitle !== '' && (
-                <div className="text-xs text-text-secondary leading-tight truncate mt-0.5">{subtitle}</div>
+                <div className="text-xs text-text-secondary leading-tight line-clamp-2 mt-0.5">{subtitle}</div>
               )}
             </div>
           </div>
@@ -174,40 +176,85 @@ export function MobileStatCard({
 }
 
 // Long disclaimers / methodology / data-source strings: shown inline at md+
-// (desktop unchanged) but collapsed behind a compact ⓘ toggle below md so the
-// default mobile view stays clean. Pass the same copy once; both renderings use
-// it. `desktopClassName` carries the exact classes the original <p> used.
+// (desktop unchanged) but moved BEHIND a compact ⓘ trigger below md, where the
+// reveal is a lightweight, dismissible bottom-sheet modal (animated, focus-
+// trapped, >=12px text) instead of an always-on wall of text. Pass the copy
+// once; the desktop inline note and the mobile sheet share it. `desktopClassName`
+// carries the exact classes the original inline note used; a <div> (not <p>)
+// wrapper lets callers pass multi-block content without invalid nesting, and
+// plain-text callers render identically. The sheet is portalled to <body> so a
+// card's backdrop-blur / overflow can never clip it.
 export function InfoNote({
   children,
   desktopClassName,
   mobileLabel = 'Details & methodology',
+  title = 'Details',
 }: {
   children: React.ReactNode;
   desktopClassName?: string;
   mobileLabel?: string;
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const sheetRef = useDialog<HTMLDivElement>(() => setOpen(false), open);
+
   return (
     <>
-      {desktopClassName !== undefined && <p className={clsx('hidden md:block', desktopClassName)}>{children}</p>}
+      {desktopClassName !== undefined && (
+        <div className={clsx('hidden md:block', desktopClassName)}>{children}</div>
+      )}
+
       <div className="md:hidden">
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
           aria-expanded={open}
           className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ml-2 rounded-lg text-xs font-semibold text-text-secondary hover:text-brand-pink-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
         >
-          <Info className="w-3.5 h-3.5 shrink-0" />
-          {open ? 'Hide info' : mobileLabel}
+          <Info className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          {mobileLabel}
         </button>
-        <div className={clsx('grid transition-[grid-template-rows] duration-300 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
-          <div className="overflow-hidden">
-            <p className={clsx('pt-1 pb-2 text-xs leading-relaxed text-text-secondary not-italic normal-case tracking-normal transition-opacity duration-300', open ? 'opacity-100' : 'opacity-0')}>
-              {children}
-            </p>
-          </div>
-        </div>
       </div>
+
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="md:hidden fixed inset-0 z-[60]">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+              onClick={() => setOpen(false)}
+              aria-hidden="true"
+            />
+            <div
+              ref={sheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={title}
+              tabIndex={-1}
+              className="absolute inset-x-0 bottom-0 glass-panel rounded-t-2xl rounded-b-none border-b-0 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] animate-sheet-up focus:outline-none max-h-[80dvh] flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-2 shrink-0">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-white">
+                  <Info className="w-3.5 h-3.5 text-brand-pink-400" aria-hidden="true" />
+                  {title}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="w-11 h-11 -mr-2 flex items-center justify-center rounded-lg text-text-secondary hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto no-scrollbar text-xs leading-relaxed text-text-secondary not-italic normal-case tracking-normal space-y-2">
+                {children}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
