@@ -6,7 +6,7 @@ import { Sidebar } from './Sidebar';
 import { ContextBar } from './ContextBar';
 import { FilterDrawer } from './FilterDrawer';
 import { DrillProvider } from './DrillDrawer';
-import { MobileNav } from './MobileNav';
+import { SwipeableBottomNav } from './SwipeableBottomNav';
 import { MobileContextHeader } from './MobileContextHeader';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <FilterDrawer isOpen={isFiltersOpen} onClose={() => setIsFiltersOpen(false)} />
 
-        <MobileNav onOpenFilters={() => setIsFiltersOpen(true)} />
+        <SwipeableBottomNav />
       </div>
     </DrillProvider>
   );
