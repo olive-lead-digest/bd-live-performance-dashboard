@@ -10,6 +10,7 @@ import {
 import { useDashboard } from '@/lib/DashboardContext';
 import { buildDatePresets, latestLeadDate, activePreset } from '@/lib/datePresets';
 import { CollapsibleSection, MultiSelectField } from '@/components/FilterControls';
+import { InfoNote } from '@/components/MobileStatCard';
 import {
   FieldList, Zone, ZoneAddMenu, PivotTableView, ReportChart, ZONE_META, type DragPayload,
 } from '@/components/PivotBuilder';
@@ -69,6 +70,21 @@ const TEMPLATE_ICON: Record<string, typeof Table2> = {
   'bd-vs-target': Target,
 };
 
+/** Concise titles for the narrow mobile report header (the full question stays
+ *  visible as a subtitle). Keyed by template id; missing ids fall back to the
+ *  full label. Kept here (not in reportEngine) so the data engine is untouched. */
+const TEMPLATE_SHORT: Record<string, string> = {
+  'money-by-bd': 'TA fee by BD',
+  'hotels-by-bd': 'Hotels by BD',
+  'leads-by-source': 'Leads by source',
+  'collected-by-brand': 'Collected by brand',
+  'signings-by-month': 'Signings by month',
+  'pipeline-by-stage': 'Pipeline by stage',
+  'money-by-bd-brand': 'TA fee by BD & brand',
+  'leads-by-region-brand': 'Leads by region',
+  'bd-vs-target': 'BD vs target',
+};
+
 /**
  * Clone a template's layout. `keepIds` is used for the FIRST render only: the
  * ids must be identical on the server and on the client, so the landing report
@@ -125,6 +141,9 @@ export default function ReportsPage() {
   const asOf = (data as any)?.deals?.generated || leadsAsOf || (data as any)?.generated || '—';
   const activeTpl = templateById(tplId);
   const reportTitle = activeTpl ? activeTpl.label : 'Your custom report';
+  // Concise title for the narrow mobile report header; the full question stays
+  // visible as a subtitle so nothing is lost. Custom reports have no short form.
+  const reportTitleShort = (activeTpl && TEMPLATE_SHORT[activeTpl.id]) || reportTitle;
 
   /** Any hand edit means this is no longer one of the ready-made reports. */
   const markCustom = () => setTplId(null);
@@ -524,10 +543,14 @@ export default function ReportsPage() {
       <section aria-labelledby="res-h" className="glass-panel p-3 sm:p-4 flex flex-col gap-3.5 min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 min-w-0">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <h2 id="res-h" className="text-sm font-bold text-white leading-snug">
-              2 · {reportTitle}
+            <h2 id="res-h" title={reportTitle} className="text-sm font-bold text-white leading-snug break-words">
+              <span className="md:hidden">2 · {reportTitleShort}</span>
+              <span className="hidden md:inline">2 · {reportTitle}</span>
             </h2>
-            <p className="text-[11px] text-text-secondary">{plainCaption}</p>
+            {activeTpl && reportTitleShort !== reportTitle && (
+              <p className="md:hidden text-[11px] text-text-secondary/80 break-words leading-snug">{reportTitle}</p>
+            )}
+            <p className="text-[11px] text-text-secondary break-words">{plainCaption}</p>
           </div>
           <button
             type="button"
@@ -577,7 +600,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 min-w-0">
             {headline.map((h) => (
               <div key={h.key} className="rounded-xl border border-border-subtle bg-surface/60 px-3 py-2.5 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-text-secondary truncate" title={h.label}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-text-secondary truncate max-md:whitespace-normal max-md:break-words max-md:line-clamp-2" title={h.label}>
                   {h.label}
                 </p>
                 <p className="text-lg font-bold text-white tabular-nums mt-0.5 truncate" title={h.exact}>
@@ -621,93 +644,20 @@ export default function ReportsPage() {
           <>
             {chart && <ReportChart model={chart} />}
             <PivotTableView matrix={matrix} caption={`${reportTitle} — ${plainCaption}`} />
-            <p className="text-[11px] text-text-secondary leading-relaxed">
+            <InfoNote
+              desktopClassName="text-[11px] text-text-secondary leading-relaxed"
+              mobileLabel="What is counted"
+              title="What is counted"
+            >
               <Info className="w-3.5 h-3.5 inline-block -mt-0.5 mr-1 text-brand-pink-400" aria-hidden="true" />
               <strong className="text-white/85">What is counted:</strong> {def.basis} Data as of {String(asOf)}.
-            </p>
+            </InfoNote>
           </>
         ) : null}
       </section>
 
       {/* ---------------------------------------------------------------- */}
-      {/* 3 · Download                                                      */}
-      {/* ---------------------------------------------------------------- */}
-      <section aria-labelledby="dl-h" className="glass-panel p-3 sm:p-4 flex flex-col gap-3 min-w-0">
-        <div className="flex flex-col gap-0.5">
-          <h2 id="dl-h" className="text-sm font-bold text-white flex items-center gap-2">
-            <Download className="w-4 h-4 text-brand-pink-400" aria-hidden="true" />3 · Download this report
-          </h2>
-          <p className="text-[11px] text-text-secondary">
-            Every file lists the filters you applied, so anyone opening it can see exactly what it covers.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <DownloadBtn
-            onClick={doExcel}
-            disabled={!canExport || busy !== null}
-            busy={busy === 'excel'}
-            icon={<FileSpreadsheet className="w-4 h-4" />}
-            label="Excel"
-            sub=".xlsx"
-          />
-          <DownloadBtn
-            onClick={doCsv}
-            disabled={!canExport || busy !== null}
-            busy={busy === 'csv'}
-            icon={<Table2 className="w-4 h-4" />}
-            label="CSV"
-            sub=".csv"
-          />
-          <DownloadBtn
-            onClick={doPdf}
-            disabled={!canExport || busy !== null}
-            busy={busy === 'pdf'}
-            icon={<FileText className="w-4 h-4" />}
-            label="PDF"
-            sub="print-ready"
-          />
-        </div>
-
-        <p className="text-[10px] text-text-secondary truncate" title={reportFilename(dsId, rf, def, 'csv', mode)}>
-          {canExport ? <>File name: {reportFilename(dsId, rf, def, 'csv', mode)}</> : 'Nothing to download yet.'}
-        </p>
-
-        {/* The power-user option, clearly labelled and out of the main path. */}
-        <fieldset className="rounded-xl border border-border-subtle bg-surface/40 px-3 py-2.5 flex flex-col gap-2 min-w-0">
-          <legend className="px-1 text-[11px] font-bold text-white">Include the underlying rows</legend>
-          <p className="text-[10px] text-text-secondary -mt-1">
-            The individual records behind these numbers — one line per {noun}.
-          </p>
-          <label className="flex items-start gap-2 text-[11px] text-text-secondary hover:text-white cursor-pointer min-h-[32px]">
-            <input
-              type="checkbox"
-              checked={rawSheet}
-              disabled={rawInstead || def.summaryOnly}
-              onChange={(e) => setRawSheet(e.target.checked)}
-              className="mt-0.5 accent-[#da1a84] w-4 h-4 cursor-pointer disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
-            />
-            <span>
-              Add them as an extra sheet in the Excel file
-              {def.summaryOnly && <span className="text-text-secondary/70"> — not available for this data</span>}
-            </span>
-          </label>
-          <label className="flex items-start gap-2 text-[11px] text-text-secondary hover:text-white cursor-pointer min-h-[32px]">
-            <input
-              type="checkbox"
-              checked={rawInstead}
-              onChange={(e) => setRawInstead(e.target.checked)}
-              className="mt-0.5 accent-[#da1a84] w-4 h-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
-            />
-            <span>
-              Download the {rows.length.toLocaleString('en-IN')} rows instead of the report as shown
-            </span>
-          </label>
-        </fieldset>
-      </section>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* 4 · Customise — the full builder, folded away until asked for.    */}
+      {/* 3 · Customise & download — builder, raw-rows Advanced, and downloads.    */}
       {/* ---------------------------------------------------------------- */}
       <section aria-labelledby="adv-h" className="glass-panel p-3 sm:p-4 flex flex-col gap-3 min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -721,7 +671,7 @@ export default function ReportsPage() {
           >
             <SlidersHorizontal className="w-4 h-4 text-brand-pink-400 shrink-0" aria-hidden="true" />
             <span className="flex flex-col">
-              <span className="text-sm font-bold text-white">4 · Customise / build your own</span>
+              <span className="text-sm font-bold text-white">3 · Customise / build your own</span>
               <span className="text-[11px] text-text-secondary">
                 Change the data, the grouping and the filters yourself. Optional.
               </span>
@@ -941,8 +891,62 @@ export default function ReportsPage() {
                 )
               )}
             </div>
+
+            {/* Advanced — the underlying raw rows, folded away (default = the
+                smart summary, rows OFF). */}
+            <AdvancedRawRows
+              rawSheet={rawSheet}
+              setRawSheet={setRawSheet}
+              rawInstead={rawInstead}
+              setRawInstead={setRawInstead}
+              summaryOnly={!!def.summaryOnly}
+              noun={noun}
+              rowCount={rows.length}
+            />
           </div>
         )}
+
+        {/* Download hub — always reachable, so a report built from a template is
+            downloadable even with the builder folded away. */}
+        <div className="flex flex-col gap-3 pt-3 border-t border-border-subtle">
+          <div className="flex flex-col gap-0.5">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Download className="w-4 h-4 text-brand-pink-400" aria-hidden="true" /> Download this report
+            </h3>
+            <p className="text-[11px] text-text-secondary">
+              Every file lists the filters you applied, so anyone opening it can see exactly what it covers.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <DownloadBtn
+              onClick={doExcel}
+              disabled={!canExport || busy !== null}
+              busy={busy === 'excel'}
+              icon={<FileSpreadsheet className="w-4 h-4" />}
+              label="Excel"
+              sub=".xlsx"
+            />
+            <DownloadBtn
+              onClick={doCsv}
+              disabled={!canExport || busy !== null}
+              busy={busy === 'csv'}
+              icon={<Table2 className="w-4 h-4" />}
+              label="CSV"
+              sub=".csv"
+            />
+            <DownloadBtn
+              onClick={doPdf}
+              disabled={!canExport || busy !== null}
+              busy={busy === 'pdf'}
+              icon={<FileText className="w-4 h-4" />}
+              label="PDF"
+              sub="print-ready"
+            />
+          </div>
+          <p className="text-[10px] text-text-secondary truncate" title={reportFilename(dsId, rf, def, 'csv', mode)}>
+            {canExport ? <>File name: {reportFilename(dsId, rf, def, 'csv', mode)}</> : 'Nothing to download yet.'}
+          </p>
+        </div>
       </section>
     </div>
   );
@@ -971,5 +975,81 @@ function DownloadBtn({
         <span className="text-[9px] font-medium text-white/70">{sub}</span>
       </span>
     </button>
+  );
+}
+
+/**
+ * The raw-rows Advanced accordion — collapsed by default so the primary flow is
+ * the smart summary. Lives inside the Customise hub; toggling either checkbox
+ * changes what the download buttons above emit.
+ */
+function AdvancedRawRows({
+  rawSheet, setRawSheet, rawInstead, setRawInstead, summaryOnly, noun, rowCount,
+}: {
+  rawSheet: boolean;
+  setRawSheet: (v: boolean) => void;
+  rawInstead: boolean;
+  setRawInstead: (v: boolean) => void;
+  summaryOnly: boolean;
+  noun: string;
+  rowCount: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-2 min-w-0 pt-1 border-t border-border-subtle/60">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="adv-raw-body"
+        className="flex items-center gap-2 text-left cursor-pointer rounded-lg px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400 focus-visible:ring-offset-1 focus-visible:ring-offset-panel"
+      >
+        <Layers className="w-4 h-4 text-brand-pink-400 shrink-0" aria-hidden="true" />
+        <span className="flex flex-col">
+          <span className="text-[12px] font-bold text-white">Advanced</span>
+          <span className="text-[10px] text-text-secondary">
+            Include the individual records behind the numbers. Off by default — the report downloads as a smart summary.
+          </span>
+        </span>
+        <ChevronDown
+          className={clsx('w-4 h-4 text-text-secondary transition-transform shrink-0', open && 'rotate-180')}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <fieldset
+          id="adv-raw-body"
+          className="rounded-xl border border-border-subtle bg-surface/40 px-3 py-2.5 flex flex-col gap-2 min-w-0"
+        >
+          <legend className="px-1 text-[11px] font-bold text-white">Include the underlying rows</legend>
+          <p className="text-[10px] text-text-secondary -mt-1">
+            The individual records behind these numbers — one line per {noun}.
+          </p>
+          <label className="flex items-start gap-2 text-[11px] text-text-secondary hover:text-white cursor-pointer min-h-[32px]">
+            <input
+              type="checkbox"
+              checked={rawSheet}
+              disabled={rawInstead || summaryOnly}
+              onChange={(e) => setRawSheet(e.target.checked)}
+              className="mt-0.5 accent-[#da1a84] w-4 h-4 cursor-pointer disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
+            />
+            <span>
+              Add them as an extra sheet in the Excel file
+              {summaryOnly && <span className="text-text-secondary/70"> — not available for this data</span>}
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-[11px] text-text-secondary hover:text-white cursor-pointer min-h-[32px]">
+            <input
+              type="checkbox"
+              checked={rawInstead}
+              onChange={(e) => setRawInstead(e.target.checked)}
+              className="mt-0.5 accent-[#da1a84] w-4 h-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-pink-400"
+            />
+            <span>Download the {rowCount.toLocaleString('en-IN')} rows instead of the report as shown</span>
+          </label>
+        </fieldset>
+      )}
+    </div>
   );
 }
