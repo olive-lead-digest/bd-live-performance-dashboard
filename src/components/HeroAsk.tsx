@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Sparkles, ArrowRight, Loader2, Eraser, Copy, Check, CornerDownRight } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useDashboard } from '@/lib/DashboardContext';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 
@@ -47,6 +48,121 @@ function renderInline(text: string, keyPrefix: string) {
   );
 }
 
+// ---- GFM pipe-table support (P1) — the n8n pivot engine emits verified,
+// code-computed tables as plain markdown; this renders them as real <table>
+// markup instead of garbled plain-text lines. ----
+function splitRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map(c => c.trim());
+}
+
+function isSepRow(line: string): boolean {
+  const cells = splitRow(line);
+  if (!cells.length) return false;
+  return cells.every(c => /^:?-{2,}:?$/.test(c));
+}
+
+function parseAlign(cell: string): 'left' | 'right' | 'center' {
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  return 'left';
+}
+
+function renderTable(tableLines: string[], keyPrefix: string) {
+  const header = splitRow(tableLines[0]);
+  const aligns = splitRow(tableLines[1]).map(parseAlign);
+  const bodyRows = tableLines.slice(2).map(splitRow);
+  const alignCls = (a: 'left' | 'right' | 'center') => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left');
+  return (
+    <div key={keyPrefix} className="my-2 -mx-1 overflow-x-auto no-scrollbar rounded-lg border border-border-subtle bg-black/20">
+      <table className="w-full text-xs sm:text-[13px] border-collapse min-w-[460px]">
+        <thead>
+          <tr className="bg-brand-pink-500/10">
+            {header.map((h, i) => (
+              <th key={i} className={`px-2.5 py-2 font-semibold text-white whitespace-nowrap border-b border-border-subtle ${alignCls(aligns[i])}`}>
+                {renderInline(h, `th-${keyPrefix}-${i}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((cells, ri) => (
+            <tr key={ri} className={`border-b border-border-subtle/40 last:border-0 ${ri % 2 === 1 ? 'bg-white/[0.03]' : ''}`}>
+              {header.map((_, ci) => (
+                <td key={ci} className={`px-2.5 py-1.5 text-text-primary whitespace-nowrap ${alignCls(aligns[ci])} ${aligns[ci] === 'right' ? 'tabular-nums' : ''}`}>
+                  {renderInline(cells[ci] ?? '', `td-${keyPrefix}-${ri}-${ci}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---- Fenced ```chart block support (P1) — a small, bounded bar-chart spec
+// the n8n pivot engine computes in code. recharts is already a dependency
+// used elsewhere in this app (deals/reporting/leaderboard); reused here for
+// visual/bundle consistency. Parsing is try/catch-wrapped so a malformed
+// block just never renders, never crashes the answer. ----
+type ChartSpec = { type?: string; title?: string; labels: string[]; series: { name: string; values: number[] }[]; unit?: string };
+
+const CHART_SERIES_COLORS: Record<string, string> = {
+  High: '#34d399',
+  Medium: '#da1a84',
+  Low: '#a470d6',
+  Unspecified: '#6b7280',
+};
+const CHART_FALLBACK_COLOR = '#da1a84';
+
+function renderChart(spec: ChartSpec, keyPrefix: string) {
+  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.series) || !spec.labels.length || !spec.series.length) return null;
+  const data = spec.labels.map((label, i) => {
+    const row: Record<string, string | number> = { name: label };
+    spec.series.forEach(s => { row[s.name] = Number(s.values?.[i]) || 0; });
+    return row;
+  });
+  const rotate = data.length > 4;
+  return (
+    <div key={keyPrefix} className="my-2 rounded-lg border border-border-subtle bg-black/20 p-2 sm:p-3">
+      {spec.title && <p className="text-[11px] uppercase tracking-wider text-text-secondary mb-1 px-1 truncate">{spec.title}</p>}
+      <div className="w-full h-48 sm:h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
+            <XAxis
+              dataKey="name"
+              stroke="#9896a3"
+              tick={{ fill: '#9896a3', fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              interval={0}
+              angle={rotate ? -20 : 0}
+              textAnchor={rotate ? 'end' : 'middle'}
+              height={rotate ? 34 : 22}
+            />
+            <YAxis stroke="#9896a3" tick={{ fill: '#9896a3', fontSize: 10 }} tickLine={false} axisLine={false} width={38} />
+            <RechartsTooltip
+              contentStyle={{ background: '#1a1024', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: '#e8e6ef' }}
+              formatter={(value: unknown) => [`${value}${spec.unit ? ' ' + spec.unit : ''}`, '']}
+            />
+            {spec.series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: '#a8a6b4' }} />}
+            {spec.series.map(s => (
+              <Bar key={s.name} dataKey={s.name} fill={CHART_SERIES_COLORS[s.name] || CHART_FALLBACK_COLOR} radius={[3, 3, 0, 0]} maxBarSize={36} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function renderAnswer(md: string) {
   const lines = md.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const blocks: ReactNode[] = [];
@@ -69,13 +185,43 @@ function renderAnswer(md: string) {
     );
   };
 
-  lines.forEach((line, idx) => {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+
+    // GFM pipe table: a "| ... |" row immediately followed by a "|---|---:|" separator.
+    if (line.startsWith('|') && idx + 1 < lines.length && isSepRow(lines[idx + 1])) {
+      flushBullets();
+      const tableLines = [line, lines[idx + 1]];
+      let j = idx + 2;
+      while (j < lines.length && lines[j].startsWith('|')) { tableLines.push(lines[j]); j++; }
+      blocks.push(renderTable(tableLines, `tbl-${blocks.length}`));
+      idx = j - 1;
+      continue;
+    }
+
+    // Fenced ```chart\n{...}\n``` block.
+    if (line === '```chart') {
+      flushBullets();
+      let j = idx + 1;
+      const jsonLines: string[] = [];
+      while (j < lines.length && lines[j] !== '```') { jsonLines.push(lines[j]); j++; }
+      try {
+        const spec = JSON.parse(jsonLines.join('\n'));
+        const chart = renderChart(spec, `chart-${blocks.length}`);
+        if (chart) blocks.push(chart);
+      } catch {
+        /* malformed chart JSON — skip rendering silently, never crash the answer */
+      }
+      idx = j; // skip the closing ``` fence too
+      continue;
+    }
+
     const boldWrap = line.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
     const isBottomLine = /^\*\*\s*Bottom line/i.test(line) || /^Bottom line/i.test(line);
 
     if (line.startsWith('- ')) {
       bullets.push(line.slice(2).trim());
-      return;
+      continue;
     }
     flushBullets();
 
@@ -88,7 +234,7 @@ function renderAnswer(md: string) {
           {renderInline(line.replace(/\*\*/g, ''), `bl-${idx}`)}
         </div>
       );
-      return;
+      continue;
     }
 
     if (!headlineUsed && boldWrap && boldWrap[1] && !boldWrap[2]) {
@@ -98,7 +244,7 @@ function renderAnswer(md: string) {
           {renderInline(boldWrap[1], `h-${idx}`)}
         </p>
       );
-      return;
+      continue;
     }
 
     blocks.push(
@@ -106,7 +252,7 @@ function renderAnswer(md: string) {
         {renderInline(line, `p-${idx}`)}
       </p>
     );
-  });
+  }
   flushBullets();
 
   return <div className="space-y-2.5">{blocks}</div>;
