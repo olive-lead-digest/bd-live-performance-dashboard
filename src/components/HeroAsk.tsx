@@ -1,5 +1,9 @@
 'use client';
 
+// P1.1 (2026-07-28): no functional change in this commit — it exists solely to
+// re-trigger the Vercel Git deployment after the prior commit (8753a8d5, which
+// added the GFM table + chart rendering below) did not produce one.
+
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Sparkles, ArrowRight, Loader2, Eraser, Copy, Check, CornerDownRight } from 'lucide-react';
