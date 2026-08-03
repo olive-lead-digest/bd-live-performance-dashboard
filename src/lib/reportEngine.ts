@@ -5,6 +5,24 @@ import { recordDate, type DealRecord } from './dealsRuntime';
 import { inr, num, pct } from './format';
 import { matrixToCsv, downloadCsvText, type CsvColumn } from './csv';
 
+/** Fires a cheap, non-blocking audit beacon for a report/export download.
+ *  Never blocks or breaks the export itself on failure. The acting user is
+ *  resolved server-side from the session — this call cannot spoof identity. */
+function logReportExport(reportType: string, detail?: Record<string, unknown>): void {
+  try {
+    const body = JSON.stringify({ event: 'report_export', reportType, filters: detail ?? null });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/audit', new Blob([body], { type: 'application/json' }));
+    } else if (typeof fetch !== 'undefined') {
+      fetch('/api/audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(
+        () => {}
+      );
+    }
+  } catch {
+    /* never block an export over a logging beacon */
+  }
+}
+
 /* =====================================================================
  * reportEngine — the dataset, pivot and export core behind /reports.
  *
@@ -1124,11 +1142,13 @@ export function pivotToRows(matrix: PivotMatrix): string[][] {
 
 export function exportPivotCsv(matrix: PivotMatrix, filename: string): void {
   downloadCsvText(filename, matrixToCsv(pivotToRows(matrix)));
+  logReportExport('pivot-csv', { filename, bodyRowCount: matrix.body.length, colCount: matrix.colCount });
 }
 
 export function exportRawCsv(columns: ReportColumn[], rows: any[], filename: string): void {
   const cols: CsvColumn[] = columns.map((c) => ({ key: c.key, label: c.label, format: c.format }));
   downloadCsvText(filename, matrixToCsv([cols.map((c) => c.label), ...rows.map((r) => cols.map((c) => cellOf(c as ReportColumn, r)))]));
+  logReportExport('raw-csv', { filename, rowCount: rows.length });
 }
 
 export interface ExcelInput {
@@ -1167,6 +1187,7 @@ export async function exportExcel(inp: ExcelInput): Promise<void> {
   }
 
   XLSX.writeFile(wb, inp.filename);
+  logReportExport('excel', { filename: inp.filename, sheetName: inp.sheetName, filters: Object.fromEntries(inp.filterSummary) });
 }
 
 export interface PdfInput {
@@ -1240,6 +1261,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   });
 
   doc.save(inp.filename);
+  logReportExport('pdf', { filename: inp.filename, title: inp.title, filters: Object.fromEntries(inp.filterSummary) });
 }
 
 /* ==================================================================
