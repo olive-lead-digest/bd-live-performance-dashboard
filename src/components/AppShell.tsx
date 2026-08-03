@@ -8,8 +8,11 @@ import { FilterDrawer } from './FilterDrawer';
 import { DrillProvider } from './DrillDrawer';
 import { SwipeableBottomNav } from './SwipeableBottomNav';
 import { MobileContextHeader } from './MobileContextHeader';
+import { PageViewLogger } from './PageViewLogger';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export type ShellUser = { fullName: string; email: string; roleLabel: string; isAdmin: boolean } | null;
+
+export function AppShell({ children, user = null }: { children: React.ReactNode; user?: ShellUser }) {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   // P2-1 — expanded labelled rail by default on >=1280px; collapse choice is
   // remembered across sessions via localStorage.
@@ -53,11 +56,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
+      <PageViewLogger />
       <div className="min-h-[100dvh] bg-background text-foreground flex">
         <Sidebar
           onOpenFilters={() => setIsFiltersOpen(true)}
           collapsed={collapsed}
           onToggleCollapse={toggleCollapse}
+          user={user}
         />
 
         <div
@@ -66,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? 'xl:pl-16' : 'xl:pl-64'
           )}
         >
-          <MobileContextHeader onOpenFilters={() => setIsFiltersOpen(true)} />
+          <MobileContextHeader onOpenFilters={() => setIsFiltersOpen(true)} user={user} />
           <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
 
           <main id="content" className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8">

@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionProfile, scopeFromProfile } from '@/lib/auth';
+import { applyRegionScope } from '@/lib/regionScope';
+import { logAuditEvent, clientIp, userAgent } from '@/lib/audit';
 
 /*
- * Server-side data route. LIVE FEED ONLY.
+ * Server-side data route. LIVE FEED ONLY. AUTH REQUIRED.
  *
  * The dashboard shows exclusively the real data pushed by the refresh job
  * (Zoho CRM + Zoom Phone + the Partner-With-Us Google Sheet), published as a
@@ -12,6 +15,15 @@ import { NextResponse } from 'next/server';
  * feed is ever unreachable and we have no recent copy in memory, this returns
  * an explicit error rather than showing stale or sample data. No Zoho/Google/
  * Zoom credentials live in the web app — the refresh job owns all fetching.
+ *
+ * Region scoping: this route requires a valid session (the proxy already
+ * redirects unauthenticated page loads to /login, but this is a second,
+ * independent check — never rely on the proxy alone). A region-scoped
+ * caller's browser must never even receive another region's rows over the
+ * network, so the RAW merged feed is cached module-scope (never a filtered
+ * result — that would risk one user's scope leaking into another's cached
+ * response), and applyRegionScope() runs fresh on every request, after the
+ * cache read, keyed to the calling session's own profile.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,7 +43,14 @@ function parseMaybeJsWrapper(raw: string): unknown {
 }
 
 async function fromUrl(url: string): Promise<unknown> {
-  const res = await fetch(url, { cache: 'no-store' });
+  // Pre-wired for a private data repo: set GITHUB_FEED_TOKEN (fine-grained,
+  // read-only, data repo only) in Vercel and the raw fetches authenticate.
+  // Absent the env var, behaviour is unchanged (public raw URLs).
+  const token = process.env.GITHUB_FEED_TOKEN;
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
   if (!res.ok) throw new Error(`data feed responded ${res.status}`);
   return parseMaybeJsWrapper(await res.text());
 }
@@ -46,15 +65,32 @@ const DEFAULT_PROPOSALS_URL =
 const DEFAULT_ORG_URL =
   'https://raw.githubusercontent.com/olive-lead-digest/bd-live-performance-dashboard/data/bd_org.json';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const session = await getSessionProfile();
+  if (!session) {
+    return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
+  }
+  const scope = scopeFromProfile(session.profile);
+
+  // Audit: who pulled the feed, and how it was scoped for them.
+  await logAuditEvent(session.supabase, {
+    userId: session.userId,
+    email: session.email,
+    event: 'feed_access',
+    detail: { route: '/api/dashboard', scope: scope.full ? 'full' : scope.regions },
+    ip: clientIp(req),
+    userAgent: userAgent(req),
+  });
+
   const url = process.env.DASHBOARD_DATA_URL || DEFAULT_DATA_URL;
   const dealsUrl = process.env.DEALS_DATA_URL || DEFAULT_DEALS_URL;
   const proposalsUrl = process.env.PROPOSALS_DATA_URL || DEFAULT_PROPOSALS_URL;
   const orgUrl = process.env.ORG_DATA_URL || DEFAULT_ORG_URL;
 
-  // Serve the cached copy while it is still fresh.
+  // Serve the cached copy while it is still fresh — always the RAW,
+  // unfiltered merge. Scoping is applied per-request below, never cached.
   if (urlCache && Date.now() - urlCache.at < URL_TTL_MS) {
-    return NextResponse.json(urlCache.data);
+    return NextResponse.json(applyRegionScope(urlCache.data, scope));
   }
 
   try {
@@ -71,11 +107,11 @@ export async function GET() {
         ? { ...(data as Record<string, unknown>), deals, proposals, org }
         : data;
     urlCache = { at: Date.now(), data: merged };
-    return NextResponse.json(merged);
+    return NextResponse.json(applyRegionScope(merged, scope));
   } catch {
     // Feed hiccup — serve the last good LIVE copy if we have one; otherwise an
     // honest error. We never fall back to bundled/placeholder data.
-    if (urlCache) return NextResponse.json(urlCache.data);
+    if (urlCache) return NextResponse.json(applyRegionScope(urlCache.data, scope));
     return NextResponse.json(
       { error: 'The live data feed is temporarily unavailable. Please try again shortly.' },
       { status: 503 }

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
+import { getSessionProfile, scopeFromProfile, type Scope } from '@/lib/auth';
+import { logAuditEvent, userAgent } from '@/lib/audit';
 
 /*
- * Ask-AI proxy. The browser posts { question, context } here; this server-side
- * function forwards it to the n8n webhook (URL kept in N8N_ASK_WEBHOOK_URL, never
- * exposed to the client) and returns n8n's { answer, sources }.
+ * Ask-AI proxy. AUTH REQUIRED. The browser posts { question, context } here;
+ * this server-side function resolves the caller's session + region scope
+ * (never trusting any client-supplied region claim), forwards
+ * { question, context, scope } to the n8n webhook (URL kept in
+ * N8N_ASK_WEBHOOK_URL, never exposed to the client), and returns n8n's
+ * { answer, sources }. n8n's Merge Feeds Code node filters every
+ * region-attributable array by `scope` before building the prompt, so a
+ * region-scoped caller's answer/table/chart can never surface another
+ * region's numbers even if asked by name.
  *
  * Protections: rejects empty questions, same-origin only, best-effort per-IP rate
  * limit. No secrets in the client bundle.
@@ -13,24 +21,44 @@ import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
  * questions (same hourly feed version) are served from memory WITHOUT calling n8n
  * or the model — 0 upstream tokens. The cache is per warm serverless instance
  * (module scope), so no new infra; it self-expires when the hour bucket changes.
+ * The cache key is scoped by the caller's access scope (full vs. the exact
+ * region set) so a full-access answer can never be served to a region-scoped
+ * caller, or one region's cached answer to a different region's head.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 8; // a few questions/min per IP
+const MAX_PER_WINDOW_USER = 6; // and per signed-in user, regardless of IP
 const MAX_QUESTION_LEN = 600;
 
-// Best-effort in-memory limiter (per warm serverless instance).
+// Shared secret sent to the n8n webhook so the workflow can reject direct
+// calls from anyone who discovers the webhook URL (which would otherwise
+// bypass login AND region scoping). Overridable via env; the fallback keeps
+// things working before the Vercel env var is configured.
+const ASK_SHARED_SECRET =
+  process.env.ASK_SHARED_SECRET || '1702958079e6ef6791b37bbf39a55c80a8b3b8695ff96590';
+
+// Best-effort in-memory limiters (per warm serverless instance).
 const hits = new Map<string, number[]>();
+const userHits = new Map<string, number[]>();
+
+function limited(map: Map<string, number[]>, key: string, max: number): boolean {
+  const now = Date.now();
+  const arr = (map.get(key) || []).filter(t => now - t < WINDOW_MS);
+  arr.push(now);
+  map.set(key, arr);
+  if (map.size > 5000) map.clear(); // guard against unbounded growth
+  return arr.length > max;
+}
 
 function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const arr = (hits.get(ip) || []).filter(t => now - t < WINDOW_MS);
-  arr.push(now);
-  hits.set(ip, arr);
-  if (hits.size > 5000) hits.clear(); // guard against unbounded growth
-  return arr.length > MAX_PER_WINDOW;
+  return limited(hits, ip, MAX_PER_WINDOW);
+}
+
+function userRateLimited(userId: string): boolean {
+  return limited(userHits, userId, MAX_PER_WINDOW_USER);
 }
 
 function clientIp(req: NextRequest): string {
@@ -60,7 +88,7 @@ type CacheEntry = {
   answer: string;
   sources: unknown[];
   tokens: Set<string>;
-  version: number;
+  version: string;
 };
 
 // Module-scope cache: survives across requests on a warm instance only.
@@ -95,9 +123,18 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : inter / union;
 }
 
+// Scope must be folded into the cache key/version namespace — otherwise a
+// full-access answer could be served back to a region-scoped caller (or one
+// region head's cached answer to a different region head) purely because the
+// question text matched. Region lists are sorted so scope identity doesn't
+// depend on array order.
+function scopeKey(scope: Scope): string {
+  return scope.full ? 'full' : `r:${[...scope.regions].sort().join('|')}`;
+}
+
 // Look up an exact-normalised or near-duplicate cached answer for this version.
 // Also lazily evicts entries from previous (expired) versions.
-function cacheGet(version: number, key: string, tokens: Set<string>): CacheEntry | null {
+function cacheGet(version: string, key: string, tokens: Set<string>): CacheEntry | null {
   const exact = answerCache.get(key);
   if (exact && exact.version === version) {
     // Refresh recency (LRU-ish).
@@ -136,10 +173,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
+  // Auth required — Ask AI must never answer an unauthenticated request, and
+  // the region scope is always resolved here server-side from the caller's
+  // own session/profile, never from anything the client claims.
+  const session = await getSessionProfile();
+  if (!session) {
+    return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
+  }
+  const scope = scopeFromProfile(session.profile);
+
   const webhook = process.env.N8N_ASK_WEBHOOK_URL || 'https://olivehospitality.app.n8n.cloud/webhook/ask-ai';
 
   const ip = clientIp(req);
-  if (rateLimited(ip)) {
+  if (rateLimited(ip) || userRateLimited(session.userId)) {
     return NextResponse.json({ error: 'Too many questions — please wait a moment.' }, { status: 429 });
   }
 
@@ -170,8 +216,10 @@ export async function POST(req: NextRequest) {
 
   // Semantic cache — serve repeated / near-duplicate questions for the current
   // feed version straight from memory (0 upstream tokens). Only cache the plain
-  // ask (no custom context, which could change the expected answer).
-  const version = feedVersion();
+  // ask (no custom context, which could change the expected answer). The scope
+  // is folded into the version namespace so different access scopes never
+  // share a cached answer (see scopeKey()).
+  const version = `${feedVersion()}::${scopeKey(scope)}`;
   const norm = normaliseQuestion(question);
   const key = `${version}::${norm}`;
   const tokens = tokenSet(norm);
@@ -180,6 +228,19 @@ export async function POST(req: NextRequest) {
   if (cacheable) {
     const cached = cacheGet(version, key, tokens);
     if (cached) {
+      await logAuditEvent(session.supabase, {
+        userId: session.userId,
+        email: session.email,
+        event: 'ask_question',
+        detail: {
+          question,
+          regionScope: scope.full ? 'full' : scope.regions,
+          cached: true,
+          answerPreview: cached.answer.slice(0, 240),
+        },
+        ip,
+        userAgent: userAgent(req),
+      });
       return NextResponse.json({ answer: cached.answer, sources: cached.sources, cached: true });
     }
   }
@@ -189,8 +250,8 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(webhook, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: question.slice(0, MAX_QUESTION_LEN), context }),
+      headers: { 'Content-Type': 'application/json', 'x-ask-secret': ASK_SHARED_SECRET },
+      body: JSON.stringify({ question: question.slice(0, MAX_QUESTION_LEN), context, scope }),
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -207,10 +268,25 @@ export async function POST(req: NextRequest) {
     }
     const sources = Array.isArray(data?.sources) ? data.sources : [];
 
-    // Store the fresh answer under the normalised key for this feed version.
+    // Store the fresh answer under the normalised key for this feed version
+    // (already scope-namespaced above).
     if (cacheable) {
       cacheSet(key, { answer: ans, sources, tokens, version });
     }
+
+    await logAuditEvent(session.supabase, {
+      userId: session.userId,
+      email: session.email,
+      event: 'ask_question',
+      detail: {
+        question,
+        regionScope: scope.full ? 'full' : scope.regions,
+        cached: false,
+        answerPreview: ans.slice(0, 240),
+      },
+      ip,
+      userAgent: userAgent(req),
+    });
 
     return NextResponse.json({ answer: ans, sources });
   } catch (e) {
