@@ -116,6 +116,17 @@ export function applyRegionScope(data: any, scope: Scope): any {
   if (data.deals && Array.isArray(data.deals.records)) {
     const runtime = computeDealsRuntime(data.deals, regionFilters(scope.regions));
     const scopedDeals = runtime.deals ? { ...runtime.deals } : null;
+    if (scopedDeals) {
+      // computeDealsRuntime recomputes the AGGREGATE blocks from the filtered
+      // rows but deliberately passes the full `records` array through (the UI
+      // filters it client-side per active filters). Server-side that would
+      // ship every other region's deal rows to a scoped browser — so hard-cut
+      // the records here. Region-less rows ('Other'/'Unspecified') are
+      // excluded too: never included by accident.
+      scopedDeals.records = (data.deals.records as any[]).filter(
+        (r) => r && r.region && allowed.has(r.region)
+      );
+    }
     if (scopedDeals?.ranking && typeof scopedDeals.ranking === 'object') {
       // aggregate() doesn't touch `ranking` — it's a pass-through
       // presentation block, not part of the recomputed aggregate — so filter
