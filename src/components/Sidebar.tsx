@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
-  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Table2, ChevronRight,
+  LayoutDashboard, Handshake, Trophy, TrendingUp, Map, BarChart3, Table2, ChevronRight, ShieldCheck, LogOut,
 } from 'lucide-react';
 import clsx from 'clsx';
+import type { ShellUser } from './AppShell';
 
 // R-0 — 7 primary destinations, named in the words the business uses rather
 // than in dashboard jargon: "Signings & Revenue" not "Portfolio & Fiscal",
@@ -30,14 +32,32 @@ export function Sidebar({
   onOpenFilters,
   collapsed = false,
   onToggleCollapse,
+  user = null,
 }: {
   onOpenFilters: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  user?: ShellUser;
 }) {
   const pathname = usePathname();
+  const [loggingOut, setLoggingOut] = useState(false);
   const isActiveHref = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
+
+  const navItems = user?.isAdmin
+    ? [...NAV_ITEMS, { name: 'Activity Log', href: '/admin/activity', icon: ShieldCheck }]
+    : NAV_ITEMS;
+
+  const onLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      /* fall through to redirect regardless */
+    }
+    window.location.href = '/login';
+  };
 
   // Labels: on the expanded desktop rail (>=1280px, not collapsed) they are
   // always visible; on the compact/hover rail (mobile, or a collapsed desktop
@@ -105,7 +125,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 mt-6 flex flex-col gap-2 px-2">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive = isActiveHref(item.href);
           return (
             <Link
@@ -142,6 +162,37 @@ export function Sidebar({
         {/* P2-6 — the mobile "Filters" entry point lives in the ContextBar
             toolbar; the sidebar no longer renders a second one, so only ONE
             Filters button is present at mobile widths. */}
+
+        {/* Signed-in-as / log out — real auth session, not a placeholder.
+            Hidden entirely if for some reason no session resolved (shouldn't
+            happen post-proxy-redirect, but never render a broken control). */}
+        {user && (
+          <div className="flex items-center w-full h-11 rounded-xl border border-transparent px-0 group/item">
+            <div className="w-12 h-full flex items-center justify-center shrink-0">
+              <div
+                className="w-7 h-7 rounded-full bg-brand-pink-500/20 border border-brand-pink-500/40 flex items-center justify-center text-[11px] font-bold text-brand-pink-300 shrink-0"
+                aria-hidden="true"
+              >
+                {user.fullName.trim().charAt(0).toUpperCase() || '?'}
+              </div>
+            </div>
+            <div className={clsx('flex flex-col min-w-0', labelCls, 'opacity-100 xl:opacity-0', !collapsed && 'xl:opacity-100')}>
+              <span className="text-xs font-semibold text-white truncate">{user.fullName}</span>
+              <span className="text-[10px] font-medium text-brand-purple-200 truncate" title={user.roleLabel}>
+                {user.roleLabel}
+              </span>
+              <button
+                type="button"
+                onClick={onLogout}
+                disabled={loggingOut}
+                className="flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-white transition-colors text-left disabled:opacity-50"
+              >
+                <LogOut className="w-3 h-3" />
+                {loggingOut ? 'Signing out…' : 'Log out'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Collapse / expand control — only meaningful on the >=1280px rail. */}
         <button

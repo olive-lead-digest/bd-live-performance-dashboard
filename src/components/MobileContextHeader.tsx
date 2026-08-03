@@ -11,15 +11,29 @@
 // MobileNav is fixed separately, so page content scrolls between the two.
 // ---------------------------------------------------------------------------
 
-import { useMemo } from 'react';
-import { Filter, Calendar, ChevronRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Filter, Calendar, ChevronRight, LogOut } from 'lucide-react';
+import clsx from 'clsx';
 import { useDashboard } from '@/lib/DashboardContext';
 import { shortDate } from '@/lib/format';
+import type { ShellUser } from './AppShell';
 
 const SET_KEYS = ['region', 'state', 'city', 'cluster', 'brand', 'status', 'prop', 'owner'] as const;
 
-export function MobileContextHeader({ onOpenFilters }: { onOpenFilters: () => void }) {
+export function MobileContextHeader({ onOpenFilters, user = null }: { onOpenFilters: () => void; user?: ShellUser }) {
   const { filters, leadsAsOf } = useDashboard();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const onLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      /* fall through to redirect regardless */
+    }
+    window.location.href = '/login';
+  };
 
   const dateLabel = useMemo(() => {
     if (filters.presetLabel) return filters.presetLabel;
@@ -73,15 +87,33 @@ export function MobileContextHeader({ onOpenFilters }: { onOpenFilters: () => vo
         <ChevronRight className="w-3.5 h-3.5 -ml-0.5 text-text-secondary/70 shrink-0" />
       </button>
 
-      {/* Freshness — pinned to the right edge. */}
+      {/* Freshness — pinned toward the right edge (or left of the user
+          control below, when signed in). */}
       {asOf && (
-        <div className="ml-auto flex items-center gap-1.5 pl-2 pr-4 shrink-0">
+        <div className={clsx('flex items-center gap-1.5 pl-2 shrink-0', !user && 'ml-auto pr-4')}>
           <span
             className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
             aria-hidden="true"
           />
           <span className="text-[11px] font-medium text-text-secondary whitespace-nowrap">as of {asOf}</span>
         </div>
+      )}
+
+      {/* Signed-in-as / log out — compact, since the desktop Sidebar's full
+          control is hidden at this breakpoint. */}
+      {user && (
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={loggingOut}
+          aria-label={`Signed in as ${user.fullName}. Log out`}
+          className="ml-auto flex items-center gap-1.5 pl-2 pr-4 shrink-0 disabled:opacity-50 active:opacity-70"
+        >
+          <span className="w-6 h-6 rounded-full bg-brand-pink-500/20 border border-brand-pink-500/40 flex items-center justify-center text-[10px] font-bold text-brand-pink-300 shrink-0">
+            {user.fullName.trim().charAt(0).toUpperCase() || '?'}
+          </span>
+          <LogOut className="w-3.5 h-3.5 text-text-secondary" />
+        </button>
       )}
     </div>
   );
