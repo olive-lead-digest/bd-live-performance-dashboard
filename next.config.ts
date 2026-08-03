@@ -1,13 +1,50 @@
 import type { NextConfig } from "next";
 
 /*
+ * Security headers (defense in depth on top of the auth proxy):
+ *  - CSP locked to self + the Supabase project (XHR/auth). Next.js needs
+ *    'unsafe-inline' script/style without a nonce pipeline; 'unsafe-eval' is
+ *    appended in dev only (React Refresh needs it, production does not).
+ *  - HSTS, no-sniff, frame denial, tight referrer + permissions policies.
+ *
  * P0-5 — force HTML/dynamic responses uncacheable at the edge/browser so a
  * navigation always fetches the current build, while EXCLUDING Next's immutable
  * content-hashed build assets so they keep their long-lived cache.
  */
+const SUPABASE_ORIGIN = "https://bihqperphtxromsglyww.supabase.co";
+const isDev = process.env.NODE_ENV === "development";
+
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self' ${SUPABASE_ORIGIN}`,
+  "worker-src 'self' blob:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+];
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
       {
         source: "/((?!_next/static|_next/image).*)",
         headers: [
