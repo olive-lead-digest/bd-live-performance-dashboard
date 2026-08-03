@@ -167,6 +167,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const res = await fetch('/api/dashboard');
+        if (res.status === 401) {
+          // Session expired/absent — send back to /login rather than showing
+          // a raw error state.
+          window.location.href = '/login';
+          return;
+        }
         const body = await res.json();
         if (cancelled) return;
         if (!res.ok) {
