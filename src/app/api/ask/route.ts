@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
-import { getSessionProfile, scopeFromProfile, type Scope } from '@/lib/auth';
+import { getSessionProfile, scopeFromProfile, hasSetPassword, type Scope } from '@/lib/auth';
 import { logAuditEvent, userAgent } from '@/lib/audit';
 
 /*
@@ -16,6 +16,11 @@ import { logAuditEvent, userAgent } from '@/lib/audit';
  *
  * Protections: rejects empty questions, same-origin only, best-effort per-IP rate
  * limit. No secrets in the client bundle.
+ *
+ * Password-set gate: a valid session alone does not mean the user ever
+ * actually saved a real password (see src/lib/auth.ts / src/proxy.ts). The
+ * proxy already blocks this in normal operation — this is the same
+ * independent second check as the region scoping above, not the only one.
  *
  * Cost control: a lightweight in-memory semantic cache. Repeated or near-duplicate
  * questions (same hourly feed version) are served from memory WITHOUT calling n8n
@@ -179,6 +184,12 @@ export async function POST(req: NextRequest) {
   const session = await getSessionProfile();
   if (!session) {
     return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
+  }
+  if (!hasSetPassword(session.profile)) {
+    return NextResponse.json(
+      { error: 'You need to set a password before continuing. Please finish the reset-password step.' },
+      { status: 401 }
+    );
   }
   const scope = scopeFromProfile(session.profile);
 
