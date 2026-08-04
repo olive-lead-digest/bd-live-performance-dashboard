@@ -60,6 +60,20 @@ export async function proxy(request: NextRequest) {
 
   const { response, user } = await updateSession(request);
 
+  // A signed-in user has no business on /login — send them to the dashboard
+  // exactly once. (/ is protected, the session is present, so it renders
+  // immediately: no ping-pong. /reset-password is deliberately NOT redirected:
+  // the recovery flow arrives there WITH a session, to set a new password.)
+  if (user && (pathname === '/login' || pathname.startsWith('/login/'))) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    url.search = '';
+    const redirect = NextResponse.redirect(url);
+    // Keep any session cookies updateSession just refreshed onto `response`.
+    for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
+    return redirect;
+  }
+
   if (isPublic(pathname)) {
     return response;
   }

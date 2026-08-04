@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useRef,
 import { usePathname } from 'next/navigation';
 import { DashData, Lead } from './types';
 import { computeDealsRuntime, DealsRuntime } from './dealsRuntime';
+import { isAuthRoute } from './authRoutes';
 
 export interface Filters {
   from: string;
@@ -142,6 +143,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const filtersRef = useRef<Filters>(filters);
   filtersRef.current = filters;
   const pathname = usePathname();
+  // /login, /reset-password, /auth/* — the provider is mounted app-wide, so it
+  // must go fully inert on the auth surface (no data fetch, no URL rewriting).
+  const onAuthRoute = isAuthRoute(pathname);
 
   useEffect(() => {
     const parsed = queryToFilters(window.location.search);
@@ -156,21 +160,31 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const firstNavRef = useRef(true);
   useEffect(() => {
     if (firstNavRef.current) { firstNavRef.current = false; return; }
+    if (isAuthRoute(pathname)) return; // never decorate auth-page URLs
     if (hydratedRef.current) writeUrl(filtersRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // Fetch the real dataset from the server-side API route (which reads the
   // OliveScripts pipeline output). No credentials or raw data in the client bundle.
+  const dataLoadedRef = useRef(false);
   useEffect(() => {
+    // Never fetch protected data while an auth page is in front of the user:
+    // the fetch is guaranteed to 401 there, and the old unconditional
+    // redirect-to-/login below then reloaded /login in an infinite loop.
+    // (The exposed isLoading is derived false on auth routes — no state write.)
+    if (onAuthRoute || dataLoadedRef.current) return;
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/dashboard');
         if (res.status === 401) {
-          // Session expired/absent — send back to /login rather than showing
-          // a raw error state.
-          window.location.href = '/login';
+          // Session expired/absent — go to /login, but ONLY if an auth page
+          // isn't already showing (redirecting /login to itself is what
+          // caused the reload loop this guards against).
+          if (!isAuthRoute(window.location.pathname)) {
+            window.location.href = '/login';
+          }
           return;
         }
         const body = await res.json();
@@ -178,6 +192,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         if (!res.ok) {
           setError(body?.error || `Failed to load dashboard data (${res.status}).`);
         } else {
+          dataLoadedRef.current = true;
           setData(body as DashData);
         }
       } catch (e) {
@@ -187,7 +202,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [onAuthRoute]);
 
   const setFilter = (key: keyof Filters, value: string, clear?: boolean) => {
     setFilters(prev => {
@@ -260,7 +275,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setFilter,
       setDateRange,
       clearFilters,
-      isLoading,
+      // Auth pages never fetch, so never report "loading" there (and nothing
+      // on them consumes this context anyway).
+      isLoading: isLoading && !onAuthRoute,
       error
     }}>
       {children}

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
+import { isAuthRoute } from '@/lib/authRoutes';
 import { Sidebar } from './Sidebar';
 import { ContextBar } from './ContextBar';
 import { FilterDrawer } from './FilterDrawer';
@@ -13,6 +15,7 @@ import { PageViewLogger } from './PageViewLogger';
 export type ShellUser = { fullName: string; email: string; roleLabel: string; isAdmin: boolean } | null;
 
 export function AppShell({ children, user = null }: { children: React.ReactNode; user?: ShellUser }) {
+  const pathname = usePathname();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   // P2-1 — expanded labelled rail by default on >=1280px; collapse choice is
   // remembered across sessions via localStorage.
@@ -44,6 +47,13 @@ export function AppShell({ children, user = null }: { children: React.ReactNode;
       }
       return next;
     });
+
+  // Auth pages (/login, /reset-password, /auth/*) render bare: no sidebar, no
+  // filter bar, no drill drawer, no page-view beacon — nothing that belongs to
+  // the signed-in app, and nothing that touches protected APIs.
+  if (isAuthRoute(pathname)) {
+    return <>{children}</>;
+  }
 
   return (
     <DrillProvider>
