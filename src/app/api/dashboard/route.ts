@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionProfile, scopeFromProfile } from '@/lib/auth';
+import { getSessionProfile, scopeFromProfile, hasSetPassword } from '@/lib/auth';
 import { applyRegionScope } from '@/lib/regionScope';
 import { logAuditEvent, clientIp, userAgent } from '@/lib/audit';
 
@@ -24,6 +24,11 @@ import { logAuditEvent, clientIp, userAgent } from '@/lib/audit';
  * result — that would risk one user's scope leaking into another's cached
  * response), and applyRegionScope() runs fresh on every request, after the
  * cache read, keyed to the calling session's own profile.
+ *
+ * Password-set gate: a valid session alone does not mean the user ever
+ * actually saved a real password (see src/lib/auth.ts / src/proxy.ts). The
+ * proxy already blocks this in normal operation — this is the same
+ * independent second check as the region scoping above, not the only one.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -69,6 +74,12 @@ export async function GET(req: NextRequest) {
   const session = await getSessionProfile();
   if (!session) {
     return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
+  }
+  if (!hasSetPassword(session.profile)) {
+    return NextResponse.json(
+      { error: 'You need to set a password before continuing. Please finish the reset-password step.' },
+      { status: 401 }
+    );
   }
   const scope = scopeFromProfile(session.profile);
 

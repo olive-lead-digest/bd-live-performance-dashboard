@@ -5,7 +5,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bihqperpht
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_LBIcygJp_4ah7e0x4LMVNw_Vhpdnl0i';
 
-export type ProxySessionUser = { id: string; email?: string };
+export type ProxySessionUser = { id: string; email?: string; passwordSet: boolean };
 
 /**
  * Refreshes the Supabase session cookie on every request and resolves the
@@ -14,6 +14,15 @@ export type ProxySessionUser = { id: string; email?: string };
  *
  * Uses NextRequest/NextResponse cookie adapters, NOT next/headers (which is
  * for Server Components/Route Handlers only and isn't available in Proxy).
+ *
+ * `passwordSet` reflects user_profiles.password_set_at (queried under RLS as
+ * the caller — the user_profiles_select_own policy allows exactly this row).
+ * A valid session does NOT imply a real password has ever been saved: the
+ * recovery/setup flow (verifyOtp on /auth/confirm) establishes a session
+ * BEFORE the user submits a new password on /reset-password. If they never
+ * submit it, passwordSet stays false and src/proxy.ts forces them back to
+ * /reset-password on every other route — see the Aug 2026 lockout incident
+ * (dhruv@, shreedhar.a@) this closes.
  */
 export async function updateSession(
   request: NextRequest
@@ -39,8 +48,25 @@ export async function updateSession(
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return { response, user: null };
 
+  const userId = data.claims.sub as string;
+
+  // Fail closed: if the profile row can't be read for any reason, treat the
+  // password as NOT set (forces the reset-password gate rather than silently
+  // granting access).
+  let passwordSet = false;
+  try {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('password_set_at')
+      .eq('user_id', userId)
+      .single();
+    passwordSet = !!profile?.password_set_at;
+  } catch {
+    passwordSet = false;
+  }
+
   return {
     response,
-    user: { id: data.claims.sub as string, email: data.claims.email as string | undefined },
+    user: { id: userId, email: data.claims.email as string | undefined, passwordSet },
   };
 }
