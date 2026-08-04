@@ -9,6 +9,12 @@ export type Profile = {
   email: string;
   role: Role;
   regions: string[] | null;
+  /** Null until the user has actually saved a real password (updateUser()
+   *  succeeded at least once). A valid session alone — e.g. immediately
+   *  after verifyOtp() on a recovery/setup link, before the reset-password
+   *  form is submitted — does NOT imply this is set. See src/proxy.ts and
+   *  the /api/dashboard, /api/ask gates, which all fail closed on null. */
+  password_set_at: string | null;
 };
 
 export type Scope = { full: true } | { full: false; regions: string[] };
@@ -38,12 +44,18 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
 
   const { data: profile, error: profileErr } = await supabase
     .from('user_profiles')
-    .select('user_id, name, email, role, regions')
+    .select('user_id, name, email, role, regions, password_set_at')
     .eq('user_id', userId)
     .single();
 
   if (profileErr || !profile) return null;
   return { userId, email: profile.email, profile: profile as Profile, supabase };
+}
+
+/** True once the user has actually saved a real password — see the
+ *  password_set_at doc comment on Profile above. */
+export function hasSetPassword(profile: Profile): boolean {
+  return profile.password_set_at != null;
 }
 
 /** Never trust a client-supplied region claim — scope is always derived here,
