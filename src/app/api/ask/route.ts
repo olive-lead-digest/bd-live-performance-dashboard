@@ -32,6 +32,13 @@ import { logAuditEvent, userAgent } from '@/lib/audit';
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Vercel kills the function at the platform default (10s on Hobby / 15s on
+// Pro's older default) unless maxDuration is raised, which would abort the
+// request before our own AbortController ever fires. 60s gives the 55s abort
+// below real headroom. This is a safety net only — with gpt-oss-120b at
+// reasoning_effort=low the model answers in single-digit seconds; the old 28s
+// abort is what turned a slow answer into no answer at all.
+export const maxDuration = 60;
 
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 8; // a few questions/min per IP
@@ -257,7 +264,9 @@ export async function POST(req: NextRequest) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 28_000);
+  // 55s: comfortably inside maxDuration (60s) so we always return our own
+  // friendly message rather than a platform-level 504 with no body.
+  const timeout = setTimeout(() => controller.abort(), 55_000);
   try {
     const res = await fetch(webhook, {
       method: 'POST',

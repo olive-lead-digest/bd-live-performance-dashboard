@@ -262,6 +262,25 @@ function renderAnswer(md: string) {
   return <div className="space-y-2.5">{blocks}</div>;
 }
 
+/* --------------------------- Waiting-state copy ---------------------------
+ * A single static "Thinking…" made a multi-second wait feel stalled. These
+ * staged hints (plus a quiet elapsed counter) tell the user the request is
+ * still moving and roughly where it is. Purely cosmetic — no effect on the
+ * request itself, which /api/ask lets run up to 55s.
+ */
+const ASK_STAGES: { after: number; label: string }[] = [
+  { after: 0, label: 'Reading your question…' },
+  { after: 3, label: 'Pulling the live BD feeds…' },
+  { after: 8, label: 'Cross-checking the figures…' },
+  { after: 16, label: 'Writing it up — nearly there…' },
+];
+
+function askStageLabel(seconds: number): string {
+  let label = ASK_STAGES[0].label;
+  for (const s of ASK_STAGES) if (seconds >= s.after) label = s.label;
+  return label;
+}
+
 export function HeroAsk() {
   const { data } = useDashboard();
   const [query, setQuery] = useState('');
@@ -280,6 +299,8 @@ export function HeroAsk() {
   // above the answer makes that replacement clear instead of feeling like lost
   // chat history.
   const [askedQuestion, setAskedQuestion] = useState('');
+  // Seconds since the current request started — drives the staged waiting copy.
+  const [elapsed, setElapsed] = useState(0);
 
   const [typed, setTyped] = useState('');
   const phraseIdx = useRef(0);
@@ -287,6 +308,16 @@ export function HeroAsk() {
   const deleting = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Tick the elapsed counter while a question is in flight, and reset it the
+  // moment the request settles so the next ask starts from zero.
+  useEffect(() => {
+    if (!loading) { setElapsed(0); return; }
+    const started = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [loading]);
 
   // M4 — when the mobile virtual keyboard opens, re-centre the focused field so
   // it (and the answer scrolling above it) stay visible above the keyboard. The
@@ -478,7 +509,19 @@ export function HeroAsk() {
               <Sparkles className="w-4 h-4 text-brand-pink-400" />
             </div>
             <div className="flex-1 min-w-0">
-              {loading && <p className="text-sm text-text-secondary">Thinking…</p>}
+              {loading && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex gap-1" aria-hidden="true">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-pink-500/80 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-pink-500/80 animate-pulse [animation-delay:200ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-pink-500/80 animate-pulse [animation-delay:400ms]" />
+                  </span>
+                  <p className="text-sm text-text-secondary" aria-live="polite">{askStageLabel(elapsed)}</p>
+                  {elapsed >= 3 && (
+                    <span className="text-[11px] tabular-nums text-text-secondary/50">{elapsed}s</span>
+                  )}
+                </div>
+              )}
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               {/* P1-9 (1) — graceful fallback: no fabricated analysis, just a
