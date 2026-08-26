@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Sparkles, ArrowRight, Loader2, Eraser, Copy, Check, CornerDownRight } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useDashboard } from '@/lib/DashboardContext';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 
@@ -114,60 +114,149 @@ function renderTable(tableLines: string[], keyPrefix: string) {
 // used elsewhere in this app (deals/reporting/leaderboard); reused here for
 // visual/bundle consistency. Parsing is try/catch-wrapped so a malformed
 // block just never renders, never crashes the answer. ----
-type ChartSpec = { type?: string; title?: string; labels: string[]; series: { name: string; values: number[] }[]; unit?: string };
+type ChartSeries = { name: string; values: number[] };
+type ChartSpec = {
+  type?: 'bar' | 'line' | string;
+  title?: string;
+  labels: string[];
+  series: ChartSeries[];
+  unit?: string;
+  stacked?: boolean;
+};
 
+// Named series keep their semantic colour (the signing-probability tiers the
+// pivot engine emits); everything else falls back to a positional palette in
+// the dashboard's dark/pink language. Rate-style series get an intuitive
+// good/bad hue so a trend line reads correctly at a glance.
 const CHART_SERIES_COLORS: Record<string, string> = {
   High: '#34d399',
   Medium: '#da1a84',
   Low: '#a470d6',
   Unspecified: '#6b7280',
 };
+const CHART_PALETTE = ['#da1a84', '#34d399', '#a470d6', '#f59e0b', '#38bdf8'];
 const CHART_FALLBACK_COLOR = '#da1a84';
 
+function seriesColor(name: string, index: number): string {
+  if (CHART_SERIES_COLORS[name]) return CHART_SERIES_COLORS[name];
+  if (/\b(active|collect|approv|won|signed|contact|good)\b/i.test(name)) return '#34d399';
+  if (/\b(drop|reject|lost|dropped|pending|receivable|churn)\b/i.test(name)) return '#f43f5e';
+  return CHART_PALETTE[index % CHART_PALETTE.length] || CHART_FALLBACK_COLOR;
+}
+
+// A small, bounded chart spec computed in code by the n8n pivot / time-series
+// engines — the numbers are never model-generated. Supports grouped and
+// stacked bars plus line charts (monthly trends). recharts is already a
+// dependency used elsewhere in the app. Every caller wraps parsing in
+// try/catch so a malformed block simply never renders.
 function renderChart(spec: ChartSpec, keyPrefix: string) {
-  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.series) || !spec.labels.length || !spec.series.length) return null;
-  const data = spec.labels.map((label, i) => {
-    const row: Record<string, string | number> = { name: label };
-    spec.series.forEach(s => { row[s.name] = Number(s.values?.[i]) || 0; });
+  if (!spec || !Array.isArray(spec.labels) || !Array.isArray(spec.series)) return null;
+  if (!spec.labels.length || !spec.series.length) return null;
+
+  const series = spec.series.filter(sr => sr && typeof sr.name === 'string' && Array.isArray(sr.values)).slice(0, 5);
+  if (!series.length) return null;
+
+  const data = spec.labels.slice(0, 24).map((label, i) => {
+    const row: Record<string, string | number> = { name: String(label) };
+    series.forEach(sr => { row[sr.name] = Number(sr.values?.[i]) || 0; });
     return row;
   });
+
+  const isLine = spec.type === 'line';
   const rotate = data.length > 4;
+  const stackId = spec.stacked ? 'a' : undefined;
+
+  const axes = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
+      <XAxis
+        dataKey="name"
+        stroke="#9896a3"
+        tick={{ fill: '#9896a3', fontSize: 10 }}
+        tickLine={false}
+        axisLine={false}
+        interval={0}
+        angle={rotate ? -20 : 0}
+        textAnchor={rotate ? 'end' : 'middle'}
+        height={rotate ? 34 : 22}
+      />
+      <YAxis stroke="#9896a3" tick={{ fill: '#9896a3', fontSize: 10 }} tickLine={false} axisLine={false} width={38} />
+      <RechartsTooltip
+        contentStyle={{ background: '#1a1024', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
+        labelStyle={{ color: '#e8e6ef' }}
+        formatter={(value: unknown) => [`${value}${spec.unit ? ' ' + spec.unit : ''}`, '']}
+      />
+      {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: '#a8a6b4' }} />}
+    </>
+  );
+
   return (
     <div key={keyPrefix} className="my-2 rounded-lg border border-border-subtle bg-black/20 p-2 sm:p-3">
       {spec.title && <p className="text-[11px] uppercase tracking-wider text-text-secondary mb-1 px-1 truncate">{spec.title}</p>}
       <div className="w-full h-48 sm:h-56">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2930" vertical={false} />
-            <XAxis
-              dataKey="name"
-              stroke="#9896a3"
-              tick={{ fill: '#9896a3', fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-              angle={rotate ? -20 : 0}
-              textAnchor={rotate ? 'end' : 'middle'}
-              height={rotate ? 34 : 22}
-            />
-            <YAxis stroke="#9896a3" tick={{ fill: '#9896a3', fontSize: 10 }} tickLine={false} axisLine={false} width={38} />
-            <RechartsTooltip
-              contentStyle={{ background: '#1a1024', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
-              labelStyle={{ color: '#e8e6ef' }}
-              formatter={(value: unknown) => [`${value}${spec.unit ? ' ' + spec.unit : ''}`, '']}
-            />
-            {spec.series.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: '#a8a6b4' }} />}
-            {spec.series.map(s => (
-              <Bar key={s.name} dataKey={s.name} fill={CHART_SERIES_COLORS[s.name] || CHART_FALLBACK_COLOR} radius={[3, 3, 0, 0]} maxBarSize={36} />
-            ))}
-          </BarChart>
+          {isLine ? (
+            <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              {axes}
+              {series.map((sr, i) => (
+                <Line
+                  key={sr.name}
+                  type="monotone"
+                  dataKey={sr.name}
+                  stroke={seriesColor(sr.name, i)}
+                  strokeWidth={2}
+                  dot={{ r: 2.5, strokeWidth: 0, fill: seriesColor(sr.name, i) }}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                />
+              ))}
+            </LineChart>
+          ) : (
+            <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              {axes}
+              {series.map((sr, i) => (
+                <Bar
+                  key={sr.name}
+                  dataKey={sr.name}
+                  stackId={stackId}
+                  fill={seriesColor(sr.name, i)}
+                  radius={stackId ? [0, 0, 0, 0] : [3, 3, 0, 0]}
+                  maxBarSize={36}
+                  isAnimationActive={false}
+                />
+              ))}
+            </BarChart>
+          )}
         </ResponsiveContainer>
       </div>
     </div>
   );
 }
 
-function renderAnswer(md: string) {
+// ---- Key-metric strip. The answer schema may carry an optional keyMetrics[]
+// array, emitted by the n8n Format Answer node as a fenced ```metrics block.
+// Purely additive: an answer without one renders exactly as before. ----
+type Metric = { label: string; value: string; note?: string };
+
+function renderMetrics(items: Metric[], keyPrefix: string) {
+  const clean = (Array.isArray(items) ? items : [])
+    .filter(m => m && typeof m.label === 'string' && m.label && m.value != null)
+    .slice(0, 5);
+  if (clean.length < 2) return null;
+  return (
+    <div key={keyPrefix} className="my-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {clean.map((m, i) => (
+        <div key={i} className="rounded-lg border border-border-subtle bg-black/20 px-3 py-2 min-w-0">
+          <p className="text-[10px] uppercase tracking-wider text-text-secondary truncate">{m.label}</p>
+          <p className="text-sm sm:text-base font-semibold text-white tabular-nums truncate">{String(m.value)}</p>
+          {m.note ? <p className="text-[10px] text-text-secondary truncate">{m.note}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderAnswerInner(md: string) {
   const lines = md.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const blocks: ReactNode[] = [];
   let bullets: string[] = [];
@@ -200,6 +289,37 @@ function renderAnswer(md: string) {
       while (j < lines.length && lines[j].startsWith('|')) { tableLines.push(lines[j]); j++; }
       blocks.push(renderTable(tableLines, `tbl-${blocks.length}`));
       idx = j - 1;
+      continue;
+    }
+
+    // Fenced ```metrics\n[...]\n``` block -> scannable key-metric strip.
+    if (line === '```metrics') {
+      flushBullets();
+      let j = idx + 1;
+      const jsonLines: string[] = [];
+      while (j < lines.length && lines[j] !== '```') { jsonLines.push(lines[j]); j++; }
+      try {
+        const items = JSON.parse(jsonLines.join('\n'));
+        const strip = renderMetrics(items, `metrics-${blocks.length}`);
+        if (strip) blocks.push(strip);
+      } catch {
+        /* malformed metrics JSON — skip silently, never crash the answer */
+      }
+      idx = j;
+      continue;
+    }
+
+    // "### Title" -> a section sub-heading (optional sections[] in the schema).
+    if (line.startsWith('### ')) {
+      flushBullets();
+      const title = line.slice(4).trim();
+      if (title) {
+        blocks.push(
+          <p key={`sh-${idx}`} className="text-[11px] font-semibold uppercase tracking-wider text-brand-pink-400 mt-3">
+            {renderInline(title, `sh-${idx}`)}
+          </p>
+        );
+      }
       continue;
     }
 
@@ -260,6 +380,30 @@ function renderAnswer(md: string) {
   flushBullets();
 
   return <div className="space-y-2.5">{blocks}</div>;
+}
+
+
+// Crash-proof wrapper: renderAnswerInner parses model-influenced markdown, so a
+// malformed block must degrade to plain text rather than take down the whole
+// Overview page. Every sub-parser is individually try/catch-ed too.
+function renderAnswer(md: string) {
+  try {
+    return renderAnswerInner(md);
+  } catch {
+    return (
+      <div className="space-y-2.5">
+        {String(md || '')
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean)
+          .map((l, i) => (
+            <p key={i} className="text-sm text-text-primary leading-relaxed">
+              {l.replace(/\*\*/g, '')}
+            </p>
+          ))}
+      </div>
+    );
+  }
 }
 
 /* --------------------------- Waiting-state copy ---------------------------
