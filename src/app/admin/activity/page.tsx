@@ -17,6 +17,7 @@ const EVENT_TYPES = [
   'password_set',
   'reset_link_issued',
   'share_visit',
+  'share_rate_limited',
 ];
 const PAGE_SIZE = 50;
 
@@ -40,6 +41,9 @@ function detailPreview(detail: unknown): string {
   if (typeof d.reportType === 'string') return `Export: ${d.reportType}`;
   if (typeof d.for === 'string') return `Reset link for: ${d.for}`;
   if (typeof d.label === 'string' && d.via === 'share') return `Shared link opened: ${d.label}`;
+  if (d.reason === 'failed-share-lookups') {
+    return `Share link: too many wrong addresses tried from this IP (${d.fails ?? '?'} failures) — throttled`;
+  }
   if (typeof d.reason === 'string' && (d.reason === 'ip' || d.reason === 'global')) {
     return `Share Ask AI limit hit (${d.reason === 'ip' ? 'per-IP hourly' : 'global daily'})`;
   }
@@ -114,17 +118,29 @@ export default async function ActivityPage({
   // admin-only under RLS, so this read is itself the access check.
   const { data: shareRows } = await session.supabase
     .from('share_links')
-    .select('id, token, label, created_at, hits, last_seen_at')
+    .select('id, token, slug, label, created_at, hits, last_seen_at')
     .is('revoked_at', null)
     .order('created_at', { ascending: false })
     .limit(1);
   const shareRow = (shareRows || [])[0] as
-    | { id: string; token: string; label: string; created_at: string; hits: number; last_seen_at: string | null }
+    | {
+        id: string;
+        token: string;
+        slug: string | null;
+        label: string;
+        created_at: string;
+        hits: number;
+        last_seen_at: string | null;
+      }
     | undefined;
   const activeShare: ShareLinkRow | null = shareRow
     ? {
         id: shareRow.id,
-        url: shareUrl(shareRow.token),
+        slug: shareRow.slug,
+        // The URL to hand out: the short memorable one when a slug is set.
+        url: shareUrl(shareRow.slug || shareRow.token),
+        // The original random URL — never retired, so nothing already sent breaks.
+        tokenUrl: shareUrl(shareRow.token),
         label: shareRow.label,
         created_at: shareRow.created_at,
         hits: shareRow.hits,
