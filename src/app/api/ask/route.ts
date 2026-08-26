@@ -3,13 +3,7 @@ import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 import { getSessionProfile, scopeFromProfile, hasSetPassword, type Scope } from '@/lib/auth';
 import { logAuditEvent, userAgent } from '@/lib/audit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SHARE_COOKIE, logShareEvent, resolveShareToken, shareAskAllowed } from '@/lib/share';
-import {
-  SHARE_ASK_GLOBAL_DAY,
-  SHARE_ASK_GLOBAL_MESSAGE,
-  SHARE_ASK_IP_MESSAGE,
-  SHARE_ASK_PER_IP_HOUR,
-} from '@/lib/shareLimits';
+import { SHARE_COOKIE, logShareEvent, resolveShareToken } from '@/lib/share';
 
 /*
  * Ask-AI proxy. AUTH REQUIRED. The browser posts { question, context } here;
@@ -43,17 +37,10 @@ import {
  * same scope a `leadership` user gets — and every question is audited as
  * email='shared-link' with detail.via='share'.
  *
- * Because a public Ask AI endpoint is an open door to unbounded LLM spend,
- * share-link questions ALSO pass a Postgres-backed cost guard before anything
- * else happens: a per-IP hourly cap and a global daily cap across all share
- * visitors (see src/lib/shareLimits.ts — change the numbers there or via the
- * SHARE_ASK_PER_IP_HOUR / SHARE_ASK_GLOBAL_DAY env vars). It lives in Postgres
- * rather than module memory because each warm lambda has its own module scope
- * and a *global* cap must be shared across all of them. Exceeding a cap
- * returns HTTP 200 with a friendly sentence in `answer` (so the UI renders it
- * as a normal reply, not a red error) and writes a share_rate_limited audit
- * row. The guard is checked BEFORE the semantic cache, so the caps stay
- * predictable — a cache hit costs no tokens but still consumes budget.
+ * Share-link questions are deliberately NOT rate limited: a share visitor gets
+ * the same uncapped Ask AI a signed-in leadership user gets. Spend is contained
+ * by the semantic cache below and, if a link is ever abused, by revoking it in
+ * the admin panel — revocation is instant.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -216,8 +203,7 @@ async function logAsk(
   actor: Actor,
   detail: Record<string, unknown>,
   ip: string,
-  ua: string,
-  event: 'ask_question' | 'share_rate_limited' = 'ask_question'
+  ua: string
 ): Promise<void> {
   if (actor.kind === 'user') {
     await logAuditEvent(actor.supabase, {
@@ -229,7 +215,7 @@ async function logAsk(
       userAgent: ua,
     });
   } else {
-    await logShareEvent(actor.token, event, detail, ip, ua);
+    await logShareEvent(actor.token, 'ask_question', detail, ip, ua);
   }
 }
 
@@ -269,24 +255,9 @@ export async function POST(req: NextRequest) {
     if (!share) {
       return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
     }
+    // No rate limit here by design: a share visitor asks freely, exactly like a
+    // signed-in leadership user. Containment is revocation, not throttling.
     actor = { kind: 'share', token: share.token, scope: { full: true } };
-
-    // Cost guard. Fails closed (see shareAskAllowed) so a database hiccup can
-    // never turn into unmetered model spend.
-    const verdict = await shareAskAllowed(share.token, ip, SHARE_ASK_PER_IP_HOUR, SHARE_ASK_GLOBAL_DAY);
-    if (verdict !== 'ok') {
-      const message = verdict === 'ip' ? SHARE_ASK_IP_MESSAGE : SHARE_ASK_GLOBAL_MESSAGE;
-      await logShareEvent(
-        share.token,
-        'share_rate_limited',
-        { reason: verdict, perIpHour: SHARE_ASK_PER_IP_HOUR, globalDay: SHARE_ASK_GLOBAL_DAY },
-        ip,
-        ua
-      );
-      // 200, not 429: the UI should show this as a calm sentence in the answer
-      // area rather than a red failure.
-      return NextResponse.json({ answer: message, sources: [], limited: true });
-    }
   }
 
   const scope = actor.scope;

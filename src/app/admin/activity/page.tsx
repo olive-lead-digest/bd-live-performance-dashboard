@@ -17,7 +17,6 @@ const EVENT_TYPES = [
   'password_set',
   'reset_link_issued',
   'share_visit',
-  'share_rate_limited',
 ];
 const PAGE_SIZE = 50;
 

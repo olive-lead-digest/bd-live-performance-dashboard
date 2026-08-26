@@ -59,8 +59,7 @@ export type ShareAuditEvent =
   | 'page_view'
   | 'ask_question'
   | 'report_export'
-  | 'feed_access'
-  | 'share_rate_limited';
+  | 'feed_access';
 
 async function rpc<T>(fn: string, body: Record<string, unknown>): Promise<T | null> {
   try {
@@ -123,29 +122,4 @@ export async function logShareEvent(
     p_ip: ip,
     p_user_agent: ua,
   });
-}
-
-export type ShareAskVerdict = 'ok' | 'ip' | 'global' | 'invalid';
-
-/**
- * Ask AI spend guard. Fails CLOSED: if the counter table can't be reached we
- * report the global cap rather than letting unmetered questions through to a
- * paid model.
- */
-export async function shareAskAllowed(
-  token: string,
-  ip: string,
-  perIpHour: number,
-  globalDay: number
-): Promise<ShareAskVerdict> {
-  const verdict = await rpc<string>('share_ask_allow', {
-    p_token: token,
-    p_ip: ip,
-    p_per_ip_hour: perIpHour,
-    p_global_day: globalDay,
-  });
-  if (verdict === 'ok' || verdict === 'ip' || verdict === 'global' || verdict === 'invalid') {
-    return verdict;
-  }
-  return 'global';
 }
