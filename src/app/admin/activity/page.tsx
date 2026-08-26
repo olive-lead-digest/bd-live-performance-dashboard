@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getSessionProfile } from '@/lib/auth';
 import { ResetLinkPanel } from './ResetLinkPanel';
+import { ShareLinkPanel, type ShareLinkRow } from './ShareLinkPanel';
+import { shareUrl } from '@/lib/share';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +16,8 @@ const EVENT_TYPES = [
   'feed_access',
   'password_set',
   'reset_link_issued',
+  'share_visit',
+  'share_rate_limited',
 ];
 const PAGE_SIZE = 50;
 
@@ -36,6 +40,10 @@ function detailPreview(detail: unknown): string {
   if (typeof d.path === 'string') return `Path: ${d.path}${d.query ? String(d.query) : ''}`;
   if (typeof d.reportType === 'string') return `Export: ${d.reportType}`;
   if (typeof d.for === 'string') return `Reset link for: ${d.for}`;
+  if (typeof d.label === 'string' && d.via === 'share') return `Shared link opened: ${d.label}`;
+  if (typeof d.reason === 'string' && (d.reason === 'ip' || d.reason === 'global')) {
+    return `Share Ask AI limit hit (${d.reason === 'ip' ? 'per-IP hourly' : 'global daily'})`;
+  }
   if (typeof d.route === 'string') {
     const scope = Array.isArray(d.scope) ? d.scope.join(', ') : d.scope === 'full' ? 'all regions' : '';
     return `Feed: ${d.route}${scope ? ` (${scope})` : ''}`;
@@ -103,6 +111,28 @@ export default async function ActivityPage({
     .order('name');
   const users = (profileRows || []) as { email: string; name: string; role: string; regions: string[] | null }[];
 
+  // The single live public share link, if one exists. share_links is
+  // admin-only under RLS, so this read is itself the access check.
+  const { data: shareRows } = await session.supabase
+    .from('share_links')
+    .select('id, token, label, created_at, hits, last_seen_at')
+    .is('revoked_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const shareRow = (shareRows || [])[0] as
+    | { id: string; token: string; label: string; created_at: string; hits: number; last_seen_at: string | null }
+    | undefined;
+  const activeShare: ShareLinkRow | null = shareRow
+    ? {
+        id: shareRow.id,
+        url: shareUrl(shareRow.token),
+        label: shareRow.label,
+        created_at: shareRow.created_at,
+        hits: shareRow.hits,
+        last_seen_at: shareRow.last_seen_at,
+      }
+    : null;
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = (p: number) => {
     const params = new URLSearchParams();
@@ -120,6 +150,8 @@ export default async function ActivityPage({
           Logins, page views, Ask AI questions, data access and report exports — visible only to admins. Times in IST.
         </p>
       </header>
+
+      <ShareLinkPanel initial={activeShare} />
 
       <ResetLinkPanel users={users} />
 
@@ -198,7 +230,13 @@ export default async function ActivityPage({
               {rows.map((r) => (
                 <tr key={r.id} className="border-b border-border-subtle/40 hover:bg-surface/30 transition-colors">
                   <td className="py-2.5 px-4 text-text-secondary whitespace-nowrap">{fmt(r.ts)}</td>
-                  <td className="py-2.5 px-4 text-white">{r.email || '—'}</td>
+                  <td className="py-2.5 px-4 text-white">
+                    {r.email === 'shared-link' ? (
+                      <span className="text-brand-pink-300 font-semibold">shared link</span>
+                    ) : (
+                      r.email || '—'
+                    )}
+                  </td>
                   <td className="py-2.5 px-4">
                     <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-brand-purple-900/40 border border-brand-purple-500/30 text-brand-purple-200">
                       {r.event}

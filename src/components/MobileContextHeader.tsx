@@ -24,11 +24,14 @@ export function MobileContextHeader({ onOpenFilters, user = null }: { onOpenFilt
   const { filters, leadsAsOf } = useDashboard();
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // Share-link visitors have no session to end — the control drops the share
+  // cookie instead (see Sidebar for the desktop equivalent).
+  const isShare = !!user?.isShare;
   const onLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch(isShare ? '/api/share/exit' : '/api/auth/logout', { method: 'POST' });
     } catch {
       /* fall through to redirect regardless */
     }
@@ -106,7 +109,7 @@ export function MobileContextHeader({ onOpenFilters, user = null }: { onOpenFilt
           type="button"
           onClick={onLogout}
           disabled={loggingOut}
-          aria-label={`Signed in as ${user.fullName}. Log out`}
+          aria-label={isShare ? 'Viewing via a shared link. Exit shared view' : `Signed in as ${user.fullName}. Log out`}
           className="ml-auto flex items-center gap-1.5 pl-2 pr-4 shrink-0 disabled:opacity-50 active:opacity-70"
         >
           <span className="w-6 h-6 rounded-full bg-brand-pink-500/20 border border-brand-pink-500/40 flex items-center justify-center text-[10px] font-bold text-brand-pink-300 shrink-0">

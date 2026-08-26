@@ -48,11 +48,14 @@ export function Sidebar({
     ? [...NAV_ITEMS, { name: 'Activity Log', href: '/admin/activity', icon: ShieldCheck }]
     : NAV_ITEMS;
 
+  // A share-link visitor has no session to end — "Exit shared view" just drops
+  // the share cookie. Everyone else logs out normally.
+  const isShare = !!user?.isShare;
   const onLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch(isShare ? '/api/share/exit' : '/api/auth/logout', { method: 'POST' });
     } catch {
       /* fall through to redirect regardless */
     }
@@ -188,7 +191,7 @@ export function Sidebar({
                 className="flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-white transition-colors text-left disabled:opacity-50"
               >
                 <LogOut className="w-3 h-3" />
-                {loggingOut ? 'Signing out…' : 'Log out'}
+                {loggingOut ? (isShare ? 'Leaving…' : 'Signing out…') : isShare ? 'Exit shared view' : 'Log out'}
               </button>
             </div>
           </div>

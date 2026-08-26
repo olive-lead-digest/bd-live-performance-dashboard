@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isRelevantQuery, ASK_SUGGESTIONS } from '@/lib/askGuard';
 import { getSessionProfile, scopeFromProfile, hasSetPassword, type Scope } from '@/lib/auth';
 import { logAuditEvent, userAgent } from '@/lib/audit';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { SHARE_COOKIE, logShareEvent, resolveShareToken, shareAskAllowed } from '@/lib/share';
+import {
+  SHARE_ASK_GLOBAL_DAY,
+  SHARE_ASK_GLOBAL_MESSAGE,
+  SHARE_ASK_IP_MESSAGE,
+  SHARE_ASK_PER_IP_HOUR,
+} from '@/lib/shareLimits';
 
 /*
  * Ask-AI proxy. AUTH REQUIRED. The browser posts { question, context } here;
@@ -29,6 +37,23 @@ import { logAuditEvent, userAgent } from '@/lib/audit';
  * The cache key is scoped by the caller's access scope (full vs. the exact
  * region set) so a full-access answer can never be served to a region-scoped
  * caller, or one region's cached answer to a different region's head.
+ *
+ * Share link: a visitor on a live public share link is the ONE unauthenticated
+ * caller this route answers, deliberately. They ask at scope {full:true} — the
+ * same scope a `leadership` user gets — and every question is audited as
+ * email='shared-link' with detail.via='share'.
+ *
+ * Because a public Ask AI endpoint is an open door to unbounded LLM spend,
+ * share-link questions ALSO pass a Postgres-backed cost guard before anything
+ * else happens: a per-IP hourly cap and a global daily cap across all share
+ * visitors (see src/lib/shareLimits.ts — change the numbers there or via the
+ * SHARE_ASK_PER_IP_HOUR / SHARE_ASK_GLOBAL_DAY env vars). It lives in Postgres
+ * rather than module memory because each warm lambda has its own module scope
+ * and a *global* cap must be shared across all of them. Exceeding a cap
+ * returns HTTP 200 with a friendly sentence in `answer` (so the UI renders it
+ * as a normal reply, not a red error) and writes a share_rate_limited audit
+ * row. The guard is checked BEFORE the semantic cache, so the caps stay
+ * predictable — a cache hit costs no tokens but still consumes budget.
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -180,32 +205,92 @@ function cacheSet(key: string, entry: CacheEntry): void {
 
 /* -------------------------------------------------------------------------- */
 
+/* --------------------------- Who is asking? ------------------------------ */
+
+type Actor =
+  | { kind: 'user'; userId: string; email: string; supabase: SupabaseClient; scope: Scope }
+  | { kind: 'share'; token: string; scope: Scope };
+
+/** One audit write, routed to the right path for the caller's kind. */
+async function logAsk(
+  actor: Actor,
+  detail: Record<string, unknown>,
+  ip: string,
+  ua: string,
+  event: 'ask_question' | 'share_rate_limited' = 'ask_question'
+): Promise<void> {
+  if (actor.kind === 'user') {
+    await logAuditEvent(actor.supabase, {
+      userId: actor.userId,
+      email: actor.email,
+      event: 'ask_question',
+      detail,
+      ip,
+      userAgent: ua,
+    });
+  } else {
+    await logShareEvent(actor.token, event, detail, ip, ua);
+  }
+}
+
 export async function POST(req: NextRequest) {
   if (!sameOrigin(req)) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
   }
 
-  // Auth required — Ask AI must never answer an unauthenticated request, and
-  // the region scope is always resolved here server-side from the caller's
-  // own session/profile, never from anything the client claims.
+  // Auth required — Ask AI must never answer an unauthenticated request UNLESS
+  // it arrives on a live public share link. The scope is always resolved here
+  // server-side (from the caller's own session/profile, or full for a share
+  // visitor), never from anything the client claims.
   const session = await getSessionProfile();
-  if (!session) {
-    return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
-  }
-  if (!hasSetPassword(session.profile)) {
-    return NextResponse.json(
-      { error: 'You need to set a password before continuing. Please finish the reset-password step.' },
-      { status: 401 }
-    );
-  }
-  const scope = scopeFromProfile(session.profile);
-
-  const webhook = process.env.N8N_ASK_WEBHOOK_URL || 'https://olivehospitality.app.n8n.cloud/webhook/ask-ai';
-
   const ip = clientIp(req);
-  if (rateLimited(ip) || userRateLimited(session.userId)) {
-    return NextResponse.json({ error: 'Too many questions — please wait a moment.' }, { status: 429 });
+  const ua = userAgent(req);
+
+  let actor: Actor;
+  if (session) {
+    if (!hasSetPassword(session.profile)) {
+      return NextResponse.json(
+        { error: 'You need to set a password before continuing. Please finish the reset-password step.' },
+        { status: 401 }
+      );
+    }
+    actor = {
+      kind: 'user',
+      userId: session.userId,
+      email: session.email,
+      supabase: session.supabase,
+      scope: scopeFromProfile(session.profile),
+    };
+    if (rateLimited(ip) || userRateLimited(session.userId)) {
+      return NextResponse.json({ error: 'Too many questions — please wait a moment.' }, { status: 429 });
+    }
+  } else {
+    const share = await resolveShareToken(req.cookies.get(SHARE_COOKIE)?.value);
+    if (!share) {
+      return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
+    }
+    actor = { kind: 'share', token: share.token, scope: { full: true } };
+
+    // Cost guard. Fails closed (see shareAskAllowed) so a database hiccup can
+    // never turn into unmetered model spend.
+    const verdict = await shareAskAllowed(share.token, ip, SHARE_ASK_PER_IP_HOUR, SHARE_ASK_GLOBAL_DAY);
+    if (verdict !== 'ok') {
+      const message = verdict === 'ip' ? SHARE_ASK_IP_MESSAGE : SHARE_ASK_GLOBAL_MESSAGE;
+      await logShareEvent(
+        share.token,
+        'share_rate_limited',
+        { reason: verdict, perIpHour: SHARE_ASK_PER_IP_HOUR, globalDay: SHARE_ASK_GLOBAL_DAY },
+        ip,
+        ua
+      );
+      // 200, not 429: the UI should show this as a calm sentence in the answer
+      // area rather than a red failure.
+      return NextResponse.json({ answer: message, sources: [], limited: true });
+    }
   }
+
+  const scope = actor.scope;
+  const webhook = process.env.N8N_ASK_WEBHOOK_URL || 'https://olivehospitality.app.n8n.cloud/webhook/ask-ai';
 
   let body: { question?: unknown; context?: unknown };
   try {
@@ -246,19 +331,17 @@ export async function POST(req: NextRequest) {
   if (cacheable) {
     const cached = cacheGet(version, key, tokens);
     if (cached) {
-      await logAuditEvent(session.supabase, {
-        userId: session.userId,
-        email: session.email,
-        event: 'ask_question',
-        detail: {
+      await logAsk(
+        actor,
+        {
           question,
           regionScope: scope.full ? 'full' : scope.regions,
           cached: true,
           answerPreview: cached.answer.slice(0, 240),
         },
         ip,
-        userAgent: userAgent(req),
-      });
+        ua
+      );
       return NextResponse.json({ answer: cached.answer, sources: cached.sources, cached: true });
     }
   }
@@ -294,19 +377,17 @@ export async function POST(req: NextRequest) {
       cacheSet(key, { answer: ans, sources, tokens, version });
     }
 
-    await logAuditEvent(session.supabase, {
-      userId: session.userId,
-      email: session.email,
-      event: 'ask_question',
-      detail: {
+    await logAsk(
+      actor,
+      {
         question,
         regionScope: scope.full ? 'full' : scope.regions,
         cached: false,
         answerPreview: ans.slice(0, 240),
       },
       ip,
-      userAgent: userAgent(req),
-    });
+      ua
+    );
 
     return NextResponse.json({ answer: ans, sources });
   } catch (e) {
