@@ -1,5 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
+import { SHARE_COOKIE, resolveShareToken } from '@/lib/share';
+
+/*
+ * THIRD GATE — the public share link. A visitor holding a valid, unrevoked
+ * share cookie (set by /share/<token>, see src/lib/share.ts) is allowed
+ * through to the dashboard with NO login, deliberately. Two hard limits apply
+ * and are enforced here, ahead of every page and API:
+ *   1. /admin, /admin/* and /api/admin/* are refused outright. The activity
+ *      log, the share-link manager and the access-reset tool stay behind a
+ *      real authenticated admin session, always. (Each of those also does its
+ *      own server-side role check — this is the first gate, never the only
+ *      one.)
+ *   2. The share cookie is checked against Postgres on EVERY request, with no
+ *      caching, so revoking a link stops it on the very next request.
+ * A real signed-in session always wins over a share cookie.
+ */
 
 /**
  * App-wide access gate. EVERYTHING requires a signed-in session except:
@@ -10,6 +26,9 @@ import { updateSession } from '@/lib/supabase/middleware';
  *                            page fails closed without one)
  *   /api/auth/*            — login / logout / forgot-password endpoints
  *                            (each one independently validates what it needs)
+ *   /share/<token>         — public share-link landing (validates the token
+ *                            itself, then swaps it for an httpOnly cookie)
+ *   /api/share/exit        — drops that cookie again
  * Static assets are excluded via the matcher. API routes get a 401 JSON
  * response instead of a redirect. Every protected page/API additionally
  * re-verifies the session server-side — this proxy is the first gate, never
@@ -28,11 +47,22 @@ import { updateSession } from '@/lib/supabase/middleware';
 function isPublic(pathname: string): boolean {
   return (
     pathname === '/login' ||
+    pathname.startsWith('/share/') ||
+    pathname === '/api/share/exit' ||
     pathname.startsWith('/login/') ||
     pathname === '/reset-password' ||
     pathname.startsWith('/reset-password/') ||
     pathname === '/auth/confirm' ||
     pathname.startsWith('/api/auth/')
+  );
+}
+
+/** Admin surface — never reachable through the public share link. */
+function isAdminSurface(pathname: string): boolean {
+  return (
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname.startsWith('/api/admin/')
   );
 }
 
@@ -98,6 +128,34 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!user) {
+    // No real session — the ONLY other door is a valid share cookie. Anything
+    // else still falls through to the 401 / redirect below.
+    const shareToken = request.cookies.get(SHARE_COOKIE)?.value;
+    if (shareToken) {
+      const share = await resolveShareToken(shareToken);
+      if (share) {
+        if (isAdminSurface(pathname)) {
+          // Hard stop. A share visitor must never see the activity log, the
+          // share-link manager or the access-reset tool.
+          if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
+          }
+          const url = request.nextUrl.clone();
+          url.pathname = '/';
+          url.search = '';
+          return NextResponse.redirect(url);
+        }
+        return response;
+      }
+      // Unknown, expired or REVOKED token: clear the dead cookie and treat the
+      // visitor as fully unauthenticated from here on.
+      const dead = pathname.startsWith('/api/')
+        ? NextResponse.json({ error: 'This shared link is no longer active.' }, { status: 401 })
+        : NextResponse.redirect(new URL('/login', request.nextUrl.origin));
+      dead.cookies.set(SHARE_COOKIE, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 });
+      return dead;
+    }
+
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
     }

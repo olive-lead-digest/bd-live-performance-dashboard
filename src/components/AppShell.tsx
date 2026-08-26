@@ -11,10 +11,28 @@ import { DrillProvider } from './DrillDrawer';
 import { SwipeableBottomNav } from './SwipeableBottomNav';
 import { MobileContextHeader } from './MobileContextHeader';
 import { PageViewLogger } from './PageViewLogger';
+import { ShareBanner } from './ShareBanner';
 
-export type ShellUser = { fullName: string; email: string; roleLabel: string; isAdmin: boolean } | null;
+export type ShellUser = {
+  fullName: string;
+  email: string;
+  roleLabel: string;
+  isAdmin: boolean;
+  /** True when this "user" is really an anonymous visitor on the public share
+   *  link — no account, no Supabase session. Changes the sign-out control into
+   *  "Exit shared view" and never shows admin entries. */
+  isShare?: boolean;
+} | null;
 
-export function AppShell({ children, user = null }: { children: React.ReactNode; user?: ShellUser }) {
+export function AppShell({
+  children,
+  user = null,
+  isShare = false,
+}: {
+  children: React.ReactNode;
+  user?: ShellUser;
+  isShare?: boolean;
+}) {
   const pathname = usePathname();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   // P2-1 — expanded labelled rail by default on >=1280px; collapse choice is
@@ -81,6 +99,7 @@ export function AppShell({ children, user = null }: { children: React.ReactNode;
             collapsed ? 'xl:pl-16' : 'xl:pl-64'
           )}
         >
+          {isShare && <ShareBanner />}
           <MobileContextHeader onOpenFilters={() => setIsFiltersOpen(true)} user={user} />
           <ContextBar onOpenFilters={() => setIsFiltersOpen(true)} />
 
