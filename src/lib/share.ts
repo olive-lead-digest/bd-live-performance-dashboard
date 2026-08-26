@@ -156,26 +156,28 @@ export async function logShareEvent(
  * its own heap, so an in-memory limiter would reset itself constantly and
  * count nothing.
  *
- * Crucially this only ever moves when a lookup FAILS. A visitor who opens the
- * correct /share/olive-bd link a thousand times is never counted and never
- * throttled — the limit is invisible to everyone except someone guessing.
- * Both calls are best-effort: if the database is unreachable the guard opens
- * rather than locking real visitors out (resolveShareToken still fails closed,
- * so this cannot grant access on its own).
+ * Crucially it is consulted ONLY on the failure path. The caller resolves the
+ * value first and never calls in when it is correct, so a real visitor is
+ * never counted, never delayed and never refused — not even if they happen to
+ * share an IP (office NAT, mobile CGNAT) with someone guessing at the same
+ * moment. The cost of that choice is that a guesser already in cooldown can
+ * still tell a wrong value (429) from the right one (a redirect); containment
+ * against someone who actually finds the slug is revocation and the audit
+ * trail, not this counter.
+ *
+ * Best-effort: if the database is unreachable the guard opens rather than
+ * locking anyone out. It can never grant access on its own — resolveShareToken
+ * has already failed closed by the time this runs.
  * ------------------------------------------------------------------------ */
 
-/** Is this IP currently in its cooldown after too many wrong guesses? */
-export async function shareGuessBlocked(ip: string): Promise<boolean> {
-  const blocked = await rpc<boolean>('share_guess_blocked', { p_ip: ip });
-  return blocked === true;
-}
-
 /**
- * Record one FAILED share lookup. Returns true once the IP has crossed the
- * threshold (~20 wrong values in 10 minutes -> 10 minute cooldown). Crossing
- * it writes a `share_rate_limited` row to audit_log in the same narrow shape
- * log_share_event() uses (user_id NULL, email 'shared-link', detail.via
- * 'share').
+ * Record one FAILED share lookup. Returns true when the IP is in cooldown —
+ * either because this attempt crossed the threshold (~20 wrong values in 10
+ * minutes) or because it was already there, in which case the cooldown is
+ * pushed out again so a persistent guesser stays refused. Crossing the
+ * threshold writes one `share_rate_limited` row to audit_log in the same
+ * narrow shape log_share_event() uses (user_id NULL, email 'shared-link',
+ * detail.via 'share').
  */
 export async function shareGuessFailed(ip: string, ua: string): Promise<boolean> {
   const blocked = await rpc<boolean>('share_guess_failed', { p_ip: ip, p_user_agent: ua });

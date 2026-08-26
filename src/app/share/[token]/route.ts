@@ -4,7 +4,6 @@ import {
   SHARE_COOKIE_MAX_AGE,
   logShareEvent,
   resolveShareToken,
-  shareGuessBlocked,
   shareGuessFailed,
   touchShareToken,
 } from '@/lib/share';
@@ -38,8 +37,10 @@ export const runtime = 'nodejs';
  * distinguish "wrong value" from "revoked link".
  *
  * Because the slug is deliberately short and guessable, WRONG values are
- * throttled per IP in Postgres (share_guess_failed). Correct values are never
- * counted, so no real visitor is ever slowed down or locked out.
+ * throttled per IP in Postgres (share_guess_failed). The lookup happens FIRST
+ * and the throttle is consulted only when it fails, so a correct value is
+ * never counted and never refused — not even for a visitor who shares an
+ * office NAT or mobile CGNAT address with someone guessing at the same time.
  */
 
 /** Belt and braces with next.config.ts: a guessable URL must never be
@@ -114,18 +115,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
   const ip = clientIp(req);
   const ua = userAgent(req);
 
-  // Already in cooldown from earlier wrong guesses? Refuse before we even look
-  // the value up, so the cooldown cannot be probed for free.
-  if (await shareGuessBlocked(ip)) {
-    return new NextResponse(throttledPage(), {
-      status: 429,
-      headers: { ...NOINDEX_HEADERS, 'Content-Type': 'text/html; charset=utf-8', 'Retry-After': '600' },
-    });
-  }
-
+  // Resolve BEFORE looking at the throttle. Someone holding the right link
+  // gets in on the first try every time, whatever else their IP has been
+  // doing — the guard below is unreachable for them.
   const share = await resolveShareToken(token);
   if (!share) {
-    // WRONG value — and only a wrong value — moves the per-IP counter.
+    // WRONG value — and only a wrong value — reaches the per-IP counter.
     const nowBlocked = await shareGuessFailed(ip, ua);
     return new NextResponse(nowBlocked ? throttledPage() : deadLinkPage(), {
       status: nowBlocked ? 429 : 403,

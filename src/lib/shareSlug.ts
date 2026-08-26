@@ -90,14 +90,17 @@ export function validateShareSlug(raw: string): SlugCheck {
   if (!slug) {
     return { ok: false, error: 'Enter a short name for the link.' };
   }
+  // Reserved words are checked before length so short route names like `api`
+  // say WHY they are refused rather than "too short", which would send the
+  // admin off trying `apis`, `api1`, …
+  if (isReservedShareSlug(slug)) {
+    return { ok: false, error: 'That name is reserved — please pick another.' };
+  }
   if (slug.length < SHARE_SLUG_MIN) {
     return { ok: false, error: `Too short — use at least ${SHARE_SLUG_MIN} characters.` };
   }
   if (slug.length > SHARE_SLUG_MAX) {
     return { ok: false, error: `Too long — use at most ${SHARE_SLUG_MAX} characters.` };
-  }
-  if (isReservedShareSlug(slug)) {
-    return { ok: false, error: 'That name is reserved — please pick another.' };
   }
   if (!SHARE_SLUG_RE.test(slug)) {
     if (/^-|-$/.test(slug)) {
