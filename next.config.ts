@@ -51,6 +51,21 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-store, must-revalidate" },
         ],
       },
+      /*
+       * The public share link now carries a short, memorable, deliberately
+       * guessable slug (/share/olive-bd) alongside the original random token.
+       * Guessable is acceptable; INDEXED is not — a crawler that finds the URL
+       * anywhere would hand it to everyone. noindex/nofollow on the whole
+       * /share surface, backed by the /share/ disallow in src/app/robots.ts
+       * and the same header set again inside the route handler. This costs a
+       * real visitor nothing: it is read only by crawlers.
+       */
+      {
+        source: "/share/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
     ];
   },
   /*
