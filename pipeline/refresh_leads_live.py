@@ -23,6 +23,12 @@ sys.path.insert(0, BASE)
 import run_digest as rd            # noqa: E402  — your existing live fetchers
 import dashboard_pipeline as dp    # noqa: E402  — your existing assemble()
 
+# Sanity floors: a pull below these is a broken/blocked Zoho fetch, not reality.
+# (26 Aug 2026: Zoho returned 0 Deals to the pipeline account; the zeroed file
+# passed the size-only CI check and blanked the live dashboard for a day.)
+MIN_DEAL_RECORDS = 100
+MIN_PROPOSALS = 50
+
 
 def cached_zoom():
     """Reuse the Zoom 90-day aggregates the daily digest already computed."""
@@ -75,27 +81,41 @@ def build():
 
     # Build deals.json + proposals.json FIRST so summary.json can embed compact
     # aggregates from them (the Ask-AI feed must know deals/signings/TA-fees/proposals).
-    # Best-effort: a Deals/Proposals hiccup must not break the leads feed.
+    # Best-effort: a Deals/Proposals hiccup must not break the leads feed — but an
+    # implausibly EMPTY pull must never be written either (see sanity floors above):
+    # no file -> the CI MISSING check fails the run -> the last good feed stays live.
     deals = None
     try:
         import build_deals as bd
         recs = bd.fetch_deals()
+        if len(recs) < MIN_DEAL_RECORDS:
+            raise RuntimeError(
+                f"Zoho returned only {len(recs)} deal records (<{MIN_DEAL_RECORDS}) — "
+                "pull is broken/blocked; refusing to write deals.json"
+            )
         deals = bd.build_deals(recs, gen)
         json.dump(deals, open(os.path.join(BASE, "deals.json"), "w"), separators=(",", ":"), default=str)
         print(f"Wrote deals.json | deals={deals['totals']['deals']} signed={deals['totals']['signed']} "
               f"| YTD signings={deals['ytd']['signings']['count']} upcoming={len(deals['upcoming'])} "
               f"ranked={len(deals['ranking']['bds'])}")
     except Exception as e:  # noqa: BLE001
+        deals = None
         print(f"[WARN] deals.json build skipped: {e}")
 
     proposals = None
     try:
         import build_proposals as bp
         precs = bp.fetch_proposals()
+        if len(precs) < MIN_PROPOSALS:
+            raise RuntimeError(
+                f"Zoho returned only {len(precs)} proposals (<{MIN_PROPOSALS}) — "
+                "pull is broken/blocked; refusing to write proposals.json"
+            )
         proposals = bp.build_proposals(precs, gen)
         json.dump(proposals, open(os.path.join(BASE, "proposals.json"), "w"), separators=(",", ":"), default=str)
         print(f"Wrote proposals.json | proposals={proposals['totals']['proposals']} approved={proposals['totals']['approved']}")
     except Exception as e:  # noqa: BLE001
+        proposals = None
         print(f"[WARN] proposals.json build skipped: {e}")
 
     # Now emit the small pre-aggregated summary.json for the Ask-AI / Gemini feed,
