@@ -44,12 +44,21 @@ import { SHARE_COOKIE, logShareEvent, resolveShareToken } from '@/lib/share';
  */
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-// Vercel kills the function at the platform default (10s on Hobby / 15s on
-// Pro's older default) unless maxDuration is raised, which would abort the
-// request before our own AbortController ever fires. 60s gives the 55s abort
-// below real headroom. This is a safety net only — with gpt-oss-120b at
-// reasoning_effort=low the model answers in single-digit seconds; the old 28s
-// abort is what turned a slow answer into no answer at all.
+// Vercel kills the function at the platform default (10s on Hobby) unless
+// maxDuration is raised, which would abort the request before our own
+// AbortController ever fires. 60 is also the CEILING this account can set:
+// the team is on the Hobby plan, where 60s is the maximum permitted
+// maxDuration. There is no headroom to buy by raising this number — the only
+// way past 60s would be a plan upgrade.
+//
+// That ceiling is why the Ask AI model node runs Claude Fable 5 at `high`
+// effort rather than `max`. Measured Aug 2026 on six real questions:
+//   high -> 20.3s / 23.2s / 26.4s / 28.0s / 32.0s / 33.1s  (6 of 6 inside 55s)
+//   max  -> 38.9s / 67.8s / 68.7s / 100.7s / 118.3s / >125s (1 of 6 inside 55s)
+// Max effort also blew past the ~120s edge timeout in front of n8n Cloud on
+// the hardest question, which returns an HTML error page rather than JSON.
+// The n8n model node gives up at 50s so an outlier returns the assistant's
+// own graceful message plus the code-computed table, not a bare 504.
 export const maxDuration = 60;
 
 const WINDOW_MS = 60_000;
