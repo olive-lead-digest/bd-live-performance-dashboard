@@ -144,6 +144,35 @@ function normaliseQuestion(q: string): string {
     .trim();
 }
 
+// Window signature — a coarse label for any explicit time window named in the
+// question ("last 2 months", "this quarter", "since June", ...). Folded into the
+// cache version namespace so two DIFFERENT windows can never collide on the
+// near-duplicate (Jaccard) path — "last 2 months" and "last 6 months" differ by
+// a single token and would otherwise be treated as the same question. Mirrors
+// the deterministic window parser in the n8n Merge Feeds node closely enough to
+// separate the buckets; the authoritative slicing still happens server-side.
+function windowSignature(q: string): string {
+  const s = " " + q.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim() + " ";
+  const NUM: Record<string, number> = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, eleven:11, twelve:12, couple:2, few:3, several:3, a:1, an:1 };
+  const num = (w: string): number | null => (/^\d+$/.test(w) ? parseInt(w, 10) : (NUM[w] ?? null));
+  const WORDS = "\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|couple|few|several";
+  let m: RegExpMatchArray | null;
+  if ((m = s.match(new RegExp("\\b(?:last|past|previous|recent|trailing)\\s+(" + WORDS + ")\\s+weeks?\\b")))) return "w:" + (num(m[1]) || 1) + "wk";
+  if (/\bthis week\b|\bweek to date\b|\bwtd\b/.test(s)) return "w:thiswk";
+  if (/\blast week\b|\bpast week\b|\bprevious week\b/.test(s)) return "w:lastwk";
+  if ((m = s.match(new RegExp("\\b(?:last|past|previous|recent|trailing)\\s+(" + WORDS + ")\\s+days?\\b")))) return "w:" + (num(m[1]) || 1) + "d";
+  if (/\bmtd\b|\bmonth to date\b|\bthis month so far\b|\bso far this month\b/.test(s) || (/\bthis month\b|\bcurrent month\b/.test(s) && !/\blast month\b|\bprevious month\b|\bprior month\b/.test(s))) return "w:thismonth";
+  if (/\bthis month\b.*\blast month\b|\blast month\b.*\bthis month\b|\bmonth\s*(?:over|on)\s*month\b|\bmonth[-\s]?on[-\s]?month\b/.test(s)) return "w:mom";
+  if (/\blast month\b|\bprevious month\b|\bprior month\b/.test(s)) return "w:lastmonth";
+  if ((m = s.match(new RegExp("\\b(?:last|past|previous|recent|trailing|most recent)\\s+(" + WORDS + ")\\s+(?:of\\s+)?months?\\b")))) return "w:" + (num(m[1]) || 2) + "m";
+  if (/\bthis quarter\b|\bcurrent quarter\b|\bqtd\b|\bquarter to date\b/.test(s)) return "w:thisq";
+  if (/\blast quarter\b|\bprevious quarter\b|\bprior quarter\b/.test(s)) return "w:lastq";
+  if (/\bytd\b|\byear to date\b|\bthis (?:fiscal|financial) year\b|\bthis fy\b|\bthis year\b/.test(s)) return "w:ytd";
+  if ((m = s.match(/\bsince\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s*(\d{4})?\b/))) return "w:since-" + m[1].slice(0, 3) + (m[2] || "");
+  if ((m = s.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/))) return "w:mon-" + m[1].slice(0, 3);
+  return "w:none";
+}
+
 function tokenSet(norm: string): Set<string> {
   return new Set(norm.split(/[^a-z0-9]+/).filter(Boolean));
 }
@@ -302,7 +331,10 @@ export async function POST(req: NextRequest) {
   // ask (no custom context, which could change the expected answer). The scope
   // is folded into the version namespace so different access scopes never
   // share a cached answer (see scopeKey()).
-  const version = `${feedVersion()}::${scopeKey(scope)}`;
+  // The window signature is part of the version namespace so a change of time
+  // window in the question always lands in a different cache bucket (and can
+  // never be served a different window's near-duplicate answer).
+  const version = `${feedVersion()}::${scopeKey(scope)}::${windowSignature(question)}`;
   const norm = normaliseQuestion(question);
   const key = `${version}::${norm}`;
   const tokens = tokenSet(norm);
