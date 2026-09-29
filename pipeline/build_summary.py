@@ -111,7 +111,7 @@ def deals_block(deals):
                       "region": u.get("region"), "type": u.get("type"),
                       "expectedDate": u.get("expectedDate"), "keys": u.get("keys")}
                      for u in (deals.get("upcoming") or [])],
-        "notes": "Signings=MA Signed (won); Spark counted at LOI. Collections are real cash received per the Deals TA-Schedule, windowed by the actual payment date.",
+        "notes": "signed/signings = deals with a non-blank MA_Date (an MA is signed iff it has a signing date), across ALL stages; totals.signed, byBrand.signed, portfolio MA counts and signed-book TA fees use this basis, and the MTD/YTD/quarter windows agree with it. The fiscal-YTD ranking still scores Spark at LOI (Olive MA=1, Open MA=0.5). Collections are real cash received per the Deals TA-Schedule, windowed by the actual payment date.",
     }
     return out
 
