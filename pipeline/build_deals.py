@@ -340,11 +340,14 @@ def _signing_date(r, canon=None):
 
 
 def build_portfolio(records):
-    """Won-deal portfolio counts by brand + Spark LOI (LOI is Spark-only)."""
+    """Signed-portfolio counts by brand + Spark LOI.
+    MA counts (oliveMA/sparkMA/openMA) are deals with a non-blank MA_Date (an MA is
+    "signed" iff it has a signing date), across ALL stages — the CONFIRMED CEO basis,
+    unified with the all-time `signed` count and the MTD/YTD signing windows.
+    sparkLOI stays the LOI-Signed *stage* count (LOI is Spark's separate milestone)."""
     p = {"oliveMA": 0, "sparkMA": 0, "openMA": 0, "sparkLOI": 0}
     for r in records:
-        canon = classify_stage(r.get("Stage"))
-        if canon == STAGE_MA:
+        if _pdate(r.get("MA_Date")) is not None:
             b = norm_brand(r.get("Brand"))
             if b == "Olive":
                 p["oliveMA"] += 1
@@ -352,17 +355,18 @@ def build_portfolio(records):
                 p["sparkMA"] += 1
             elif b == "Open Hotels":
                 p["openMA"] += 1
-        elif canon == STAGE_LOI:
+        if classify_stage(r.get("Stage")) == STAGE_LOI:
             p["sparkLOI"] += 1
     return p
 
 
 def _signings_in(records, start, end=None):
-    """MA-Signed (won) deals whose MA_Date is in [start, end], by brand + region."""
+    """Signings whose MA_Date is in [start, end], by brand + region.
+    Unified MA_Date basis (CONFIRMED CEO definition): a signing is any deal with a
+    non-blank MA_Date in the window, across ALL stages — no stage filter — so the
+    MTD/YTD/quarter windows agree with the all-time `signed` count."""
     sig = {"count": 0, "byBrand": defaultdict(int), "byRegion": defaultdict(int)}
     for r in records:
-        if classify_stage(r.get("Stage")) != STAGE_MA:
-            continue
         d = _pdate(r.get("MA_Date"))
         if not d or d < start or (end and d > end):
             continue
@@ -740,7 +744,74 @@ def build_deals(records, generated=None, today=None):
             "landStatus": norm_land_status(r.get("Land_Status")),   # analyst D1
         })
 
-    total = signed + active + dropped
+    # === CONFIRMED CEO DEFINITION — "MA signed" == deal with a non-blank MA_Date ====
+    # An MA is "signed" iff it carries a signing date (MA_Date), NOT by Stage. The
+    # signed book (count, by-brand, portfolio, keys, TA fees) is therefore recomputed
+    # here over the FULL record set, independent of the stage-based pipeline filter
+    # above (so it also captures MA-dated deals whose current stage is dropped / under
+    # negotiation / LOI / a non-pipeline stage). This unifies the all-time figure with
+    # the MTD/YTD signing windows, which already key off MA_Date. The stage-based loop
+    # above still owns active/dropped/funnel/closers/ranking/collections/records — only
+    # the MA-signed *counting basis* changes here. undated_ma (MA-Signed stage with a
+    # BLANK MA_Date) stays as computed above: a Zoho data-hygiene metric, not a signing.
+    signed = 0
+    keys_contracted = 0
+    keys_contracted_fy = 0
+    keys_unparsed = 0
+    fy_signed = 0
+    fy_contracted_signings = 0
+    by_brand_signed = defaultdict(int)
+    fees_all = {"contracted": 0.0, "collected": 0.0, "collectedFlatLegacy": 0.0,
+                "collectedActual": 0.0, "pending": 0.0}
+    fees_fy = {"contracted": 0.0, "collected": 0.0, "collectedFlatLegacy": 0.0,
+               "collectedActual": 0.0, "pending": 0.0}
+    collected_by_brand = defaultdict(float); collected_by_region = defaultdict(float)
+    contracted_by_brand = defaultdict(float); contracted_by_region = defaultdict(float)
+    fy_collected_by_brand = defaultdict(float); fy_collected_by_region = defaultdict(float)
+    fy_contracted_by_brand = defaultdict(float); fy_contracted_by_region = defaultdict(float)
+    for r in records:
+        d = _pdate(r.get("MA_Date"))
+        if d is None:
+            continue                                  # not signed (no signing date)
+        brand = norm_brand(r.get("Brand"))
+        region = _deal_region(r)                       # owner -> org region, State fallback
+        keys, keys_bad = keys_of(r)
+        c  = _num(r.get("Ta_Fee_Contracted"))
+        cl = _num(r.get("TA_fee_collected"))           # HEADLINE collected (Analytics basis)
+        ca = _num(r.get(COLLECTED_FIELD))              # Actual_Amount_Total (Zoho rollup)
+        pdv = _num(r.get("Pending_TA_fee"))
+        signed += 1
+        by_brand_signed[brand] += 1
+        keys_contracted += keys
+        if keys_bad:
+            keys_unparsed += 1
+        fees_all["contracted"] += c
+        fees_all["collected"] += cl
+        fees_all["collectedFlatLegacy"] += cl
+        fees_all["collectedActual"] += ca
+        fees_all["pending"] += pdv
+        contracted_by_brand[brand] += c; contracted_by_region[region] += c
+        collected_by_brand[brand] += cl; collected_by_region[region] += cl
+        if d >= fs:                                    # signed this fiscal year (by MA_Date)
+            fy_signed += 1
+            fy_contracted_signings += 1
+            keys_contracted_fy += keys
+            fees_fy["contracted"] += c
+            fees_fy["collected"] += cl
+            fees_fy["collectedFlatLegacy"] += cl
+            fees_fy["collectedActual"] += ca
+            fees_fy["pending"] += pdv
+            fy_contracted_by_brand[brand] += c; fy_contracted_by_region[region] += c
+            fy_collected_by_brand[brand] += cl; fy_collected_by_region[region] += cl
+    # Write the MA_Date-basis signed counts back onto by_brand (deals/keys already tallied).
+    for b in set(list(by_brand.keys()) + list(by_brand_signed.keys())):
+        entry = by_brand.setdefault(b, {"deals": 0, "signed": 0, "keys": 0})
+        entry["signed"] = by_brand_signed.get(b, 0)
+
+    # totals.deals stays the BD-pipeline universe (stage-classified deals): MA-Signed
+    # stage + open + dropped. `signed` (MA_Date basis) is a cross-cutting attribute and
+    # may overlap dropped/open (a deal signed then dropped), so it is NOT summed here.
+    total = stage_counts.get(STAGE_MA, 0) + active + dropped
     r1 = lambda x: round((x / total) * 100, 1) if total else 0.0
 
     # --- Funnel in enforced canonical order --------------------------------
@@ -750,6 +821,11 @@ def build_deals(records, generated=None, today=None):
                  "type": "won" if st == STAGE_MA else "open"}
         if st == STAGE_LOI:
             entry["note"] = "Spark Management only"
+        if st == STAGE_MA:
+            entry["note"] = ("Stage count (deals currently in the MA Signed stage). Headline "
+                             "signed uses the MA_Date basis (totals.signed) and differs: it "
+                             "also counts MA-dated deals now in other stages and excludes "
+                             "MA-Signed-stage deals with a blank MA_Date (fees.undatedMASigned).")
         funnel.append(entry)
     for label in sorted(drop_counts):  # drop stages after the canonical path
         funnel.append({"stage": label, "count": drop_counts[label], "type": "dropped"})
@@ -810,13 +886,15 @@ def build_deals(records, generated=None, today=None):
                 **_period_block(records, fs)},
         "upcoming": build_upcoming(records, today, 20),
         "ranking": build_ranking(records, today),
-        "dateBasis": {"signings": "MA_Date", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
-                      "contracted": ("Contracted attributed to the LOI signing date for Spark "
-                                     "and the MA signing date for Olive/Open; FY = signed this "
-                                     "FY on that basis."),
+        "dateBasis": {"signings": "MA_Date (present, any stage)", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
+                      "signed": ("An MA is 'signed' iff it has a non-blank MA_Date, across ALL "
+                                 "stages; totals.signed, byBrand.signed, portfolio MA counts and "
+                                 "the signed-book TA fees all use this basis (CONFIRMED)."),
+                      "contracted": ("Ta_Fee_Contracted summed over MA_Date-present deals; FY = "
+                                     "those whose MA_Date falls in the current fiscal year."),
                       "collected": ("TA_fee_collected recorded on each Deal (Zoho Analytics "
-                                    "basis); FY windows use the contracted date: LOI signing "
-                                    "date for Spark, MA signing date for Olive/Open."),
+                                    "basis), summed over MA_Date-present deals; FY windows use "
+                                    "MA_Date in the current fiscal year."),
                       "collections": ("mtd/ytd collections + fees.cashReceivedBySchedule use "
                                       "TA_Schedule.Actual_Date (real per-payment date, incomplete)"),
                       "region": "BD owner -> bd_org region, State fallback"},
@@ -839,12 +917,12 @@ def build_deals(records, generated=None, today=None):
             "allTime": fees_all_block,
             "fy": fees_fy_block,
             "collectedBasis": ("Collected = the TA fee collected recorded on each Deal (matches "
-                               "the Zoho Analytics brand dashboards). Receivable = Contracted - "
-                               "Collected. FY windows use the contracted date: LOI signing date "
-                               "for Spark, MA signing date for Olive/Open."),
-            "contractedBasis": ("contracted = Ta_Fee_Contracted on MA-signed (any brand) + LOI-signed "
-                                "deals, attributed to a brand-specific date (Spark: LOI date, incl. "
-                                "for Spark MA; Olive/Open: MA_Date); FY = contracted this FY by it."),
+                               "the Zoho Analytics brand dashboards), summed over the signed book "
+                               "(deals with a non-blank MA_Date). Receivable = Contracted - "
+                               "Collected. FY windows use MA_Date in the current fiscal year."),
+            "contractedBasis": ("contracted = Ta_Fee_Contracted summed over the signed book = deals "
+                                "with a non-blank MA_Date (an MA is signed iff it has a signing "
+                                "date), any stage; FY = those whose MA_Date is in the current FY."),
             # SECONDARY, not the headline: cash matched to a real payment date via the
             # TA_Schedule subform. Populated on only ~57 deals, so it undercounts badly.
             "cashReceivedBySchedule": fees_all_block["cashReceivedBySchedule"],
