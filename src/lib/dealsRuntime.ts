@@ -270,7 +270,37 @@ function aggregate(filtered: DealRecord[], fallback: any) {
     }
   }
 
-  const total = signed + active + dropped;
+  // CONFIRMED CEO definition — a deal is "MA signed" iff it carries a signing
+  // date (non-blank maDate), NOT by its stage. The loop above tallied `signed`
+  // (plus byBrand[*].signed and the portfolio MA counts) from stageType==='won',
+  // which is the stale STAGE basis: it misses MA-dated deals now sitting in
+  // another stage (e.g. a Spark MA still at LOI Signed) and so drifts BELOW the
+  // unified figure the feed publishes as totals.signed / byBrand.signed /
+  // portfolio (oliveMA/sparkMA/openMA). Recompute those signing COUNTS here on
+  // the MA_Date basis over the SAME filtered records, so a filtered / region-
+  // scoped deal view uses the exact basis as the unfiltered feed aggregates
+  // (which the headline tiles already show). Mirrors pipeline/build_deals.py.
+  // Only the signing COUNT basis changes here; keys / fees / closers / funnel are
+  // left on the stage loop above, and `total` MUST stay stage-based so the
+  // MA_Date signed count (which can overlap open/dropped) is never double-counted.
+  const stageSigned = signed;
+  signed = 0;
+  portfolio.oliveMA = 0;
+  portfolio.sparkMA = 0;
+  portfolio.openMA = 0;
+  for (const b of Object.keys(byBrand)) byBrand[b].signed = 0;
+  for (const r of filtered) {
+    if (!r.maDate) continue; // signed iff it has a signing date (MA_Date basis)
+    signed += 1;
+    const brand = normBrand(r.brand);
+    if (!byBrand[brand]) byBrand[brand] = { deals: 0, signed: 0, keys: 0, feeContracted: 0, feeCollected: 0, feePending: 0 };
+    byBrand[brand].signed += 1;
+    if (brand === 'Olive') portfolio.oliveMA += 1;
+    else if (brand === 'Spark') portfolio.sparkMA += 1;
+    else if (brand === 'Open Hotels') portfolio.openMA += 1;
+  }
+
+  const total = stageSigned + active + dropped;
   const rate = (x: number) => (total ? Math.round((x / total) * 1000) / 10 : 0);
 
   const funnel: Array<{ stage: string; count: number; type: string; note?: string }> = [];
