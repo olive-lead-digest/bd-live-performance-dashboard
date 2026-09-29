@@ -598,7 +598,46 @@ def build_deals(records, generated=None, today=None):
     for r in records:
         canon = classify_stage(r.get("Stage"))
         if canon is None:
-            continue  # not a BD deal stage
+            # Not part of the BD pipeline funnel (e.g. a hospitality/HR stage). But
+            # if the deal carries a non-blank MA_Date it STILL belongs in the signed
+            # set (CONFIRMED CEO basis), so emit a minimal signed record here so a
+            # records-based recompute (client/Ask-AI) reaches the exact totals.signed.
+            # It contributes ONLY to the per-deal records[]; the stage loop's
+            # active/dropped/funnel/closers tallies stay untouched, and the MA_Date
+            # recompute below already owns this deal's signed count + fees.
+            if _pdate(r.get("MA_Date")) is not None:
+                keys, _ = keys_of(r)
+                brand = norm_brand(r.get("Brand"))
+                ptype = str(r.get("Property_Type") or "Unspecified").strip() or "Unspecified"
+                owner = _owner_name(r)
+                region = _deal_region(r)
+                ma_d = _pdate(r.get("MA_Date"))
+                exp_d = (_pdate(r.get("Expected_MA_Date"))
+                         or _pdate(r.get("Expected_Actual_LOI_Date"))
+                         or _pdate(r.get("Expected_LOI_Date")))
+                sign_d = _signing_date(r, STAGE_MA)   # signed -> brand-specific signing date
+                deal_records.append({
+                    "id": r.get("id"),
+                    "name": str(r.get("Deal_Name") or "").strip(),
+                    "brand": brand,
+                    "stage": STAGE_MA,
+                    "stageType": "won",
+                    "maDate": ma_d.isoformat() if ma_d else None,
+                    "expectedDate": exp_d.isoformat() if exp_d else None,
+                    "signingDate": sign_d.isoformat() if sign_d else None,
+                    "keys": keys,
+                    "feeContracted": round(_num(r.get("Ta_Fee_Contracted")), 2),
+                    "feeCollected": round(_num(r.get("TA_fee_collected")), 2),
+                    "feeCollectedActual": round(_num(r.get(COLLECTED_FIELD)), 2),
+                    "feePending": round(_num(r.get("Pending_TA_fee")), 2),
+                    "owner": owner,
+                    "region": region,
+                    "state": str(r.get("State") or "").strip(),
+                    "signingProbability": _prob_bucket(r.get("Signing_Probability")),
+                    "propertyType": ptype,
+                    "landStatus": norm_land_status(r.get("Land_Status")),
+                })
+            continue  # not a BD deal stage (excluded from the stage-based funnel loop)
         keys, keys_bad = keys_of(r)          # Keys field only; no No_of_keys fallback
         brand = norm_brand(r.get("Brand"))
         ptype = str(r.get("Property_Type") or "Unspecified").strip() or "Unspecified"
