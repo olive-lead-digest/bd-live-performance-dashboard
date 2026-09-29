@@ -137,7 +137,13 @@ export function signingsByOwner(deals?: { records?: any[] } | null): Record<stri
   for (const r of recs) {
     const owner = String(r?.owner || '').trim();
     if (!owner || EXCLUDE.has(owner.toLowerCase())) continue;
-    const isMA = r?.stageType === 'won';
+    // MA portion is on the MA_Date basis (a signing iff MA_Date is non-blank),
+    // matching totals.signed=166 rather than the stageType==='won' stage basis
+    // (which misses a Spark MA still sitting at LOI stage). Spark LOI signings are
+    // KEPT in this blended people-view total by design — it feeds the BD ranking,
+    // whose points intentionally credit Spark at LOI. The `|| isLOI` OR-dedupes a
+    // Spark deal that is both MA-dated and LOI-staged so it is counted once.
+    const isMA = !!(r?.maDate);
     const isLOI = r?.stage === 'LOI Signed';
     if (isMA || isLOI) out[owner] = (out[owner] || 0) + 1;
   }

@@ -196,7 +196,6 @@ function aggregate(filtered: DealRecord[], fallback: any) {
 
     if (r.stageType === 'won') {
       signed += 1;
-      keysAll += keys;
       stageCounts[STAGE_MA] = (stageCounts[STAGE_MA] || 0) + 1;
       byBrand[brand].signed += 1;
       const c = Number(r.feeContracted) || 0;
@@ -212,8 +211,9 @@ function aggregate(filtered: DealRecord[], fallback: any) {
       byBrand[brand].feePending += pd;
       if (!r.maDate) undated += 1;
       else if (fyStart && r.maDate >= fyStart) {
-        fySigned += 1;
-        keysFy += keys;
+        // FY signed COUNT + keys now move to the MA_Date recompute loop below (so a
+        // Spark MA still sitting at LOI stage is still counted this FY); only the FY
+        // fee AMOUNTS stay attributed here over the won set.
         feesFy.collectedActual += ca;
         feesFy.pending += pd;
       }
@@ -292,6 +292,15 @@ function aggregate(filtered: DealRecord[], fallback: any) {
   for (const r of filtered) {
     if (!r.maDate) continue; // signed iff it has a signing date (MA_Date basis)
     signed += 1;
+    // keysContracted / keysContractedFY and the FY signed COUNT ("MA signed this FY")
+    // also move onto the MA_Date basis here, mirroring pipeline/build_deals.py, so
+    // they never drift below the 166-basis signed count under a filtered view.
+    const kk = Number(r.keys) || 0;
+    keysAll += kk;
+    if (fyStart && r.maDate >= fyStart) {
+      fySigned += 1;
+      keysFy += kk;
+    }
     const brand = normBrand(r.brand);
     if (!byBrand[brand]) byBrand[brand] = { deals: 0, signed: 0, keys: 0, feeContracted: 0, feeCollected: 0, feePending: 0 };
     byBrand[brand].signed += 1;
