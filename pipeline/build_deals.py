@@ -545,6 +545,35 @@ def build_ranking(records, today):
     }
 
 
+def build_recent_signings(records, generated, limit=20):
+    """analyst — a small, NAMED list of the most recently signed deals so the Ask-AI
+    model can answer "what was the last signed property / name the last N signings".
+    "Signed" == a non-blank MA_Date (the CONFIRMED CEO basis), across ALL stages.
+    Sorted by MA signing date DESCENDING; capped at `limit` (~20) to keep the feed small.
+    Each item: dealName (Deal_Name), brand (normalized Olive/Spark/Open Hotels), region,
+    bd (owner), maDate (ISO), keys, taFee (Ta_Fee_Contracted, in rupees; a consumer can
+    format to Lakh). postDated=True flags a signing whose MA_Date is AFTER the feed's
+    `generated` date (a future-dated Zoho entry) so a consumer can caveat it."""
+    gen_date = _pdate(generated) or datetime.date.today()
+    out = []
+    for r in records:
+        d = _pdate(r.get("MA_Date"))
+        if d is None:
+            continue                                   # not signed (no signing date)
+        out.append({
+            "dealName": str(r.get("Deal_Name") or "").strip(),
+            "brand": norm_brand(r.get("Brand")),
+            "region": _deal_region(r),                  # owner -> org region, State fallback
+            "bd": _owner_name(r) or "Unassigned",
+            "maDate": d.isoformat(),
+            "keys": parse_keys(_keys_raw(r)) or 0,      # Keys. (Keys1)/legacy; range/blank -> 0
+            "taFee": round(_num(r.get("Ta_Fee_Contracted")), 2),   # contracted, rupees
+            "postDated": d > gen_date,                  # MA_Date after the feed's "as of" date
+        })
+    out.sort(key=lambda x: x["maDate"], reverse=True)
+    return out[:limit]
+
+
 def build_deals(records, generated=None, today=None):
     """Aggregate a list of Zoho Deal dicts into the deals.json feed."""
     generated = generated or datetime.datetime.now().isoformat(timespec="seconds")
@@ -924,6 +953,7 @@ def build_deals(records, generated=None, today=None):
         "ytd": {"fyStart": fs.isoformat(), "asOf": today.isoformat(),
                 **_period_block(records, fs)},
         "upcoming": build_upcoming(records, today, 20),
+        "recentSignings": build_recent_signings(records, generated, 20),
         "ranking": build_ranking(records, today),
         "dateBasis": {"signings": "MA_Date (present, any stage)", "loi": "Expected_Actual_LOI_Date/Expected_LOI_Date",
                       "signed": ("An MA is 'signed' iff it has a non-blank MA_Date, across ALL "
